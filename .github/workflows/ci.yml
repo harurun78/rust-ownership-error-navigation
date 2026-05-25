@@ -1,4 +1,4 @@
-name: Speckit CI
+name: CI
 
 on:
   push:
@@ -35,10 +35,8 @@ jobs:
       - name: Unit tests
         run: npm run test:run
 
-      - name: Check Spec Kit CLI
-        run: |
-          if command -v specify >/dev/null 2>&1; then
-            specify check
-          else
-            echo "Spec Kit CLI is not installed on this runner; skipping environment check."
-          fi
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Build
+        run: npm run build

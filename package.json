@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10.8.2",
   "bin": {
     "rust-ownership-report": "./dist/cli/main.js"
   },
@@ -12,7 +13,8 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --no-error-on-unmatched-pattern",
     "format:check": "prettier --check .",
     "test": "vitest",
-    "test:run": "vitest run --passWithNoTests"
+    "test:run": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --passWithNoTests \"test/**/*.integration.test.ts\""
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,78 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm: ci",
+      "type": "shell",
+      "command": "npm ci",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "npm: build",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "npm: type-check",
+      "type": "npm",
+      "script": "type-check",
+      "group": "test",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "npm: lint",
+      "type": "npm",
+      "script": "lint",
+      "group": "test",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "npm: format:check",
+      "type": "npm",
+      "script": "format:check",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "npm: test:run",
+      "type": "npm",
+      "script": "test:run",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "npm: test:integration",
+      "type": "npm",
+      "script": "test:integration",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "npm: verify",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "npm: lint",
+        "npm: format:check",
+        "npm: type-check",
+        "npm: test:run",
+        "npm: test:integration"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "serena: setup",
+      "type": "shell",
+      "command": "bash scripts/setup-serena.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "serena: version",
+      "type": "shell",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\" && serena --version",
+      "problemMatcher": []
+    }
+  ]
+}
