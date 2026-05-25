@@ -1,0 +1,88 @@
+name: "Spec Unit"
+description: "仕様ユニット単位の実装・検証 Issue"
+title: "[spec:<SPEC-ID>] "
+labels:
+  - spec
+body:
+  - type: input
+    id: spec_id
+    attributes:
+      label: Spec ID
+      description: "例: API-AUTH-001, CLI-PULL-001"
+      placeholder: "API-AUTH-001"
+    validations:
+      required: true
+
+  - type: input
+    id: spec_link
+    attributes:
+      label: Spec Link
+      description: "仕様書ファイルパスと見出し"
+      placeholder: "docs/specs/registry-api.md § 2.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: "この仕様ユニットが達成すべきこと（1–3 文）"
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: |
+        完了と見なすための条件をチェックリスト形式で記載する。
+        仕様書の該当セクションから転記または要約する。
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of Scope
+      description: "この Issue では対応しないことを明記する"
+      value: |
+        -
+    validations:
+      required: false
+
+  - type: textarea
+    id: impacted_areas
+    attributes:
+      label: Impacted Areas
+      description: |
+        影響を受けるモジュール・ファイル・他の spec-id を列挙する。
+        推定の場合は (inferred) を付ける。
+      value: |
+        **Modules:**
+        -
+
+        **Other Specs:**
+        -
+    validations:
+      required: false
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Tests
+      description: "追加または更新が必要なテストファイル・テスト観点"
+      value: |
+        - [ ]
+    validations:
+      required: false
+
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers / Dependencies
+      description: "先行して完了が必要な Issue や外部依存がある場合に記載する"
+    validations:
+      required: false

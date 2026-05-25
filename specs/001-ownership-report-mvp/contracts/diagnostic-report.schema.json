@@ -1,0 +1,348 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.local/rust-ownership-error-navigation/diagnostic-report.schema.json",
+    "title": "Rust Ownership Diagnostic Report",
+    "type": "object",
+    "required": [
+        "schemaVersion",
+        "input",
+        "summary",
+        "diagnostics"
+    ],
+    "properties": {
+        "schemaVersion": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "input": {
+            "type": "object",
+            "required": [
+                "path"
+            ],
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "commandFamily": {
+                    "type": "string",
+                    "const": "cargo-check-jsonl"
+                },
+                "rustcVersion": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "cargoVersion": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "summary": {
+            "type": "object",
+            "required": [
+                "totalDiagnostics",
+                "supportedDiagnostics",
+                "unsupportedDiagnostics"
+            ],
+            "properties": {
+                "totalDiagnostics": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "supportedDiagnostics": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "unsupportedDiagnostics": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": true
+        },
+        "diagnostics": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/diagnosticRecord"
+            }
+        }
+    },
+    "$defs": {
+        "confidence": {
+            "type": "string",
+            "enum": [
+                "high",
+                "medium",
+                "low"
+            ]
+        },
+        "evidence": {
+            "type": "object",
+            "required": [
+                "source",
+                "field"
+            ],
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "diagnostic_code",
+                        "rustc_primary_span",
+                        "rustc_span_label",
+                        "rustc_child_diagnostic",
+                        "rustc_suggestion",
+                        "rustc_span_text",
+                        "rustc_expansion",
+                        "heuristic"
+                    ]
+                },
+                "field": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "diagnosticSpan": {
+            "type": "object",
+            "required": [
+                "id",
+                "diagnosticId",
+                "role",
+                "file",
+                "lineStart",
+                "lineEnd",
+                "columnStart",
+                "columnEnd",
+                "isPrimary",
+                "hasExpansion",
+                "evidence",
+                "confidence"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "diagnosticId": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "conflict",
+                        "cause",
+                        "context",
+                        "possible_fix",
+                        "unknown"
+                    ]
+                },
+                "file": {
+                    "type": "string"
+                },
+                "lineStart": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "lineEnd": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "columnStart": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "columnEnd": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "byteStart": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "byteEnd": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "isPrimary": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "snippet": {
+                    "type": "string"
+                },
+                "suggestedReplacement": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "suggestionApplicability": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "hasExpansion": {
+                    "type": "boolean"
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/evidence"
+                    }
+                },
+                "confidence": {
+                    "$ref": "#/$defs/confidence"
+                }
+            },
+            "additionalProperties": false
+        },
+        "ownershipEvent": {
+            "type": "object",
+            "required": [
+                "id",
+                "diagnosticId",
+                "kind",
+                "role",
+                "spanId",
+                "message",
+                "evidence",
+                "confidence"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "diagnosticId": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "declare",
+                        "move",
+                        "move_out",
+                        "copy",
+                        "borrow_shared",
+                        "borrow_mut",
+                        "borrow_mut_request",
+                        "assign",
+                        "temporary",
+                        "escape",
+                        "closure_capture",
+                        "partial_move",
+                        "receiver_move",
+                        "implicit_into_iter",
+                        "async_send_boundary",
+                        "static_requirement",
+                        "use",
+                        "drop",
+                        "conflict",
+                        "possible_fix",
+                        "context",
+                        "unknown"
+                    ]
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "conflict",
+                        "cause",
+                        "context",
+                        "possible_fix",
+                        "unknown"
+                    ]
+                },
+                "place": {
+                    "type": "string"
+                },
+                "spanId": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/evidence"
+                    }
+                },
+                "confidence": {
+                    "$ref": "#/$defs/confidence"
+                }
+            },
+            "additionalProperties": false
+        },
+        "diagnosticRecord": {
+            "type": "object",
+            "required": [
+                "id",
+                "supported",
+                "message",
+                "spans"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "supported": {
+                    "type": "boolean"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "spans": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/diagnosticSpan"
+                    }
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/ownershipEvent"
+                    }
+                },
+                "rendered": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "unsupportedReason": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

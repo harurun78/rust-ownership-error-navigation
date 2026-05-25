@@ -1,0 +1,26 @@
+{
+  "name": "rust-ownership-error-navigation",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "stable"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "postCreateCommand": "npm ci",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "vitest.explorer",
+        "rust-lang.rust-analyzer"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

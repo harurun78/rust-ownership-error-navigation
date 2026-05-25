@@ -1,0 +1,11 @@
+dist
+coverage
+node_modules
+.github
+.specify
+.vscode
+docs
+specs
+tasks
+test/fixtures/diagnostics
+README.md

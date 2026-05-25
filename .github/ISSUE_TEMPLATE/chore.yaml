@@ -1,0 +1,48 @@
+name: "Chore / Maintenance"
+description: "仕様に関係しない技術的改善・メンテナンス Issue"
+title: "[chore] "
+labels:
+  - chore
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: "何を改善・修正するか（1–3 文）"
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: "なぜこの作業が必要か（CI 失敗、技術的負債、DX 改善など）"
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: "具体的な作業項目をチェックリスト形式で記載する"
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of Scope
+      description: "この Issue では対応しないことを明記する"
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: "参考情報、関連 Issue、補足事項"
+    validations:
+      required: false

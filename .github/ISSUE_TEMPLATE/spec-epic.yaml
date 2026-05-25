@@ -1,0 +1,46 @@
+name: "Spec Epic"
+description: "複数の spec-unit をまとめる Epic Issue"
+title: "[epic] "
+labels:
+  - epic
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Epic Purpose
+      description: "この Epic が達成する目的（1–3 文）"
+    validations:
+      required: true
+
+  - type: textarea
+    id: spec_units
+    attributes:
+      label: Included Spec Units
+      description: |
+        この Epic に含まれる spec-unit Issue をリスト形式で記載する。
+        Issue が未作成の場合は spec-id のみ記載し、作成後にリンクへ置換する。
+      value: |
+        - [ ] #<issue> `<SPEC-ID>` — <title>
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: done_criteria
+    attributes:
+      label: Done Criteria
+      description: "全 spec-unit の完了以外に Epic として確認すべき条件があれば記載する"
+      value: |
+        - [ ] 含まれる全 spec-unit Issue が closed
+        - [ ] 統合テストがパス
+        - [ ] spec-index.md が最新
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: "他の Epic や外部要因への依存があれば記載する"
+    validations:
+      required: false

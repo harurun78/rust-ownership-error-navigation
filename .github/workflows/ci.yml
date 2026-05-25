@@ -1,0 +1,44 @@
+name: Speckit CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Unit tests
+        run: npm run test:run
+
+      - name: Check Spec Kit CLI
+        run: |
+          if command -v specify >/dev/null 2>&1; then
+            specify check
+          else
+            echo "Spec Kit CLI is not installed on this runner; skipping environment check."
+          fi
