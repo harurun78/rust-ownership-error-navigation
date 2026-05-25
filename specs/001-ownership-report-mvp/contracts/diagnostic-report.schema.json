@@ -325,6 +325,12 @@
                         "$ref": "#/$defs/diagnosticSpan"
                     }
                 },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/diagnosticChild"
+                    }
+                },
                 "events": {
                     "type": "array",
                     "items": {
@@ -339,6 +345,46 @@
                 },
                 "unsupportedReason": {
                     "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "diagnosticChild": {
+            "type": "object",
+            "required": [
+                "message",
+                "spans"
+            ],
+            "properties": {
+                "code": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "level": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "spans": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/diagnosticSpan"
+                    }
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/diagnosticChild"
+                    }
+                },
+                "rendered": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
             "additionalProperties": false

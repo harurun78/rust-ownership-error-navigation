@@ -117,7 +117,7 @@ Rust 中級者として、E0499 / E0502 が出たときに、最初の borrow �
 
 - Initial implementation is TypeScript / Node.js with `npm`.
 - Input JSONL is produced by `cargo check --message-format json`.
-- Fixture corpus is stored as reference material under `ideas/draft/rust-ownership-error-navigation/references/diagnostics/` until copied into an implementation repository.
+- Fixture corpus is stored in this repository under `test/fixtures/diagnostics/` and remains compatibility evidence, not the only source of normative behavior.
 - Phase 1 is a CLI and static HTML report, not a VS Code extension.
 - HTML can be opened as a static file and does not require a dev server.
 

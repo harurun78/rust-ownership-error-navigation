@@ -1,23 +1,23 @@
 # Quickstart: Rust Ownership Diagnostic Report MVP
 
-This quickstart describes the intended implementation repository workflow. This spec repository does not contain implementation code.
+This quickstart describes the workflow for this repository, which stores both the feature specification and the Phase 1 TypeScript implementation.
 
 ## 1. Prepare fixture input
 
-Use reference JSONL from the specnote idea corpus or regenerate it with Docker.
+Use the reference JSONL fixtures committed in this repository or regenerate them with Docker.
 
 Reference files:
 
-- `ideas/draft/rust-ownership-error-navigation/references/diagnostics/ownership-baseline-2026-05-24.jsonl`
-- `ideas/draft/rust-ownership-error-navigation/references/diagnostics/ownership-followup-2026-05-25.jsonl`
-- `ideas/draft/rust-ownership-error-navigation/references/diagnostics/ownership-advanced-2026-05-25.jsonl`
-- `ideas/draft/rust-ownership-error-navigation/references/diagnostics/rustc-non-ownership-smoke-2026-05-25.jsonl`
+- `test/fixtures/diagnostics/ownership-baseline-2026-05-24.jsonl`
+- `test/fixtures/diagnostics/ownership-followup-2026-05-25.jsonl`
+- `test/fixtures/diagnostics/ownership-advanced-2026-05-25.jsonl`
+- `test/fixtures/diagnostics/rustc-non-ownership-smoke-2026-05-25.jsonl`
 
 ## 2. Run CLI on Phase 1 fixture
 
 ```sh
 rust-ownership-report \
-  --input fixtures/ownership-baseline-2026-05-24.jsonl \
+  --input test/fixtures/diagnostics/ownership-baseline-2026-05-24.jsonl \
   --json-out out/ownership-report.json \
   --html-out out/ownership-report.html
 ```
@@ -33,7 +33,7 @@ Expected result:
 
 ```sh
 rust-ownership-report \
-  --input fixtures/ownership-followup-2026-05-25.jsonl \
+  --input test/fixtures/diagnostics/ownership-followup-2026-05-25.jsonl \
   --json-out out/followup-report.json \
   --html-out out/followup-report.html
 ```

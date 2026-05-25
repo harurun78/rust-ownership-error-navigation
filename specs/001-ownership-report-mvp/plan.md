@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `specs/001-ownership-report-mvp/spec.md`
 
-**Note**: This plan is created from the speckit scaffold and filled for a spec-only repository. Implementation code is not stored in this repository.
+**Note**: This plan targets the current repository as both the specification repository and the Phase 1 implementation repository.
 
 ## Summary
 
@@ -12,7 +12,7 @@ Build a TypeScript / Node.js CLI that reads Cargo JSONL diagnostics, maps Phase 
 
 ## Technical Context
 
-**Language/Version**: TypeScript on Node.js LTS; exact Node version to be fixed in implementation repository.
+**Language/Version**: TypeScript on Node.js 20 LTS with npm.
 
 **Primary Dependencies**: Minimal Node CLI stack. JSONL parsing can use standard Node streams; HTML rendering should start with local template/string rendering before adding dependencies.
 
@@ -57,7 +57,7 @@ specs/001-ownership-report-mvp/
     └── diagnostic-report.schema.json
 ```
 
-### Source Code (implementation repository)
+### Source Code (this repository)
 
 ```text
 src/

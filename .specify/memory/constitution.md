@@ -29,7 +29,7 @@ Phase 1 must operate on local JSONL input files and produce JSON / static HTML o
 - Phase 1 supported mapping targets: E0382 / E0499 / E0502.
 - Compatibility corpus: follow-up ownership, advanced async/desugaring, and non-ownership compiler smoke JSONL fixtures.
 - Phase 1 output artifacts: event JSON and static HTML report.
-- Current repository stores specifications only. Implementation code must live in an exported or separate implementation repository.
+- Current repository stores both specifications and Phase 1 implementation code. Implementation tasks may target root-level `src/`, `test/`, `examples/`, and package configuration files in this repository.
 
 ## Development Workflow
 
@@ -43,4 +43,4 @@ Phase 1 must operate on local JSONL input files and produce JSON / static HTML o
 
 This constitution governs speckit specs for the Rust Ownership Error Navigation project. Changes that expand Phase 1 mapping scope, introduce new input command families, or couple reporter-specific views into the event model require an explicit specification update and rationale.
 
-**Version**: 0.1.0 | **Ratified**: 2026-05-25 | **Last Amended**: 2026-05-25
+**Version**: 0.1.1 | **Ratified**: 2026-05-25 | **Last Amended**: 2026-05-25

@@ -43,6 +43,27 @@
 - 開発サイクル: `.github/instructions/dev-cycle.instructions.md`
 - 初期セットアップ: `.github/instructions/bootstrap.instructions.md`
 
+<!-- SPECKIT START -->
+## 実装計画
+
+現在の実装計画: [specs/001-ownership-report-mvp/plan.md](../specs/001-ownership-report-mvp/plan.md)
+
+**Feature**: Rust Ownership Diagnostic Report MVP
+**Branch**: `001-ownership-report-mvp` (仕様ブランチ名、実装は main)
+**Status**: Phase 0 Research 完了、Phase 1 Design 完了、実装開始前
+
+**重要な参照**:
+- 仕様: [specs/001-ownership-report-mvp/spec.md](../specs/001-ownership-report-mvp/spec.md)
+- データモデル: [specs/001-ownership-report-mvp/data-model.md](../specs/001-ownership-report-mvp/data-model.md)
+- タスク: [specs/001-ownership-report-mvp/tasks.md](../specs/001-ownership-report-mvp/tasks.md)
+- 契約: [specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json](../specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json)
+- クイックスタート: [specs/001-ownership-report-mvp/quickstart.md](../specs/001-ownership-report-mvp/quickstart.md)
+
+**Phase 1 Scope**: E0382 / E0499 / E0502 所有権診断マッピングのみ
+**出力形式**: JSON レポート + 静的 HTML レポート
+**非目標**: clippy, rust-analyzer, VS Code 拡張機能, 自動修正適用
+<!-- SPECKIT END -->
+
 ## サブエージェント一覧
 
 以下のエージェントが `.github/agents/` に定義されている。タスクに応じて使い分けること。
