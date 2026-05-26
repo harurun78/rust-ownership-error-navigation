@@ -26,3 +26,11 @@
 - 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
 - 結果: すべて成功。unit/integration は 8 files / 18 tests passed、integration 専用は 1 file / 1 test passed。
 - 次: T028-T036（US2 E0499/E0502 borrow conflict mapping）
+
+## 2026-05-26 US2 borrow conflicts slice
+
+- 完了: T028-T036（E0499/E0502 mapper、borrow conflict integration、HTML causal ordering、multi-diagnostic summary）
+- 対応 Issue: #17, #18, #19, #20, #21, #22, #23, #24, #25
+- 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
+- 結果: すべて成功。unit/integration は 12 files / 22 tests passed、integration 専用は 2 files / 2 tests passed。
+- 次: T037-T045（US3 unsupported diagnostics compatibility）

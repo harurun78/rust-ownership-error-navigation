@@ -1,5 +1,7 @@
 import type { DiagnosticRecord } from './ownership-event.js';
 import { mapE0382Diagnostic } from './e0382.js';
+import { mapE0499Diagnostic } from './e0499.js';
+import { mapE0502Diagnostic } from './e0502.js';
 
 export const SUPPORTED_DIAGNOSTIC_CODES = ['E0382', 'E0499', 'E0502'] as const;
 
@@ -17,8 +19,8 @@ export function isSupportedDiagnosticCode(
 
 export const defaultMapperRegistry: MapperRegistry = {
   E0382: mapE0382Diagnostic,
-  E0499: markSupportedDiagnostic,
-  E0502: markSupportedDiagnostic
+  E0499: mapE0499Diagnostic,
+  E0502: mapE0502Diagnostic
 };
 
 export function mapDiagnostic(
@@ -45,14 +47,6 @@ export function createUnsupportedDiagnosticRecord(diagnostic: DiagnosticRecord):
     supported: false,
     events: diagnostic.events ?? [],
     unsupportedReason: diagnostic.unsupportedReason ?? unsupportedReasonForCode(diagnostic.code)
-  };
-}
-
-function markSupportedDiagnostic(diagnostic: DiagnosticRecord): DiagnosticRecord {
-  return {
-    ...diagnostic,
-    supported: true,
-    events: diagnostic.events ?? []
   };
 }
 

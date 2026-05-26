@@ -85,18 +85,18 @@
 
 ### Tests for User Story 2
 
-- [ ] T028 [P] [US2] Add E0499 mapper tests for first mutable borrow cause, second mutable borrow conflict, later use context, evidence, and confidence in test/mapper/e0499.test.ts
-- [ ] T029 [P] [US2] Add E0502 mapper tests for immutable borrow cause, mutable borrow conflict, later immutable use context, evidence, and confidence in test/mapper/e0502.test.ts
-- [ ] T030 [P] [US2] Add borrow-conflict CLI integration test for E0499 and E0502 JSON/HTML output in test/integration/borrow-conflicts.integration.test.ts
-- [ ] T031 [P] [US2] Add HTML reporter snapshot test for causal ordering of borrow conflict events in test/reporter/html-reporter.borrow-conflicts.test.ts
+- [x] T028 [P] [US2] Add E0499 mapper tests for first mutable borrow cause, second mutable borrow conflict, later use context, evidence, and confidence in test/mapper/e0499.test.ts
+- [x] T029 [P] [US2] Add E0502 mapper tests for immutable borrow cause, mutable borrow conflict, later immutable use context, evidence, and confidence in test/mapper/e0502.test.ts
+- [x] T030 [P] [US2] Add borrow-conflict CLI integration test for E0499 and E0502 JSON/HTML output in test/integration/borrow-conflicts.integration.test.ts
+- [x] T031 [P] [US2] Add HTML reporter snapshot test for causal ordering of borrow conflict events in test/reporter/html-reporter.borrow-conflicts.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Implement E0499 span role classification and ownership event mapping in src/mapper/e0499.ts
-- [ ] T033 [US2] Implement E0502 span role classification and ownership event mapping in src/mapper/e0502.ts
-- [ ] T034 [US2] Register E0499 and E0502 mappers in src/mapper/index.ts
-- [ ] T035 [US2] Update HTML reporter event ordering for cause, conflict, context, and possible_fix in src/reporter/html-reporter.ts
-- [ ] T036 [US2] Update JSON reporter summary counts for multiple supported diagnostics in src/reporter/json-reporter.ts
+- [x] T032 [US2] Implement E0499 span role classification and ownership event mapping in src/mapper/e0499.ts
+- [x] T033 [US2] Implement E0502 span role classification and ownership event mapping in src/mapper/e0502.ts
+- [x] T034 [US2] Register E0499 and E0502 mappers in src/mapper/index.ts
+- [x] T035 [US2] Update HTML reporter event ordering for cause, conflict, context, and possible_fix in src/reporter/html-reporter.ts
+- [x] T036 [US2] Update JSON reporter summary counts for multiple supported diagnostics in src/reporter/json-reporter.ts
 
 **Checkpoint**: User Stories 1 and 2 both work independently against the baseline fixture.
 

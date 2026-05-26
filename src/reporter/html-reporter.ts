@@ -63,7 +63,7 @@ function renderSummary(report: DiagnosticReport): string {
 
 function renderCausalityTimeline(diagnostics: readonly DiagnosticRecord[]): string {
   const rows = diagnostics.flatMap((diagnostic) =>
-    (diagnostic.events ?? []).map(
+    orderEvents(diagnostic.events ?? []).map(
       (event) =>
         `<tr id="${stableId('event', [event.id])}"><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(event.role)}</td><td>${escapeHtml(event.kind)}</td><td>${escapeHtml(event.message)}</td><td>${escapeHtml(event.spanId)}</td></tr>`
     )
@@ -76,6 +76,25 @@ function renderCausalityTimeline(diagnostics: readonly DiagnosticRecord[]): stri
 		<tbody>${rows.join('\n') || '<tr><td colspan="5">No events</td></tr>'}</tbody>
 	</table>
 </section>`;
+}
+
+function orderEvents(events: readonly OwnershipEvent[]): OwnershipEvent[] {
+  return [...events].sort((left, right) => rolePriority(left.role) - rolePriority(right.role));
+}
+
+function rolePriority(role: string): number {
+  switch (role) {
+    case 'cause':
+      return 1;
+    case 'conflict':
+      return 2;
+    case 'context':
+      return 3;
+    case 'possible_fix':
+      return 4;
+    default:
+      return 99;
+  }
 }
 
 function renderSourceSpans(diagnostics: readonly DiagnosticRecord[]): string {
