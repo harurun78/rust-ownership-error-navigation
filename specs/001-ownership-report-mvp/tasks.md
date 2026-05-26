@@ -40,11 +40,11 @@
 - [x] T009 [P] Add fixture loading helpers for JSONL diagnostics in test/helpers/diagnostic-fixtures.ts
 - [x] T010 [P] Add parser unit tests for compiler-message extraction and non-compiler-message skipping in test/parser/cargo-message-parser.test.ts
 - [x] T011 Implement JSONL parser with malformed-line errors that include line numbers in src/parser/cargo-message-parser.ts
-- [ ] T012 [P] Add diagnostic normalization tests for code, level, message, spans, children, rendered, and 1-based locations in test/diagnostics/normalizer.test.ts
-- [ ] T013 Implement rustc diagnostic and span normalization in src/diagnostics/normalizer.ts
-- [ ] T014 Implement mapper registry for E0382, E0499, E0502, and unsupported fallback dispatch in src/mapper/index.ts
-- [ ] T015 [P] Add shared HTML escaping and stable ID helper tests in test/reporter/reporter-utils.test.ts
-- [ ] T016 Implement shared reporter utilities for HTML escaping, stable IDs, and summary counts in src/reporter/reporter-utils.ts
+- [x] T012 [P] Add diagnostic normalization tests for code, level, message, spans, children, rendered, and 1-based locations in test/diagnostics/normalizer.test.ts
+- [x] T013 Implement rustc diagnostic and span normalization in src/diagnostics/normalizer.ts
+- [x] T014 Implement mapper registry for E0382, E0499, E0502, and unsupported fallback dispatch in src/mapper/index.ts
+- [x] T015 [P] Add shared HTML escaping and stable ID helper tests in test/reporter/reporter-utils.test.ts
+- [x] T016 Implement shared reporter utilities for HTML escaping, stable IDs, and summary counts in src/reporter/reporter-utils.ts
 
 **Checkpoint**: Parser, normalized diagnostic model, mapper dispatch, and shared reporter utilities are ready for user stories.
 
