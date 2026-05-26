@@ -46,6 +46,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: iteration-002 should add partial multibulk input tests and retain parser state across incomplete frames.
 
+### iteration-002
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R025-R028 partial RESP2 multibulk input, parser state retention tests, diagnostic capture, ownership reports, and ledger updates.
+- Prompt summary: Add tests for command frames split across multiple append calls plus incomplete multibulk length, bulk length, and bulk payload states; preserve parser state until frames are complete; capture cargo diagnostics and generate reports without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt -- --check && cargo check --message-format=json > ../reports/iteration-002/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-002/cargo-check.jsonl --json-out ../reports/iteration-002/ownership-report.json --html-out ../reports/iteration-002/ownership-report.html`
+- Result: compile success; test success, 8 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-002/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-002/ownership-report.json`
+- Ownership report HTML: `reports/iteration-002/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none; no new clones, shared mutability, or unsafe introduced
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: iteration-003 should add multiple-command extraction and buffer compaction tests.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.

@@ -35,10 +35,10 @@
 
 ## Phase 4: Partial Input And State Retention
 
-- [ ] R025 Add tests for command frames split across multiple `append` calls.
-- [ ] R026 Add tests for incomplete multibulk length, bulk length, and bulk payload states.
-- [ ] R027 Preserve parser state without producing a command until complete.
-- [ ] R028 Save and report diagnostics for iteration-002.
+- [x] R025 Add tests for command frames split across multiple `append` calls.
+- [x] R026 Add tests for incomplete multibulk length, bulk length, and bulk payload states.
+- [x] R027 Preserve parser state without producing a command until complete.
+- [x] R028 Save and report diagnostics for iteration-002.
 
 ## Phase 5: Multiple Commands And Buffer Compaction
 
