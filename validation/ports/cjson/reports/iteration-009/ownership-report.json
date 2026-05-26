@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "../reports/iteration-009/cargo-check.jsonl"
+  },
+  "summary": {
+    "totalDiagnostics": 0,
+    "supportedDiagnostics": 0,
+    "unsupportedDiagnostics": 0
+  },
+  "diagnostics": []
+}

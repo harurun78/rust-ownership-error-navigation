@@ -164,3 +164,16 @@
 - [x] C121 Generate `reports/iteration-008/ownership-report.html`.
 - [x] C122 Record iteration-008 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] C123 Run final `cargo test` in `rust-port/`.
+
+## Phase 15: Path-Based Detach And Delete
+
+- [x] C124 Add tests for detaching nested array items by path and returning owned values.
+- [x] C125 Add tests for detaching nested object members by path and returning owned values.
+- [x] C126 Add tests for missing parent paths, missing terminal items, empty paths, and non-container parents.
+- [x] C127 Implement path-based detach/delete helper without broad shared mutability.
+- [x] C128 Preserve existing path lookup, path replacement, and top-level detach behavior.
+- [x] C129 Save `cargo check --message-format=json` output to `reports/iteration-009/cargo-check.jsonl`.
+- [x] C130 Generate `reports/iteration-009/ownership-report.json`.
+- [x] C131 Generate `reports/iteration-009/ownership-report.html`.
+- [x] C132 Record iteration-009 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C133 Run final `cargo test` in `rust-port/`.

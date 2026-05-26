@@ -124,3 +124,10 @@
 - 追加: insignificant whitespace removal、string preservation、line/block comments、unterminated string/comment tests を追加。
 - 保存: `reports/iteration-008/` に cargo JSONL、ownership JSON/HTML、notes を保存。
 - 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 46 tests passed。
+
+## 2026-05-26 cJSON low-cost iteration-009
+
+- 対応: path-based detach/delete helper を `GPT-5 mini (copilot)` で実装。
+- 追加: nested array/object detach、missing terminal、missing parent、empty path、container mismatch tests を追加。
+- 保存: `reports/iteration-009/` に cargo JSONL、ownership JSON/HTML、notes を保存。
+- 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 51 tests passed。

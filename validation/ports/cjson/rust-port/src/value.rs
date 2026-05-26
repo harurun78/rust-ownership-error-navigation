@@ -16,6 +16,8 @@ pub enum JsonPathSegment<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum JsonEditError {
+    EmptyPath,
+    MissingPath,
     NotArray,
     NotObject,
 }
@@ -347,6 +349,24 @@ impl JsonValue {
     ) -> Option<JsonValue> {
         self.get_path_mut(path)
             .map(|target| std::mem::replace(target, value))
+    }
+
+    pub fn detach_at_path(
+        &mut self,
+        path: &[JsonPathSegment<'_>],
+    ) -> Result<Option<JsonValue>, JsonEditError> {
+        let Some((terminal, parent_path)) = path.split_last() else {
+            return Err(JsonEditError::EmptyPath);
+        };
+
+        let parent = self
+            .get_path_mut(parent_path)
+            .ok_or(JsonEditError::MissingPath)?;
+
+        match terminal {
+            JsonPathSegment::Index(index) => parent.detach_array_item(*index),
+            JsonPathSegment::Key(key) => parent.detach_object_member(key),
+        }
     }
 }
 

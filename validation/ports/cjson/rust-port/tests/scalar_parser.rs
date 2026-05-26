@@ -372,6 +372,77 @@ fn reports_non_container_paths_without_mutating() {
 }
 
 #[test]
+fn detaches_nested_array_items_by_path() {
+    let mut value = parse_scalar(r#"{"items":["first","second","third"]}"#).unwrap();
+
+    assert_eq!(
+        value.detach_at_path(&[Key("items"), Index(1)]),
+        Ok(Some(JsonValue::String(String::from("second"))))
+    );
+    assert_eq!(
+        value.get_path(&[Key("items")]),
+        Some(&JsonValue::Array(vec![
+            JsonValue::String(String::from("first")),
+            JsonValue::String(String::from("third")),
+        ]))
+    );
+}
+
+#[test]
+fn detaches_nested_object_members_by_path() {
+    let mut value = parse_scalar(r#"{"meta":{"keep":true,"take":7}}"#).unwrap();
+
+    assert_eq!(
+        value.detach_at_path(&[Key("meta"), Key("take")]),
+        Ok(Some(JsonValue::Number(7.0)))
+    );
+    assert_eq!(
+        value.get_path(&[Key("meta")]),
+        Some(&JsonValue::Object(vec![(
+            String::from("keep"),
+            JsonValue::Bool(true)
+        )]))
+    );
+}
+
+#[test]
+fn reports_missing_terminal_items_for_path_detach() {
+    let mut value = parse_scalar(r#"{"items":[null],"meta":{}}"#).unwrap();
+
+    assert_eq!(value.detach_at_path(&[Key("items"), Index(3)]), Ok(None));
+    assert_eq!(
+        value.detach_at_path(&[Key("meta"), Key("missing")]),
+        Ok(None)
+    );
+}
+
+#[test]
+fn rejects_missing_parent_and_empty_path_for_detach() {
+    let mut value = parse_scalar(r#"{"items":[null]}"#).unwrap();
+
+    assert_eq!(
+        value.detach_at_path(&[Key("missing"), Index(0)]),
+        Err(JsonEditError::MissingPath)
+    );
+    assert_eq!(value.detach_at_path(&[]), Err(JsonEditError::EmptyPath));
+    assert_eq!(value.get_path(&[]), Some(&value));
+}
+
+#[test]
+fn rejects_non_container_parent_and_terminal_mismatch_for_detach() {
+    let mut value = parse_scalar(r#"{"items":[true],"meta":{}}"#).unwrap();
+
+    assert_eq!(
+        value.detach_at_path(&[Key("items"), Index(0), Key("name")]),
+        Err(JsonEditError::NotObject)
+    );
+    assert_eq!(
+        value.detach_at_path(&[Key("meta"), Index(0)]),
+        Err(JsonEditError::NotArray)
+    );
+}
+
+#[test]
 fn prints_scalar_values_compactly() {
     assert_eq!(JsonValue::Null.to_compact_string(), "null");
     assert_eq!(JsonValue::Bool(true).to_compact_string(), "true");
