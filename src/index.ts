@@ -9,6 +9,7 @@ export * from './mapper/e0502.js';
 export * from './mapper/ownership-event.js';
 export * from './mapper/index.js';
 export * from './mapper/rustc-suggestions.js';
+export * from './mapper/unsupported.js';
 export * from './reporter/json-reporter.js';
 export * from './reporter/html-reporter.js';
 export * from './reporter/reporter-utils.js';

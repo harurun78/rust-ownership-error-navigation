@@ -34,3 +34,11 @@
 - 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
 - 結果: すべて成功。unit/integration は 12 files / 22 tests passed、integration 専用は 2 files / 2 tests passed。
 - 次: T037-T045（US3 unsupported diagnostics compatibility）
+
+## 2026-05-26 US3 unsupported diagnostics slice
+
+- 完了: T037-T045（compatibility fixtures、parser edge cases、malformed JSONL、unsupported fallback、JSON/HTML display-only output）
+- 対応 Issue: #26, #27, #28, #29, #30, #31, #32, #33, #35
+- 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
+- 結果: すべて成功。unit/integration は 16 files / 30 tests passed、integration 専用は 3 files / 6 tests passed。
+- 次: T046-T050（US4 Borrow Sheet）

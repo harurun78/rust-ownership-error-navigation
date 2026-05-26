@@ -2,6 +2,7 @@ import type { DiagnosticRecord } from './ownership-event.js';
 import { mapE0382Diagnostic } from './e0382.js';
 import { mapE0499Diagnostic } from './e0499.js';
 import { mapE0502Diagnostic } from './e0502.js';
+import { createUnsupportedDiagnosticRecord } from './unsupported.js';
 
 export const SUPPORTED_DIAGNOSTIC_CODES = ['E0382', 'E0499', 'E0502'] as const;
 
@@ -39,19 +40,4 @@ export function mapDiagnostics(
   registry: MapperRegistry = defaultMapperRegistry
 ): DiagnosticRecord[] {
   return diagnostics.map((diagnostic) => mapDiagnostic(diagnostic, registry));
-}
-
-export function createUnsupportedDiagnosticRecord(diagnostic: DiagnosticRecord): DiagnosticRecord {
-  return {
-    ...diagnostic,
-    supported: false,
-    events: diagnostic.events ?? [],
-    unsupportedReason: diagnostic.unsupportedReason ?? unsupportedReasonForCode(diagnostic.code)
-  };
-}
-
-function unsupportedReasonForCode(code: string | null | undefined): string {
-  return code === null || code === undefined
-    ? 'Diagnostic does not include a rustc error code.'
-    : `Diagnostic code ${code} is outside the Phase 1 ownership mapping scope.`;
 }

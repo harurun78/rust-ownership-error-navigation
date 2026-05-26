@@ -110,18 +110,18 @@
 
 ### Tests for User Story 3
 
-- [ ] T037 [P] [US3] Add compatibility integration tests for ownership-followup-2026-05-25.jsonl, ownership-advanced-2026-05-25.jsonl, and rustc-non-ownership-smoke-2026-05-25.jsonl in test/integration/unsupported-diagnostics.integration.test.ts
-- [ ] T038 [P] [US3] Add parser edge-case tests for null diagnostic code, empty children, missing primary span, null labels, macro expansion, and mixed Windows/POSIX paths in test/parser/edge-cases.test.ts
-- [ ] T039 [P] [US3] Add malformed JSONL error tests that assert line number reporting in test/parser/malformed-jsonl.test.ts
-- [ ] T040 [P] [US3] Add unsupported diagnostic reporter snapshot tests in test/reporter/unsupported-diagnostics.test.ts
+- [x] T037 [P] [US3] Add compatibility integration tests for ownership-followup-2026-05-25.jsonl, ownership-advanced-2026-05-25.jsonl, and rustc-non-ownership-smoke-2026-05-25.jsonl in test/integration/unsupported-diagnostics.integration.test.ts
+- [x] T038 [P] [US3] Add parser edge-case tests for null diagnostic code, empty children, missing primary span, null labels, macro expansion, and mixed Windows/POSIX paths in test/parser/edge-cases.test.ts
+- [x] T039 [P] [US3] Add malformed JSONL error tests that assert line number reporting in test/parser/malformed-jsonl.test.ts
+- [x] T040 [P] [US3] Add unsupported diagnostic reporter snapshot tests in test/reporter/unsupported-diagnostics.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T041 [US3] Implement unsupported diagnostic fallback record creation in src/mapper/unsupported.ts
-- [ ] T042 [US3] Preserve unsupported diagnostic code, message, spans, children, and rendered output in src/reporter/json-reporter.ts
-- [ ] T043 [US3] Render unsupported diagnostics display-only section in src/reporter/html-reporter.ts
-- [ ] T044 [US3] Ensure CLI exits successfully for unsupported diagnostics and exits nonzero for malformed JSONL in src/cli/main.ts
-- [ ] T045 [US3] Register unsupported fallback behavior in src/mapper/index.ts
+- [x] T041 [US3] Implement unsupported diagnostic fallback record creation in src/mapper/unsupported.ts
+- [x] T042 [US3] Preserve unsupported diagnostic code, message, spans, children, and rendered output in src/reporter/json-reporter.ts
+- [x] T043 [US3] Render unsupported diagnostics display-only section in src/reporter/html-reporter.ts
+- [x] T044 [US3] Ensure CLI exits successfully for unsupported diagnostics and exits nonzero for malformed JSONL in src/cli/main.ts
+- [x] T045 [US3] Register unsupported fallback behavior in src/mapper/index.ts
 
 **Checkpoint**: Compatibility fixtures parse and report without widening Phase 1 mapping scope.
 

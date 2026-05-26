@@ -27,6 +27,7 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 	${renderCausalityTimeline(report.diagnostics)}
 	${renderSourceSpans(report.diagnostics)}
 	${renderEvidence(report.diagnostics)}
+	${renderUnsupportedDiagnostics(report.diagnostics)}
 </body>
 </html>
 `;
@@ -132,4 +133,20 @@ function renderEvidenceRows(event: OwnershipEvent): string[] {
     (evidence) =>
       `<tr><td>${escapeHtml(event.kind)}</td><td>${escapeHtml(evidence.source)}</td><td>${escapeHtml(evidence.field)}</td><td>${escapeHtml(String(evidence.value ?? ''))}</td></tr>`
   );
+}
+
+function renderUnsupportedDiagnostics(diagnostics: readonly DiagnosticRecord[]): string {
+  const unsupportedDiagnostics = diagnostics.filter((diagnostic) => !diagnostic.supported);
+  const rows = unsupportedDiagnostics.map(
+    (diagnostic) =>
+      `<tr><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(diagnostic.message)}</td><td>${escapeHtml(diagnostic.unsupportedReason ?? '')}</td><td><pre>${escapeHtml(diagnostic.rendered ?? '')}</pre></td></tr>`
+  );
+
+  return `<section id="unsupported-diagnostics">
+	<h2>Unsupported Diagnostics</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Message</th><th>Reason</th><th>Rendered</th></tr></thead>
+		<tbody>${rows.join('\n') || '<tr><td colspan="4">No unsupported diagnostics</td></tr>'}</tbody>
+	</table>
+</section>`;
 }
