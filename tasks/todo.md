@@ -50,3 +50,11 @@
 - 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
 - 結果: すべて成功。unit/integration は 18 files / 32 tests passed、integration 専用は 3 files / 6 tests passed。
 - 次: T051-T056（contract validation、docs/examples、quickstart validation、final verification）
+
+## 2026-05-26 Polish and final verification
+
+- 完了: T051-T056（JSON schema validation、README usage、generated examples、quickstart docs/test、final verification）
+- 対応 Issue: #38, #41, #42, #43, #44, #45
+- 実行: `npm ci`, `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`, `npm run cli:verify`
+- 結果: すべて成功。unit/integration は 20 files / 34 tests passed、integration 専用は 4 files / 7 tests passed。
+- 補足: malformed JSONL の CLI test は期待通り stderr に parser error を出し、exit code 1 を返す。

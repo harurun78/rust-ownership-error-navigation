@@ -27,7 +27,7 @@ Expected result:
 - JSON report is created.
 - Static HTML report is created.
 - E0382 / E0499 / E0502 have ownership events.
-- Unsupported count is zero for the baseline fixture.
+- Unsupported count is 2 for the baseline fixture because rustc failure-note diagnostics are preserved display-only.
 
 ## 3. Run compatibility fixture checks
 
@@ -47,12 +47,10 @@ Expected result:
 ## 4. Validate JSON contract
 
 ```sh
-validate-json-schema \
-  specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json \
-  out/ownership-report.json
+npm run test:run -- test/reporter/diagnostic-report-schema.test.ts
 ```
 
-Tool choice is implementation-specific. The acceptance condition is contract conformance, not a specific validator.
+The project uses Ajv in tests to validate the generated report shape against `specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json`.
 
 ## 5. Inspect HTML
 
@@ -66,6 +64,18 @@ Required sections:
 - Evidence
 - Borrow Sheet
 - Unsupported Diagnostics, when applicable
+
+## Unsupported Diagnostics
+
+Phase 1 maps only E0382, E0499, and E0502. Other rustc diagnostics, warnings, failure notes, and null-code diagnostics remain in the JSON and HTML reports with `supported: false`, empty `events`, and an `unsupportedReason`.
+
+This display-only fallback intentionally does not infer ownership events for unsupported diagnostics. It keeps compatibility fixtures inspectable without widening the Phase 1 mapping scope.
+
+## Position Semantics
+
+Core report positions preserve rustc's 1-based `line_start`, `line_end`, `column_start`, and `column_end` values as `lineStart`, `lineEnd`, `columnStart`, and `columnEnd`.
+
+Future VS Code adapters should convert to VS Code's 0-based `Range` model at the adapter boundary, not in the parser, mapper, JSON reporter, or HTML reporter.
 
 ## Phase 1 Non-Goals
 

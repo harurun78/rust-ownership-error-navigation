@@ -152,12 +152,12 @@
 
 **Purpose**: Contract validation, quickstart verification, documentation, and final quality checks across all stories.
 
-- [ ] T051 [P] Add JSON schema contract validation tests against specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json in test/reporter/diagnostic-report-schema.test.ts
-- [ ] T052 [P] Add README CLI usage examples for baseline and compatibility fixture workflows in README.md
-- [ ] T053 [P] Add generated output examples for JSON and HTML reports in examples/ownership-report.json and examples/ownership-report.html
-- [ ] T054 [P] Document unsupported diagnostic behavior, Phase 1 mapping scope, and rustc 1-based positions versus future VS Code 0-based adapter conversion in docs/quickstart.md
-- [ ] T055 Add end-to-end quickstart validation test covering json-out, html-out, schema validation, and non-mutating behavior outside requested outputs in test/integration/quickstart.integration.test.ts
-- [ ] T056 Run npm ci, npm run lint, npm run format:check, npm run type-check, npm run test:run, npm run test:integration, and npm run build; record the result in tasks/todo.md
+- [x] T051 [P] Add JSON schema contract validation tests against specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json in test/reporter/diagnostic-report-schema.test.ts
+- [x] T052 [P] Add README CLI usage examples for baseline and compatibility fixture workflows in README.md
+- [x] T053 [P] Add generated output examples for JSON and HTML reports in examples/ownership-report.json and examples/ownership-report.html
+- [x] T054 [P] Document unsupported diagnostic behavior, Phase 1 mapping scope, and rustc 1-based positions versus future VS Code 0-based adapter conversion in docs/quickstart.md
+- [x] T055 Add end-to-end quickstart validation test covering json-out, html-out, schema validation, and non-mutating behavior outside requested outputs in test/integration/quickstart.integration.test.ts
+- [x] T056 Run npm ci, npm run lint, npm run format:check, npm run type-check, npm run test:run, npm run test:integration, and npm run build; record the result in tasks/todo.md
 
 ---
 
