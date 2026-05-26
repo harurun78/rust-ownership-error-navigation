@@ -5,8 +5,10 @@
 
 mod command;
 mod error;
+mod executor;
 mod parser;
 
 pub use command::Command;
 pub use error::RespError;
+pub use executor::{RedisMiniDb, RespReply};
 pub use parser::{ParseOutcome, RespCommandParser};

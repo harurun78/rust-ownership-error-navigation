@@ -70,3 +70,17 @@
 - [x] R045 Attempt to move owned byte ranges out of the parser buffer where practical.
 - [x] R046 Record shortcut pressure: `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and `unsafe`.
 - [x] R047 Save and report diagnostics for iteration-006.
+
+## Phase 9: Minimal String Command Executor
+
+- [x] R048 Add tests for RESP reply encoding: simple strings, bulk strings, null bulk strings, integers, and errors.
+- [x] R049 Add tests for `PING` and `ECHO` command execution.
+- [x] R050 Add tests for `SET`, `GET`, `DEL`, and `EXISTS` against an in-memory string DB.
+- [x] R051 Add tests for wrong arity and unknown command errors.
+- [x] R052 Implement a minimal command executor with owned byte-vector keys and values.
+- [x] R053 Preserve parser behavior and existing parser tests.
+- [x] R054 Save `cargo check --message-format=json` output to `reports/iteration-007/cargo-check.jsonl`.
+- [x] R055 Generate `reports/iteration-007/ownership-report.json`.
+- [x] R056 Generate `reports/iteration-007/ownership-report.html`.
+- [x] R057 Record iteration-007 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] R058 Run final `cargo test` in `rust-port/`.

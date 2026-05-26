@@ -1,4 +1,4 @@
-use rust_port::{Command, ParseOutcome, RespCommandParser, RespError};
+use rust_port::{Command, ParseOutcome, RedisMiniDb, RespCommandParser, RespError, RespReply};
 
 fn assert_incomplete(parser: &mut RespCommandParser) {
     assert_eq!(
@@ -37,6 +37,99 @@ fn assert_parse_error(frame: &[u8], expected: RespError) {
     let mut parser = RespCommandParser::new();
     parser.append(frame);
     assert_eq!(parser.parse_available(), Err(expected));
+}
+
+fn command(args: &[&[u8]]) -> Command {
+    Command::new(args.iter().map(|arg| arg.to_vec()).collect())
+}
+
+fn execute(db: &mut RedisMiniDb, args: &[&[u8]]) -> RespReply {
+    db.execute(command(args))
+}
+
+#[test]
+fn encodes_resp_replies() {
+    assert_eq!(RespReply::SimpleString("OK").encode(), b"+OK\r\n".to_vec());
+    assert_eq!(
+        RespReply::BulkString(b"hello\0world".to_vec()).encode(),
+        b"$11\r\nhello\0world\r\n".to_vec()
+    );
+    assert_eq!(RespReply::NullBulkString.encode(), b"$-1\r\n".to_vec());
+    assert_eq!(RespReply::Integer(42).encode(), b":42\r\n".to_vec());
+    assert_eq!(
+        RespReply::Error("ERR wrong number of arguments".to_string()).encode(),
+        b"-ERR wrong number of arguments\r\n".to_vec()
+    );
+}
+
+#[test]
+fn executes_ping_and_echo() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"PING"]),
+        RespReply::SimpleString("PONG")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"pInG", b"hello"]),
+        RespReply::BulkString(b"hello".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ECHO", b"hello world"]),
+        RespReply::BulkString(b"hello world".to_vec())
+    );
+}
+
+#[test]
+fn executes_set_get_del_and_exists() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"missing"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key", b"value\0bytes"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::BulkString(b"value\0bytes".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"missing", b"key"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DEL", b"missing", b"key"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn returns_wrong_arity_and_unknown_command_errors() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"PING", b"one", b"two"]),
+        RespReply::Error("ERR wrong number of arguments for 'ping' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ECHO"]),
+        RespReply::Error("ERR wrong number of arguments for 'echo' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key"]),
+        RespReply::Error("ERR wrong number of arguments for 'set' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"NOPE"]),
+        RespReply::Error("ERR unknown command 'NOPE'".to_string())
+    );
 }
 
 #[test]
