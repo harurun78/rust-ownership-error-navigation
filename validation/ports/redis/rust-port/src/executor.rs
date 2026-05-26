@@ -3,6 +3,8 @@ use std::time::{Duration, Instant};
 
 use crate::Command;
 
+const DATABASE_COUNT: usize = 16;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum RespReply {
     SimpleString(&'static str),
@@ -82,12 +84,37 @@ struct StreamEntry {
 }
 
 #[derive(Debug, Default)]
+struct DatabaseState {
+    values: HashMap<Vec<u8>, RedisValue>,
+    expires_at: HashMap<Vec<u8>, Instant>,
+    key_versions: HashMap<Vec<u8>, u64>,
+}
+
+#[derive(Debug)]
 pub struct RedisMiniDb {
     values: HashMap<Vec<u8>, RedisValue>,
     expires_at: HashMap<Vec<u8>, Instant>,
     key_versions: HashMap<Vec<u8>, u64>,
     watched_keys: HashMap<Vec<u8>, u64>,
     transaction_queue: Option<Vec<Command>>,
+    selected_db: usize,
+    databases: Vec<DatabaseState>,
+}
+
+impl Default for RedisMiniDb {
+    fn default() -> Self {
+        Self {
+            values: HashMap::new(),
+            expires_at: HashMap::new(),
+            key_versions: HashMap::new(),
+            watched_keys: HashMap::new(),
+            transaction_queue: None,
+            selected_db: 0,
+            databases: (0..DATABASE_COUNT)
+                .map(|_| DatabaseState::default())
+                .collect(),
+        }
+    }
 }
 
 impl RedisMiniDb {
@@ -105,6 +132,10 @@ impl RedisMiniDb {
             if kind.is_transaction_control() {
                 return self.execute_transaction_control(kind, command.args);
             }
+        }
+
+        if matches!(command_kind, Some(CommandKind::Select)) && self.transaction_queue.is_some() {
+            return RespReply::Error("ERR SELECT inside MULTI is not allowed".to_string());
         }
 
         if let Some(queue) = self.transaction_queue.as_mut() {
@@ -186,6 +217,8 @@ impl RedisMiniDb {
             CommandKind::RenameNx => self.execute_renamenx(args),
             CommandKind::Keys => self.execute_keys(args),
             CommandKind::Scan => self.execute_scan(args),
+            CommandKind::Select => self.execute_select(args),
+            CommandKind::DbSize => self.execute_dbsize(args),
             CommandKind::Multi
             | CommandKind::Exec
             | CommandKind::Discard
@@ -279,6 +312,49 @@ impl RedisMiniDb {
             }
             _ => wrong_arity("ping"),
         }
+    }
+
+    fn execute_select(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("select");
+        }
+
+        let Some(index) = parse_database_index(&args[0]) else {
+            return RespReply::Error("ERR invalid DB index".to_string());
+        };
+        if index >= DATABASE_COUNT {
+            return RespReply::Error("ERR invalid DB index".to_string());
+        }
+
+        self.swap_selected_database(index);
+        self.watched_keys.clear();
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_dbsize(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if !args.is_empty() {
+            return wrong_arity("dbsize");
+        }
+
+        self.remove_expired_keys();
+        RespReply::Integer(self.values.len() as i64)
+    }
+
+    fn swap_selected_database(&mut self, index: usize) {
+        if index == self.selected_db {
+            return;
+        }
+
+        self.databases[self.selected_db] = DatabaseState {
+            values: std::mem::take(&mut self.values),
+            expires_at: std::mem::take(&mut self.expires_at),
+            key_versions: std::mem::take(&mut self.key_versions),
+        };
+        let next = std::mem::take(&mut self.databases[index]);
+        self.values = next.values;
+        self.expires_at = next.expires_at;
+        self.key_versions = next.key_versions;
+        self.selected_db = index;
     }
 
     fn execute_set(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -1444,6 +1520,8 @@ enum CommandKind {
     RenameNx,
     Keys,
     Scan,
+    Select,
+    DbSize,
     Multi,
     Exec,
     Discard,
@@ -1515,6 +1593,8 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("RENAMENX", CommandCategory::Keyspace, CommandKind::RenameNx),
     command_spec("KEYS", CommandCategory::Keyspace, CommandKind::Keys),
     command_spec("SCAN", CommandCategory::Keyspace, CommandKind::Scan),
+    command_spec("SELECT", CommandCategory::Connection, CommandKind::Select),
+    command_spec("DBSIZE", CommandCategory::Keyspace, CommandKind::DbSize),
     command_spec("MULTI", CommandCategory::Transaction, CommandKind::Multi),
     command_spec("EXEC", CommandCategory::Transaction, CommandKind::Exec),
     command_spec(
@@ -1625,6 +1705,10 @@ fn parse_scan_index(value: &[u8]) -> Option<usize> {
         return None;
     }
     std::str::from_utf8(value).ok()?.parse::<usize>().ok()
+}
+
+fn parse_database_index(value: &[u8]) -> Option<usize> {
+    parse_scan_index(value)
 }
 
 fn integer_error() -> RespReply {

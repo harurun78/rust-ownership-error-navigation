@@ -269,10 +269,10 @@ The validation target is now expanded from a parser/executor experiment into a s
 
 ## Phase 23: Multi-Database Core
 
-- [ ] R196 Add DB index state and tests for `SELECT`, `DBSIZE`, and per-database key isolation.
-- [ ] R197 Move expiration, key versions, watched keys, and values into per-database state.
-- [ ] R198 Preserve transactions and WATCH semantics across selected DBs.
-- [ ] R199 Save diagnostics and reports for iteration-021.
+- [x] R196 Add DB index state and tests for `SELECT`, `DBSIZE`, and per-database key isolation.
+- [x] R197 Move expiration, key versions, watched keys, and values into per-database state.
+- [x] R198 Preserve transactions and WATCH semantics across selected DBs.
+- [x] R199 Save diagnostics and reports for iteration-021.
 
 ## Phase 24: RESP3 Protocol Surface
 

@@ -94,6 +94,14 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "keyspace"
     );
     assert_eq!(
+        command_metadata(b"select").unwrap().category.as_str(),
+        "connection"
+    );
+    assert_eq!(
+        command_metadata(b"dbsize").unwrap().category.as_str(),
+        "keyspace"
+    );
+    assert_eq!(
         command_metadata(b"multi").unwrap().category.as_str(),
         "transaction"
     );
@@ -200,6 +208,169 @@ fn executes_set_get_del_and_exists() {
     assert_eq!(
         execute(&mut db, &[b"GET", b"key"]),
         RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn select_and_dbsize_isolate_keys_per_database() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(execute(&mut db, &[b"DBSIZE"]), RespReply::Integer(0));
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key", b"db0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"DBSIZE"]), RespReply::Integer(1));
+
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(execute(&mut db, &[b"DBSIZE"]), RespReply::Integer(0));
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key", b"db1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::BulkString(b"db1".to_vec())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::BulkString(b"db0".to_vec())
+    );
+}
+
+#[test]
+fn dbsize_counts_only_non_expired_keys_in_selected_database() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"gone", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"kept", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"gone", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"DBSIZE"]), RespReply::Integer(1));
+
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"2"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"DBSIZE"]), RespReply::Integer(0));
+}
+
+#[test]
+fn select_rejects_invalid_database_indexes() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"15"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"16"]),
+        RespReply::Error("ERR invalid DB index".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"not-a-db"]),
+        RespReply::Error("ERR invalid DB index".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SELECT"]),
+        RespReply::Error("ERR wrong number of arguments for 'select' command".to_string())
+    );
+}
+
+#[test]
+fn scan_and_keys_operate_on_current_database_only() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"a", b"db0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"b", b"db1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"KEYS", b"*"]),
+        RespReply::Array(vec![RespReply::BulkString(b"b".to_vec())])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![RespReply::BulkString(b"b".to_vec())]),
+        ])
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"KEYS", b"*"]),
+        RespReply::Array(vec![RespReply::BulkString(b"a".to_vec())])
+    );
+}
+
+#[test]
+fn select_clears_watches_and_is_rejected_inside_multi() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"watched"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"changed"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SELECT", b"1"]),
+        RespReply::Error("ERR SELECT inside MULTI is not allowed".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"watched"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![RespReply::BulkString(b"changed".to_vec())])
     );
 }
 
