@@ -135,14 +135,14 @@
 
 ### Tests for User Story 4
 
-- [ ] T046 [P] [US4] Add Borrow Sheet HTML snapshot test for E0382 event JSON in test/reporter/borrow-sheet.e0382.test.ts
-- [ ] T047 [P] [US4] Add Rust event kind label preservation test for move, borrow_shared, borrow_mut, use, conflict, possible_fix, and context in test/reporter/borrow-sheet-labels.test.ts
+- [x] T046 [P] [US4] Add Borrow Sheet HTML snapshot test for E0382 event JSON in test/reporter/borrow-sheet.e0382.test.ts
+- [x] T047 [P] [US4] Add Rust event kind label preservation test for move, borrow_shared, borrow_mut, use, conflict, possible_fix, and context in test/reporter/borrow-sheet-labels.test.ts
 
 ### Implementation for User Story 4
 
-- [ ] T048 [US4] Implement Borrow Sheet row model generation in src/reporter/borrow-sheet.ts
-- [ ] T049 [US4] Integrate Borrow Sheet section into static HTML output in src/reporter/html-reporter.ts
-- [ ] T050 [US4] Export Borrow Sheet reporter helpers from src/index.ts
+- [x] T048 [US4] Implement Borrow Sheet row model generation in src/reporter/borrow-sheet.ts
+- [x] T049 [US4] Integrate Borrow Sheet section into static HTML output in src/reporter/html-reporter.ts
+- [x] T050 [US4] Export Borrow Sheet reporter helpers from src/index.ts
 
 **Checkpoint**: HTML report includes both causality and Borrow Sheet views for supported diagnostics.
 

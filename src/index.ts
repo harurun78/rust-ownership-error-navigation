@@ -12,4 +12,5 @@ export * from './mapper/rustc-suggestions.js';
 export * from './mapper/unsupported.js';
 export * from './reporter/json-reporter.js';
 export * from './reporter/html-reporter.js';
+export * from './reporter/borrow-sheet.js';
 export * from './reporter/reporter-utils.js';

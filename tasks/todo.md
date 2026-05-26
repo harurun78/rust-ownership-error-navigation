@@ -42,3 +42,11 @@
 - 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
 - 結果: すべて成功。unit/integration は 16 files / 30 tests passed、integration 専用は 3 files / 6 tests passed。
 - 次: T046-T050（US4 Borrow Sheet）
+
+## 2026-05-26 US4 Borrow Sheet slice
+
+- 完了: T046-T050（Borrow Sheet row model、HTML section、event kind label preservation、exports）
+- 対応 Issue: #34, #36, #37, #39, #40
+- 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
+- 結果: すべて成功。unit/integration は 18 files / 32 tests passed、integration 専用は 3 files / 6 tests passed。
+- 次: T051-T056（contract validation、docs/examples、quickstart validation、final verification）

@@ -3,6 +3,7 @@ import type {
   DiagnosticReport,
   OwnershipEvent
 } from '../mapper/ownership-event.js';
+import { createBorrowSheetRows } from './borrow-sheet.js';
 import { escapeHtml, stableId } from './reporter-utils.js';
 
 export function renderHtmlReport(report: DiagnosticReport): string {
@@ -27,6 +28,7 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 	${renderCausalityTimeline(report.diagnostics)}
 	${renderSourceSpans(report.diagnostics)}
 	${renderEvidence(report.diagnostics)}
+	${renderBorrowSheet(report.diagnostics)}
 	${renderUnsupportedDiagnostics(report.diagnostics)}
 </body>
 </html>
@@ -147,6 +149,21 @@ function renderUnsupportedDiagnostics(diagnostics: readonly DiagnosticRecord[]):
 	<table>
 		<thead><tr><th>Code</th><th>Message</th><th>Reason</th><th>Rendered</th></tr></thead>
 		<tbody>${rows.join('\n') || '<tr><td colspan="4">No unsupported diagnostics</td></tr>'}</tbody>
+	</table>
+</section>`;
+}
+
+function renderBorrowSheet(diagnostics: readonly DiagnosticRecord[]): string {
+  const rows = createBorrowSheetRows(diagnostics).map(
+    (row) =>
+      `<tr><td>${escapeHtml(row.diagnosticCode ?? 'unknown')}</td><td>${escapeHtml(row.kind)}</td><td>${escapeHtml(row.role)}</td><td>${escapeHtml(row.place ?? '')}</td><td>${escapeHtml(row.message)}</td><td>${escapeHtml(row.spanId)}</td><td>${escapeHtml(row.confidence)}</td></tr>`
+  );
+
+  return `<section id="borrow-sheet">
+	<h2>Borrow Sheet</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Role</th><th>Place</th><th>Message</th><th>Span</th><th>Confidence</th></tr></thead>
+		<tbody>${rows.join('\n') || '<tr><td colspan="7">No borrow sheet rows</td></tr>'}</tbody>
 	</table>
 </section>`;
 }
