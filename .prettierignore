@@ -9,3 +9,4 @@ specs
 tasks
 test/fixtures/diagnostics
 README.md
+validation/ports/*/reports

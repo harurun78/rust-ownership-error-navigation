@@ -75,3 +75,10 @@
 - 目的: ownership-error navigation が低コスト AI モデルの Rust 移植で有効かを、cJSON の tree ownership / cleanup / string ownership を題材に検証する。
 - 追加: cJSON upstream `v1.7.19` (`c859b25da02955fef659d658b8f324b5cde87be3`) をローカル取得し、Git には source snapshot を含めず取得手順と porting spec を記録。
 - 追加: Spec Kit 風に `validation/ports/cjson/plan.md`, `tasks.md`, `quickstart.md`, `notes/iteration-log.md` を作成し、scalar parser phase の境界・検証手順・評価指標を明確化。
+
+## 2026-05-26 cJSON low-cost iteration-001
+
+- 対応: `GPT-5 mini (copilot)` を軽量モデルとして cJSON scalar parser の初回実装を実行。
+- 追加: `validation/ports/cjson/rust-port/` に Rust library crate、owned `JsonValue`、`ParseError`、scalar parser、7件の parser tests を追加。
+- 保存: `reports/iteration-001/cargo-check.jsonl` を自作ナビゲーションツールへ入力し、`ownership-report.json` / `ownership-report.html` を保存。
+- 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 7 tests passed。所有権エラー修正ループは Phase 1 では発生せず。

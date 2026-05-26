@@ -1,0 +1,8 @@
+[package]
+name = "cjson-rust-port"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "cjson_rust_port"
+path = "src/lib.rs"
