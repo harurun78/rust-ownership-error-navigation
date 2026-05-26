@@ -1363,6 +1363,116 @@ fn returns_wrong_arity_and_unknown_command_errors() {
 }
 
 #[test]
+fn transaction_queues_writes_until_exec_and_returns_replies() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key", b"value"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"key"]),
+        RespReply::SimpleString("QUEUED")
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::SimpleString("OK"),
+            RespReply::BulkString(b"value".to_vec()),
+            RespReply::Integer(1),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+}
+
+#[test]
+fn discard_drops_queued_writes() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key", b"value"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DISCARD"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"key"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn transaction_control_commands_return_errors_when_misused() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Error("ERR EXEC without MULTI".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DISCARD"]),
+        RespReply::Error("ERR DISCARD without MULTI".to_string())
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"MULTI"]),
+        RespReply::Error("ERR MULTI calls can not be nested".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DISCARD"]),
+        RespReply::SimpleString("OK")
+    );
+}
+
+#[test]
+fn queued_commands_preserve_binary_arguments_and_execute_expiration_lazily() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"expires", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"expires", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"expires"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"bin\0key", b"hello \0 world"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"bin\0key"]),
+        RespReply::SimpleString("QUEUED")
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::NullBulkString,
+            RespReply::SimpleString("OK"),
+            RespReply::BulkString(b"hello \0 world".to_vec()),
+        ])
+    );
+}
+
+#[test]
 fn parses_ping_multibulk() {
     let command = parse_complete(b"*1\r\n$4\r\nPING\r\n");
     assert_eq!(command.args, vec![b"PING".to_vec()]);

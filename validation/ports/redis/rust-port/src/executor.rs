@@ -38,6 +38,7 @@ enum RedisValue {
 pub struct RedisMiniDb {
     values: HashMap<Vec<u8>, RedisValue>,
     expires_at: HashMap<Vec<u8>, Instant>,
+    transaction_queue: Option<Vec<Command>>,
 }
 
 impl RedisMiniDb {
@@ -46,13 +47,31 @@ impl RedisMiniDb {
     }
 
     pub fn execute(&mut self, command: Command) -> RespReply {
-        let mut args = command.args;
-        if args.is_empty() {
+        if command.args.is_empty() {
             return RespReply::Error("ERR unknown command ''".to_string());
         }
 
-        let command_name = args.remove(0);
+        if command.args[0].eq_ignore_ascii_case(b"MULTI") {
+            return self.execute_multi(command.args);
+        }
+        if command.args[0].eq_ignore_ascii_case(b"EXEC") {
+            return self.execute_exec(command.args);
+        }
+        if command.args[0].eq_ignore_ascii_case(b"DISCARD") {
+            return self.execute_discard(command.args);
+        }
 
+        if let Some(queue) = self.transaction_queue.as_mut() {
+            queue.push(command);
+            return RespReply::SimpleString("QUEUED");
+        }
+
+        let mut args = command.args;
+        let command_name = args.remove(0);
+        self.execute_immediate(command_name, args)
+    }
+
+    fn execute_immediate(&mut self, command_name: Vec<u8>, args: Vec<Vec<u8>>) -> RespReply {
         if command_name.eq_ignore_ascii_case(b"PING") {
             self.execute_ping(args)
         } else if command_name.eq_ignore_ascii_case(b"ECHO") {
@@ -123,6 +142,46 @@ impl RedisMiniDb {
                 String::from_utf8_lossy(&command_name)
             ))
         }
+    }
+
+    fn execute_multi(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("multi");
+        }
+        if self.transaction_queue.is_some() {
+            return RespReply::Error("ERR MULTI calls can not be nested".to_string());
+        }
+
+        self.transaction_queue = Some(Vec::new());
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_exec(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("exec");
+        }
+
+        let Some(queue) = self.transaction_queue.take() else {
+            return RespReply::Error("ERR EXEC without MULTI".to_string());
+        };
+
+        RespReply::Array(
+            queue
+                .into_iter()
+                .map(|command| self.execute(command))
+                .collect(),
+        )
+    }
+
+    fn execute_discard(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("discard");
+        }
+        if self.transaction_queue.take().is_none() {
+            return RespReply::Error("ERR DISCARD without MULTI".to_string());
+        }
+
+        RespReply::SimpleString("OK")
     }
 
     fn execute_ping(&mut self, args: Vec<Vec<u8>>) -> RespReply {

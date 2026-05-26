@@ -179,3 +179,16 @@
 - [x] R130 Generate `reports/iteration-014/ownership-report.json`.
 - [x] R131 Generate `reports/iteration-014/ownership-report.html`.
 - [x] R132 Record iteration-014 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 17: Minimal Transaction Commands
+
+- [x] R133 Add tests for `MULTI`, queued command replies, `EXEC`, and `DISCARD`.
+- [x] R134 Add tests that `EXEC` returns an array of command replies and applies queued writes in order.
+- [x] R135 Add tests for transaction errors: nested `MULTI`, `EXEC` without `MULTI`, and `DISCARD` without `MULTI`.
+- [x] R136 Add tests that queued commands preserve binary-safe argument bytes and existing expiration behavior.
+- [x] R137 Add minimal transaction queue state to the DB.
+- [x] R138 Implement minimal `MULTI`, `EXEC`, and `DISCARD` behavior without regressing existing commands.
+- [x] R139 Save `cargo check --message-format=json` output to `reports/iteration-015/cargo-check.jsonl`.
+- [x] R140 Generate `reports/iteration-015/ownership-report.json`.
+- [x] R141 Generate `reports/iteration-015/ownership-report.html`.
+- [x] R142 Record iteration-015 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
