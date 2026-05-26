@@ -139,3 +139,28 @@
 - [x] C102 Generate `reports/iteration-006/ownership-report.html`.
 - [x] C103 Record iteration-006 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] C104 Run final `cargo test` in `rust-port/`.
+
+## Phase 13: Pretty JSON Printing
+
+- [x] C105 Add tests for pretty printing scalars, arrays, and objects.
+- [x] C106 Add tests for nested pretty printing indentation.
+- [x] C107 Add tests that pretty printing preserves JSON string escaping.
+- [x] C108 Implement pretty JSON printing for `JsonValue`.
+- [x] C109 Save `cargo check --message-format=json` output to `reports/iteration-007/cargo-check.jsonl`.
+- [x] C110 Generate `reports/iteration-007/ownership-report.json`.
+- [x] C111 Generate `reports/iteration-007/ownership-report.html`.
+- [x] C112 Record iteration-007 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C113 Run final `cargo test` in `rust-port/`.
+
+## Phase 14: JSON Minify Utility
+
+- [ ] C114 Add tests for removing insignificant whitespace.
+- [ ] C115 Add tests for preserving whitespace inside strings.
+- [ ] C116 Add tests for removing C-style block and line comments like cJSON minify.
+- [ ] C117 Add tests for malformed comments and unterminated strings.
+- [ ] C118 Implement JSON minify utility.
+- [ ] C119 Save `cargo check --message-format=json` output to `reports/iteration-008/cargo-check.jsonl`.
+- [ ] C120 Generate `reports/iteration-008/ownership-report.json`.
+- [ ] C121 Generate `reports/iteration-008/ownership-report.html`.
+- [ ] C122 Record iteration-008 results and diagnostic counts in `notes/iteration-log.md`.
+- [ ] C123 Run final `cargo test` in `rust-port/`.

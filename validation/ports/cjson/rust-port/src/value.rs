@@ -155,6 +155,12 @@ impl JsonValue {
         output
     }
 
+    pub fn to_pretty_string(&self) -> String {
+        let mut output = String::new();
+        self.write_pretty(&mut output, 0);
+        output
+    }
+
     fn write_compact(&self, output: &mut String) {
         match self {
             JsonValue::Null => output.push_str("null"),
@@ -181,6 +187,57 @@ impl JsonValue {
                     output.push(':');
                     value.write_compact(output);
                 }
+                output.push('}');
+            }
+        }
+    }
+
+    fn write_pretty(&self, output: &mut String, depth: usize) {
+        match self {
+            JsonValue::Null => output.push_str("null"),
+            JsonValue::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
+            JsonValue::Number(value) => output.push_str(&value.to_string()),
+            JsonValue::String(value) => write_escaped_string(value, output),
+            JsonValue::Array(values) => {
+                if values.is_empty() {
+                    output.push_str("[]");
+                    return;
+                }
+
+                output.push('[');
+                output.push('\n');
+                for (index, value) in values.iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                        output.push('\n');
+                    }
+                    write_indent(output, depth + 1);
+                    value.write_pretty(output, depth + 1);
+                }
+                output.push('\n');
+                write_indent(output, depth);
+                output.push(']');
+            }
+            JsonValue::Object(entries) => {
+                if entries.is_empty() {
+                    output.push_str("{}");
+                    return;
+                }
+
+                output.push('{');
+                output.push('\n');
+                for (index, (key, value)) in entries.iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                        output.push('\n');
+                    }
+                    write_indent(output, depth + 1);
+                    write_escaped_string(key, output);
+                    output.push_str(": ");
+                    value.write_pretty(output, depth + 1);
+                }
+                output.push('\n');
+                write_indent(output, depth);
                 output.push('}');
             }
         }
@@ -290,6 +347,12 @@ impl JsonValue {
     ) -> Option<JsonValue> {
         self.get_path_mut(path)
             .map(|target| std::mem::replace(target, value))
+    }
+}
+
+fn write_indent(output: &mut String, depth: usize) {
+    for _ in 0..depth {
+        output.push_str("  ");
     }
 }
 

@@ -429,6 +429,58 @@ fn round_trips_parsed_values_through_compact_printing() {
 }
 
 #[test]
+fn pretty_prints_scalar_values() {
+    assert_eq!(JsonValue::Null.to_pretty_string(), "null");
+    assert_eq!(JsonValue::Bool(true).to_pretty_string(), "true");
+    assert_eq!(JsonValue::Number(42.5).to_pretty_string(), "42.5");
+    assert_eq!(
+        JsonValue::String(String::from("cat")).to_pretty_string(),
+        r#""cat""#
+    );
+}
+
+#[test]
+fn pretty_prints_arrays_with_two_space_indentation() {
+    let value = JsonValue::Array(vec![
+        JsonValue::Null,
+        JsonValue::Bool(true),
+        JsonValue::Number(3.0),
+    ]);
+
+    assert_eq!(value.to_pretty_string(), "[\n  null,\n  true,\n  3\n]");
+    assert_eq!(JsonValue::Array(Vec::new()).to_pretty_string(), "[]");
+}
+
+#[test]
+fn pretty_prints_nested_objects_and_arrays() {
+    let value = parse_scalar(r#"{"items":[{"name":"first"},[]],"meta":{"ready":false}}"#).unwrap();
+
+    assert_eq!(
+        value.to_pretty_string(),
+        "{\n  \"items\": [\n    {\n      \"name\": \"first\"\n    },\n    []\n  ],\n  \"meta\": {\n    \"ready\": false\n  }\n}"
+    );
+}
+
+#[test]
+fn pretty_printing_preserves_string_escaping() {
+    let value = JsonValue::Object(vec![
+        (
+            String::from("quote\"key"),
+            JsonValue::String(String::from("line\nquote \" slash / backslash \\")),
+        ),
+        (
+            String::from("control"),
+            JsonValue::String(String::from("\u{0001}\u{0008}\u{000c}\r\t")),
+        ),
+    ]);
+
+    assert_eq!(
+        value.to_pretty_string(),
+        "{\n  \"quote\\\"key\": \"line\\nquote \\\" slash / backslash \\\\\",\n  \"control\": \"\\u0001\\b\\f\\r\\t\"\n}"
+    );
+}
+
+#[test]
 fn reports_value_type_predicates() {
     let values = [
         JsonValue::Null,

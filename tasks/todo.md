@@ -110,3 +110,10 @@
 - 追加: type predicate、typed immutable/mutable accessor、object member、array item tests を追加。
 - 保存: `reports/iteration-006/` に cargo JSONL、ownership JSON/HTML、notes を保存。
 - 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 38 tests passed。
+
+## 2026-05-26 cJSON low-cost iteration-007
+
+- 対応: pretty JSON printing を `GPT-5 mini (copilot)` で実装。
+- 追加: scalar / array / nested object pretty printing、string escaping preservation tests を追加。
+- 保存: `reports/iteration-007/` に cargo JSONL、ownership JSON/HTML、notes を保存。
+- 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 42 tests passed。
