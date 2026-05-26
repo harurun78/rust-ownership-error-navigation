@@ -279,6 +279,27 @@ Notes:
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: iteration-032 can start R219 consumer group commands (`XGROUP`, `XREADGROUP`, `XACK`, `XPENDING`, `XCLAIM`) using the iteration-031 stream base as input.
 
+### iteration-032
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R219-R220 stream consumer group cleanup and validation for `XGROUP`, `XREADGROUP`, `XACK`, `XPENDING`, and `XCLAIM`.
+- Prompt summary: Continue iteration-032 using saved compiler diagnostics only; fix non-ownership compile failures, complete consumer group behavior/tests, run `cargo fmt`, save `cargo check --message-format=json`, run full `cargo test`, regenerate ownership reports, and update task/log status without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-032/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-032/cargo-check.jsonl --json-out ../reports/iteration-032/ownership-report.json --html-out ../reports/iteration-032/ownership-report.html`
+- Result: compile success; test success, 134 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-032/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-032/ownership-report.json`
+- Ownership report HTML: `reports/iteration-032/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>` introduced. No broad clone shortcut introduced; narrow `to_vec()` copies remain for storing consumer names and constructing retained stream replies.
+- Did the ownership report change the next fix: no; saved diagnostics were E0004/E0308 non-ownership compiler errors and the regenerated report has zero diagnostics.
+- Next action: iteration-033 may start R221 pub/sub client subscription state.
+
 - Equal-score lex subsets: `ZRANGEBYLEX`/`ZLEXCOUNT`/`ZREMRANGEBYLEX` behavior in this port is only supported when all scores are equal; tests exercise this subset and document it here for later extension.
 
 ### iteration-011

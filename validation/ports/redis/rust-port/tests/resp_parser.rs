@@ -415,6 +415,26 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "stream"
     );
     assert_eq!(
+        command_metadata(b"xgroup").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
+        command_metadata(b"xreadgroup").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
+        command_metadata(b"xack").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
+        command_metadata(b"xpending").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
+        command_metadata(b"xclaim").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
         command_metadata(b"scan").unwrap().category.as_str(),
         "keyspace"
     );
@@ -3191,6 +3211,356 @@ fn streams_wrong_type_expiration_watch_and_transactions_work() {
             RespReply::BulkString(b"1-0".to_vec()),
             RespReply::Integer(1)
         ])
+    );
+}
+
+#[test]
+fn stream_groups_create_mkstream_and_report_duplicate_or_missing_groups() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"CREATE", b"missing", b"g", b"0-0"]),
+        RespReply::Error("ERR no such key".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"XGROUP", b"CREATE", b"stream", b"g", b"0-0", b"MKSTREAM"]
+        ),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"stream"]),
+        RespReply::SimpleString("stream")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"CREATE", b"stream", b"g", b"0-0"]),
+        RespReply::Error("BUSYGROUP Consumer Group name already exists".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XREADGROUP",
+                b"GROUP",
+                b"missing",
+                b"c",
+                b"STREAMS",
+                b"stream",
+                b">"
+            ]
+        ),
+        RespReply::Error("NOGROUP No such key or consumer group".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"DESTROY", b"stream", b"g"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"DESTROY", b"stream", b"g"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn xreadgroup_tracks_pending_state_and_xack_removes_entries() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"1-0", b"f", b"v1"]),
+        RespReply::BulkString(b"1-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"2-0", b"f", b"v2"]),
+        RespReply::BulkString(b"2-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"CREATE", b"stream", b"g", b"0-0"]),
+        RespReply::SimpleString("OK")
+    );
+
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XREADGROUP",
+                b"GROUP",
+                b"g",
+                b"alice",
+                b"COUNT",
+                b"1",
+                b"STREAMS",
+                b"stream",
+                b">",
+            ]
+        ),
+        RespReply::Array(vec![RespReply::Array(vec![
+            RespReply::BulkString(b"stream".to_vec()),
+            RespReply::Array(vec![RespReply::Array(vec![
+                RespReply::BulkString(b"1-0".to_vec()),
+                RespReply::Array(vec![
+                    RespReply::BulkString(b"f".to_vec()),
+                    RespReply::BulkString(b"v1".to_vec()),
+                ]),
+            ])]),
+        ])])
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XREADGROUP",
+                b"GROUP",
+                b"g",
+                b"alice",
+                b"STREAMS",
+                b"stream",
+                b"0-0"
+            ]
+        ),
+        RespReply::Array(vec![RespReply::Array(vec![
+            RespReply::BulkString(b"stream".to_vec()),
+            RespReply::Array(vec![RespReply::Array(vec![
+                RespReply::BulkString(b"1-0".to_vec()),
+                RespReply::Array(vec![
+                    RespReply::BulkString(b"f".to_vec()),
+                    RespReply::BulkString(b"v1".to_vec()),
+                ]),
+            ])]),
+        ])])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XPENDING", b"stream", b"g"]),
+        RespReply::Array(vec![
+            RespReply::Integer(1),
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::Array(vec![RespReply::Array(vec![
+                RespReply::BulkString(b"alice".to_vec()),
+                RespReply::BulkString(b"1".to_vec()),
+            ])]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XACK", b"stream", b"g", b"1-0", b"9-9"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XPENDING", b"stream", b"g"]),
+        RespReply::Array(vec![
+            RespReply::Integer(0),
+            RespReply::NullBulkString,
+            RespReply::NullBulkString,
+            RespReply::Array(vec![]),
+        ])
+    );
+}
+
+#[test]
+fn xclaim_moves_pending_entries_between_consumers() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"1-0", b"f", b"v"]),
+        RespReply::BulkString(b"1-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"CREATE", b"stream", b"g", b"0-0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert!(matches!(
+        execute(
+            &mut db,
+            &[
+                b"XREADGROUP",
+                b"GROUP",
+                b"g",
+                b"alice",
+                b"STREAMS",
+                b"stream",
+                b">"
+            ]
+        ),
+        RespReply::Array(_)
+    ));
+
+    assert_eq!(
+        execute(&mut db, &[b"XCLAIM", b"stream", b"g", b"bob", b"0", b"1-0"]),
+        RespReply::Array(vec![RespReply::Array(vec![
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"f".to_vec()),
+                RespReply::BulkString(b"v".to_vec()),
+            ]),
+        ])])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XPENDING", b"stream", b"g"]),
+        RespReply::Array(vec![
+            RespReply::Integer(1),
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::Array(vec![RespReply::Array(vec![
+                RespReply::BulkString(b"bob".to_vec()),
+                RespReply::BulkString(b"1".to_vec()),
+            ])]),
+        ])
+    );
+}
+
+#[test]
+fn stream_group_commands_validate_arity_options_and_wrong_types() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"v"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"CREATE", b"string", b"g", b"0-0"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XPENDING", b"string", b"g"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP"]),
+        RespReply::Error("ERR wrong number of arguments for 'xgroup' command".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"XGROUP", b"CREATE", b"stream", b"g", b"0-0", b"BAD"]
+        ),
+        RespReply::Error("ERR syntax error".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"NOPE", b"stream", b"g"]),
+        RespReply::Error("ERR unsupported XGROUP subcommand".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XREADGROUP",
+                b"GROUP",
+                b"g",
+                b"c",
+                b"COUNT",
+                b"0",
+                b"STREAMS",
+                b"stream",
+                b">"
+            ]
+        ),
+        RespReply::Error("ERR invalid COUNT".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XREADGROUP",
+                b"NOPE",
+                b"g",
+                b"c",
+                b"STREAMS",
+                b"stream",
+                b">"
+            ]
+        ),
+        RespReply::Error("ERR syntax error".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XREADGROUP",
+                b"GROUP",
+                b"g",
+                b"c",
+                b"STREAMS",
+                b"stream",
+                b"other",
+                b"0-0",
+            ]
+        ),
+        RespReply::Error("ERR wrong number of arguments for 'xreadgroup' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XACK", b"stream", b"g", b"bad"]),
+        RespReply::Error("ERR Invalid stream ID specified as stream command argument".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XPENDING", b"stream"]),
+        RespReply::Error("ERR wrong number of arguments for 'xpending' command".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"XCLAIM", b"stream", b"g", b"c", b"idle", b"1-0"]
+        ),
+        RespReply::Error("ERR invalid min-idle-time".to_string())
+    );
+}
+
+#[test]
+fn stream_group_commands_work_in_transactions_and_tcp_server() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"q", b"1-0", b"f", b"v"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XGROUP", b"CREATE", b"q", b"g", b"0-0"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"XREADGROUP", b"GROUP", b"g", b"c", b"STREAMS", b"q", b">"]
+        ),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::SimpleString("OK"),
+            RespReply::Array(vec![RespReply::Array(vec![
+                RespReply::BulkString(b"q".to_vec()),
+                RespReply::Array(vec![RespReply::Array(vec![
+                    RespReply::BulkString(b"1-0".to_vec()),
+                    RespReply::Array(vec![
+                        RespReply::BulkString(b"f".to_vec()),
+                        RespReply::BulkString(b"v".to_vec()),
+                    ]),
+                ])]),
+            ])]),
+        ])
+    );
+
+    let mut input = multibulk_frame(&[b"XADD", b"tcp", b"1-0", b"f", b"v"]);
+    input.extend(multibulk_frame(&[
+        b"XGROUP", b"CREATE", b"tcp", b"g", b"0-0",
+    ]));
+    input.extend(multibulk_frame(&[
+        b"XREADGROUP",
+        b"GROUP",
+        b"g",
+        b"c",
+        b"STREAMS",
+        b"tcp",
+        b">",
+    ]));
+    assert_eq!(
+        tcp_exchange(&input),
+        b"$3\r\n1-0\r\n+OK\r\n*1\r\n*2\r\n$3\r\ntcp\r\n*1\r\n*2\r\n$3\r\n1-0\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n".to_vec()
     );
 }
 

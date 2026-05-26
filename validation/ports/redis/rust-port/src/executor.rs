@@ -156,13 +156,31 @@ enum RedisValue {
     Hash(BTreeMap<Vec<u8>, Vec<u8>>),
     Set(BTreeSet<Vec<u8>>),
     ZSet(BTreeMap<Vec<u8>, i64>),
-    Stream(BTreeMap<(u64, u64), StreamEntry>),
+    Stream(StreamData),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 struct StreamEntry {
     id: Vec<u8>,
     fields: Vec<(Vec<u8>, Vec<u8>)>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct StreamData {
+    entries: BTreeMap<(u64, u64), StreamEntry>,
+    groups: BTreeMap<Vec<u8>, StreamConsumerGroup>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct StreamConsumerGroup {
+    last_delivered_id: (u64, u64),
+    consumers: BTreeSet<Vec<u8>>,
+    pending: BTreeMap<(u64, u64), StreamPendingEntry>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct StreamPendingEntry {
+    consumer: Vec<u8>,
 }
 
 #[derive(Debug, Default)]
@@ -340,6 +358,11 @@ impl RedisMiniDb {
             CommandKind::XRead => self.execute_xread(args),
             CommandKind::XDel => self.execute_xdel(args),
             CommandKind::XTrim => self.execute_xtrim(args),
+            CommandKind::XGroup => self.execute_xgroup(args),
+            CommandKind::XReadGroup => self.execute_xreadgroup(args),
+            CommandKind::XAck => self.execute_xack(args),
+            CommandKind::XPending => self.execute_xpending(args),
+            CommandKind::XClaim => self.execute_xclaim(args),
             CommandKind::Type => self.execute_type(args),
             CommandKind::Rename => self.execute_rename(args),
             CommandKind::RenameNx => self.execute_renamenx(args),
@@ -2892,11 +2915,11 @@ impl RedisMiniDb {
             | Some(RedisValue::Set(_))
             | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Stream(stream)) => {
-                let (parsed_id, entry_id) = match resolve_xadd_id(&id, stream) {
+                let (parsed_id, entry_id) = match resolve_xadd_id(&id, &stream.entries) {
                     Some(resolved) => resolved,
                     None => return invalid_stream_id(),
                 };
-                stream.insert(
+                stream.entries.insert(
                     parsed_id,
                     StreamEntry {
                         id: entry_id.to_vec(),
@@ -2908,13 +2931,13 @@ impl RedisMiniDb {
                 RespReply::BulkString(entry_id)
             }
             None => {
-                let empty_stream = BTreeMap::new();
+                let empty_stream: BTreeMap<(u64, u64), StreamEntry> = BTreeMap::new();
                 let (parsed_id, entry_id) = match resolve_xadd_id(&id, &empty_stream) {
                     Some(resolved) => resolved,
                     None => return invalid_stream_id(),
                 };
-                let mut stream = BTreeMap::new();
-                stream.insert(
+                let mut stream = StreamData::default();
+                stream.entries.insert(
                     parsed_id,
                     StreamEntry {
                         id: entry_id.to_vec(),
@@ -2940,7 +2963,7 @@ impl RedisMiniDb {
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
             | Some(RedisValue::ZSet(_)) => wrong_type(),
-            Some(RedisValue::Stream(stream)) => RespReply::Integer(stream.len() as i64),
+            Some(RedisValue::Stream(stream)) => RespReply::Integer(stream.entries.len() as i64),
             None => RespReply::Integer(0),
         }
     }
@@ -2978,7 +3001,7 @@ impl RedisMiniDb {
             | Some(RedisValue::Set(_))
             | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Stream(stream)) => {
-                RespReply::Array(stream_range_reply(stream, start, end, count))
+                RespReply::Array(stream_range_reply(&stream.entries, start, end, count))
             }
             None => RespReply::Array(Vec::new()),
         }
@@ -3033,12 +3056,13 @@ impl RedisMiniDb {
                     let start_after = match parsed_id {
                         Some(id) => *id,
                         None => stream
+                            .entries
                             .keys()
                             .next_back()
                             .copied()
                             .unwrap_or((u64::MAX, u64::MAX)),
                     };
-                    let entries = stream_after_reply(stream, start_after, count);
+                    let entries = stream_after_reply(&stream.entries, start_after, count);
                     if !entries.is_empty() {
                         replies.push(RespReply::Array(vec![
                             RespReply::BulkString(key.to_vec()),
@@ -3082,11 +3106,14 @@ impl RedisMiniDb {
             Some(RedisValue::Stream(stream)) => {
                 let mut removed = 0usize;
                 for id in ids {
-                    if stream.remove(&id).is_some() {
+                    if stream.entries.remove(&id).is_some() {
+                        for group in stream.groups.values_mut() {
+                            group.pending.remove(&id);
+                        }
                         removed += 1;
                     }
                 }
-                should_remove_key = stream.is_empty();
+                should_remove_key = stream.entries.is_empty();
                 removed
             }
             None => 0,
@@ -3125,12 +3152,15 @@ impl RedisMiniDb {
             | Some(RedisValue::Set(_))
             | Some(RedisValue::ZSet(_)) => return wrong_type(),
             Some(RedisValue::Stream(stream)) => {
-                let excess = stream.len().saturating_sub(max_len);
-                let ids: Vec<(u64, u64)> = stream.keys().take(excess).copied().collect();
+                let excess = stream.entries.len().saturating_sub(max_len);
+                let ids: Vec<(u64, u64)> = stream.entries.keys().take(excess).copied().collect();
                 for id in &ids {
-                    stream.remove(id);
+                    stream.entries.remove(id);
+                    for group in stream.groups.values_mut() {
+                        group.pending.remove(id);
+                    }
                 }
-                should_remove_key = stream.is_empty();
+                should_remove_key = stream.entries.is_empty();
                 ids.len()
             }
             None => 0,
@@ -3145,6 +3175,425 @@ impl RedisMiniDb {
         }
 
         RespReply::Integer(removed as i64)
+    }
+
+    fn execute_xgroup(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.is_empty() {
+            return wrong_arity("xgroup");
+        }
+
+        if args[0].eq_ignore_ascii_case(b"CREATE") {
+            self.execute_xgroup_create(args)
+        } else if args[0].eq_ignore_ascii_case(b"DESTROY") {
+            self.execute_xgroup_destroy(args)
+        } else if args[0].eq_ignore_ascii_case(b"CREATECONSUMER") {
+            self.execute_xgroup_createconsumer(args)
+        } else if args[0].eq_ignore_ascii_case(b"DELCONSUMER") {
+            self.execute_xgroup_delconsumer(args)
+        } else {
+            RespReply::Error("ERR unsupported XGROUP subcommand".to_string())
+        }
+    }
+
+    fn execute_xgroup_create(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 4 && args.len() != 5 {
+            return wrong_arity("xgroup");
+        }
+        if args.len() == 5 && !args[4].eq_ignore_ascii_case(b"MKSTREAM") {
+            return RespReply::Error("ERR syntax error".to_string());
+        }
+
+        let key = &args[1];
+        let group_name = &args[2];
+        let group_id = match parse_stream_group_id(&args[3]) {
+            Some(id) => id,
+            None => return invalid_stream_id(),
+        };
+        let mkstream = args.len() == 5;
+
+        self.remove_if_expired(key);
+        if !self.values.contains_key(key) && mkstream {
+            self.values
+                .insert(key.to_vec(), RedisValue::Stream(StreamData::default()));
+        }
+
+        let created = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            Some(RedisValue::Stream(stream)) => {
+                if stream.groups.contains_key(group_name) {
+                    return RespReply::Error(
+                        "BUSYGROUP Consumer Group name already exists".to_string(),
+                    );
+                }
+                stream.groups.insert(
+                    group_name.to_vec(),
+                    StreamConsumerGroup {
+                        last_delivered_id: group_id,
+                        consumers: BTreeSet::new(),
+                        pending: BTreeMap::new(),
+                    },
+                );
+                true
+            }
+            None => return RespReply::Error("ERR no such key".to_string()),
+        };
+
+        if created {
+            self.bump_key_version(key);
+        }
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_xgroup_destroy(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("xgroup");
+        }
+        let key = &args[1];
+        let group_name = &args[2];
+
+        self.remove_if_expired(key);
+        let removed = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            Some(RedisValue::Stream(stream)) => stream.groups.remove(group_name).is_some(),
+            None => false,
+        };
+        if removed {
+            self.bump_key_version(key);
+        }
+        RespReply::Integer(if removed { 1 } else { 0 })
+    }
+
+    fn execute_xgroup_createconsumer(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 4 {
+            return wrong_arity("xgroup");
+        }
+        let key = &args[1];
+        let group_name = &args[2];
+        let consumer = &args[3];
+
+        self.remove_if_expired(key);
+        let created = match self.stream_group_mut(key, group_name) {
+            Ok(group) => group.consumers.insert(consumer.to_vec()),
+            Err(reply) => return reply,
+        };
+        if created {
+            self.bump_key_version(key);
+        }
+        RespReply::Integer(if created { 1 } else { 0 })
+    }
+
+    fn execute_xgroup_delconsumer(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 4 {
+            return wrong_arity("xgroup");
+        }
+        let key = &args[1];
+        let group_name = &args[2];
+        let consumer = &args[3];
+
+        self.remove_if_expired(key);
+        let removed_pending = match self.stream_group_mut(key, group_name) {
+            Ok(group) => {
+                group.consumers.remove(consumer);
+                let ids: Vec<(u64, u64)> = group
+                    .pending
+                    .iter()
+                    .filter_map(|(id, pending)| {
+                        if pending.consumer == *consumer {
+                            Some(*id)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                for id in &ids {
+                    group.pending.remove(id);
+                }
+                ids.len()
+            }
+            Err(reply) => return reply,
+        };
+        self.bump_key_version(key);
+        RespReply::Integer(removed_pending as i64)
+    }
+
+    fn execute_xreadgroup(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 6 || !args[0].eq_ignore_ascii_case(b"GROUP") {
+            return RespReply::Error("ERR syntax error".to_string());
+        }
+        let group_name = &args[1];
+        let consumer = &args[2];
+        let mut index = 3usize;
+        let mut count = None;
+        if index + 1 < args.len() && args[index].eq_ignore_ascii_case(b"COUNT") {
+            match parse_scan_index(&args[index + 1]) {
+                Some(0) | None => return RespReply::Error("ERR invalid COUNT".to_string()),
+                Some(parsed) => count = Some(parsed),
+            }
+            index += 2;
+        }
+        if index >= args.len() || !args[index].eq_ignore_ascii_case(b"STREAMS") {
+            return RespReply::Error("ERR syntax error".to_string());
+        }
+        let stream_args = &args[index + 1..];
+        if stream_args.len() < 2 || stream_args.len() % 2 != 0 {
+            return wrong_arity("xreadgroup");
+        }
+
+        let stream_count = stream_args.len() / 2;
+        let keys = &stream_args[..stream_count];
+        let ids = &stream_args[stream_count..];
+        let mut parsed_ids = Vec::with_capacity(ids.len());
+        for id in ids {
+            if id == b">" {
+                parsed_ids.push(None);
+            } else if let Some(parsed) = parse_stream_id(id) {
+                parsed_ids.push(Some(parsed));
+            } else {
+                return invalid_stream_id();
+            }
+        }
+
+        for key in keys {
+            self.remove_if_expired(key);
+        }
+
+        let mut mutated_keys = Vec::new();
+        let mut replies = Vec::new();
+        for (key, parsed_id) in keys.iter().zip(parsed_ids.iter()) {
+            let stream = match self.values.get_mut(key) {
+                Some(RedisValue::String(_))
+                | Some(RedisValue::List(_))
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::Set(_))
+                | Some(RedisValue::ZSet(_)) => return wrong_type(),
+                Some(RedisValue::Stream(stream)) => stream,
+                None => return no_such_consumer_group(),
+            };
+            let Some(group) = stream.groups.get_mut(group_name) else {
+                return no_such_consumer_group();
+            };
+            group.consumers.insert(consumer.to_vec());
+
+            let mut entry_replies = Vec::new();
+            match parsed_id {
+                None => {
+                    let start = (
+                        group.last_delivered_id.0,
+                        group.last_delivered_id.1.saturating_add(1),
+                    );
+                    for (id, entry) in stream.entries.range(start..) {
+                        if count.is_some_and(|limit| entry_replies.len() >= limit) {
+                            break;
+                        }
+                        entry_replies.push(stream_entry_reply(entry));
+                        group.last_delivered_id = *id;
+                        group.pending.insert(
+                            *id,
+                            StreamPendingEntry {
+                                consumer: consumer.to_vec(),
+                            },
+                        );
+                    }
+                }
+                Some(start_after) => {
+                    for (id, pending) in &group.pending {
+                        if *id <= *start_after || pending.consumer != *consumer {
+                            continue;
+                        }
+                        if count.is_some_and(|limit| entry_replies.len() >= limit) {
+                            break;
+                        }
+                        if let Some(entry) = stream.entries.get(id) {
+                            entry_replies.push(stream_entry_reply(entry));
+                        }
+                    }
+                }
+            }
+
+            if !entry_replies.is_empty() {
+                mutated_keys.push((*key).to_vec());
+                replies.push(RespReply::Array(vec![
+                    RespReply::BulkString((*key).to_vec()),
+                    RespReply::Array(entry_replies),
+                ]));
+            }
+        }
+
+        for key in mutated_keys {
+            self.bump_key_version(&key);
+        }
+
+        if replies.is_empty() {
+            RespReply::NullArray
+        } else {
+            RespReply::Array(replies)
+        }
+    }
+
+    fn execute_xack(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 3 {
+            return wrong_arity("xack");
+        }
+        let key = &args[0];
+        let group_name = &args[1];
+        let mut ids = Vec::with_capacity(args.len() - 2);
+        for id in &args[2..] {
+            match parse_stream_id(id) {
+                Some(parsed) => ids.push(parsed),
+                None => return invalid_stream_id(),
+            }
+        }
+
+        self.remove_if_expired(key);
+        let acked = match self.stream_group_mut(key, group_name) {
+            Ok(group) => {
+                let mut count = 0usize;
+                for id in ids {
+                    if group.pending.remove(&id).is_some() {
+                        count += 1;
+                    }
+                }
+                count
+            }
+            Err(reply) => return reply,
+        };
+        if acked > 0 {
+            self.bump_key_version(key);
+        }
+        RespReply::Integer(acked as i64)
+    }
+
+    fn execute_xpending(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("xpending");
+        }
+        let key = &args[0];
+        let group_name = &args[1];
+
+        self.remove_if_expired(key);
+        let group = match self.stream_group(key, group_name) {
+            Ok(group) => group,
+            Err(reply) => return reply,
+        };
+        let smallest = group.pending.keys().next().copied();
+        let greatest = group.pending.keys().next_back().copied();
+        let mut per_consumer: BTreeMap<&Vec<u8>, usize> = BTreeMap::new();
+        for pending in group.pending.values() {
+            let count = per_consumer.entry(&pending.consumer).or_insert(0);
+            *count += 1;
+        }
+        let consumers = per_consumer
+            .into_iter()
+            .map(|(consumer, count)| {
+                RespReply::Array(vec![
+                    RespReply::BulkString(consumer.to_vec()),
+                    RespReply::BulkString(count.to_string().into_bytes()),
+                ])
+            })
+            .collect();
+
+        RespReply::Array(vec![
+            RespReply::Integer(group.pending.len() as i64),
+            optional_stream_id_reply(smallest),
+            optional_stream_id_reply(greatest),
+            RespReply::Array(consumers),
+        ])
+    }
+
+    fn execute_xclaim(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 5 {
+            return wrong_arity("xclaim");
+        }
+        let key = &args[0];
+        let group_name = &args[1];
+        let consumer = &args[2];
+        if parse_scan_index(&args[3]).is_none() {
+            return RespReply::Error("ERR invalid min-idle-time".to_string());
+        }
+        let mut ids = Vec::with_capacity(args.len() - 4);
+        for id in &args[4..] {
+            match parse_stream_id(id) {
+                Some(parsed) => ids.push(parsed),
+                None => return invalid_stream_id(),
+            }
+        }
+
+        self.remove_if_expired(key);
+        let mut claimed = Vec::new();
+        let mut changed = false;
+        match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            Some(RedisValue::Stream(stream)) => {
+                let Some(group) = stream.groups.get_mut(group_name) else {
+                    return no_such_consumer_group();
+                };
+                group.consumers.insert(consumer.to_vec());
+                for id in ids {
+                    if let Some(pending) = group.pending.get_mut(&id) {
+                        pending.consumer = consumer.to_vec();
+                        if let Some(entry) = stream.entries.get(&id) {
+                            claimed.push(stream_entry_reply(entry));
+                        }
+                        changed = true;
+                    }
+                }
+            }
+            None => return no_such_consumer_group(),
+        }
+        if changed {
+            self.bump_key_version(key);
+        }
+        RespReply::Array(claimed)
+    }
+
+    fn stream_group_mut(
+        &mut self,
+        key: &[u8],
+        group_name: &[u8],
+    ) -> Result<&mut StreamConsumerGroup, RespReply> {
+        match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => Err(wrong_type()),
+            Some(RedisValue::Stream(stream)) => stream
+                .groups
+                .get_mut(group_name)
+                .ok_or_else(no_such_consumer_group),
+            None => Err(no_such_consumer_group()),
+        }
+    }
+
+    fn stream_group(
+        &self,
+        key: &[u8],
+        group_name: &[u8],
+    ) -> Result<&StreamConsumerGroup, RespReply> {
+        match self.values.get(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => Err(wrong_type()),
+            Some(RedisValue::Stream(stream)) => stream
+                .groups
+                .get(group_name)
+                .ok_or_else(no_such_consumer_group),
+            None => Err(no_such_consumer_group()),
+        }
     }
 
     fn execute_type(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -3428,6 +3877,11 @@ enum CommandKind {
     XRead,
     XDel,
     XTrim,
+    XGroup,
+    XReadGroup,
+    XAck,
+    XPending,
+    XClaim,
     Type,
     Rename,
     RenameNx,
@@ -3584,6 +4038,15 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("XREAD", CommandCategory::Stream, CommandKind::XRead),
     command_spec("XDEL", CommandCategory::Stream, CommandKind::XDel),
     command_spec("XTRIM", CommandCategory::Stream, CommandKind::XTrim),
+    command_spec("XGROUP", CommandCategory::Stream, CommandKind::XGroup),
+    command_spec(
+        "XREADGROUP",
+        CommandCategory::Stream,
+        CommandKind::XReadGroup,
+    ),
+    command_spec("XACK", CommandCategory::Stream, CommandKind::XAck),
+    command_spec("XPENDING", CommandCategory::Stream, CommandKind::XPending),
+    command_spec("XCLAIM", CommandCategory::Stream, CommandKind::XClaim),
     command_spec("TYPE", CommandCategory::Keyspace, CommandKind::Type),
     command_spec("RENAME", CommandCategory::Keyspace, CommandKind::Rename),
     command_spec("RENAMENX", CommandCategory::Keyspace, CommandKind::RenameNx),
@@ -4208,6 +4671,25 @@ fn parse_stream_bound(value: &[u8], kind: StreamBoundKind) -> Option<(u64, u64)>
 
 fn invalid_stream_id() -> RespReply {
     RespReply::Error("ERR Invalid stream ID specified as stream command argument".to_string())
+}
+
+fn parse_stream_group_id(value: &[u8]) -> Option<(u64, u64)> {
+    if value == b"$" {
+        Some((u64::MAX, u64::MAX))
+    } else {
+        parse_stream_id(value)
+    }
+}
+
+fn optional_stream_id_reply(id: Option<(u64, u64)>) -> RespReply {
+    match id {
+        Some(id) => RespReply::BulkString(format!("{}-{}", id.0, id.1).into_bytes()),
+        None => RespReply::NullBulkString,
+    }
+}
+
+fn no_such_consumer_group() -> RespReply {
+    RespReply::Error("NOGROUP No such key or consumer group".to_string())
 }
 
 fn wrong_type() -> RespReply {
