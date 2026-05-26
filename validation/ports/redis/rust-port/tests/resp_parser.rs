@@ -323,6 +323,21 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "list"
     );
     assert_eq!(
+        command_metadata(b"blpop").unwrap(),
+        CommandMetadata {
+            name: "BLPOP",
+            category: CommandCategory::List,
+        }
+    );
+    assert_eq!(
+        command_metadata(b"brpop").unwrap().category.as_str(),
+        "list"
+    );
+    assert_eq!(
+        command_metadata(b"blmove").unwrap().category.as_str(),
+        "list"
+    );
+    assert_eq!(
         command_metadata(b"hgetall").unwrap().category.as_str(),
         "hash"
     );
@@ -1351,6 +1366,213 @@ fn list_completion_validates_errors_expiration_watches_and_transactions() {
             RespReply::BulkString(b"one".to_vec()),
         ])
     );
+}
+
+#[test]
+fn blocking_list_pops_scan_immediately_without_sleeping() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"BLPOP", b"missing", b"0"]),
+        RespReply::NullArray
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPUSH", b"empty", b"x"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPOP", b"empty"]),
+        RespReply::BulkString(b"x".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"second", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"BLPOP", b"missing", b"empty", b"second", b"1.5"]
+        ),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"second".to_vec()),
+            RespReply::BulkString(b"a".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BRPOP", b"second", b"0"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"second".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BRPOP", b"second", b"0"]),
+        RespReply::NullArray
+    );
+}
+
+#[test]
+fn blocking_list_move_is_immediate_and_session_compatible() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"BLMOVE", b"missing", b"dest", b"LEFT", b"RIGHT", b"0"]
+        ),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"source", b"one", b"two"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"BLMOVE", b"source", b"dest", b"RIGHT", b"LEFT", b"2"]
+        ),
+        RespReply::BulkString(b"two".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"dest", b"0", b"-1"]),
+        RespReply::Array(vec![RespReply::BulkString(b"two".to_vec())])
+    );
+
+    let mut input = multibulk_frame(&[b"RPUSH", b"tcp", b"x"]);
+    input.extend(multibulk_frame(&[b"BLPOP", b"tcp", b"0"]));
+    assert_eq!(
+        tcp_exchange(&input),
+        b":1\r\n*2\r\n$3\r\ntcp\r\n$1\r\nx\r\n".to_vec()
+    );
+}
+
+#[test]
+fn blocking_list_commands_validate_errors_and_wrong_types() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"BLPOP", b"k"]),
+        wrong_arity_reply("blpop")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BRPOP", b"k"]),
+        wrong_arity_reply("brpop")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BLMOVE", b"s", b"d", b"LEFT", b"RIGHT"]),
+        wrong_arity_reply("blmove")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BLPOP", b"k", b"bad"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BRPOP", b"k", b"-1"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BLMOVE", b"s", b"d", b"SIDE", b"RIGHT", b"0"]),
+        RespReply::Error("ERR syntax error".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BLMOVE", b"s", b"d", b"LEFT", b"RIGHT", b"bad"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BLPOP", b"missing", b"string", b"0"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"source", b"x"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"BLMOVE", b"source", b"string", b"LEFT", b"RIGHT", b"0"]
+        ),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"source", b"0", b"-1"]),
+        RespReply::Array(vec![RespReply::BulkString(b"x".to_vec())])
+    );
+}
+
+#[test]
+fn blocking_list_mutations_clear_expiration_invalidate_watches_and_queue() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"watched", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"watched", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"watched"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BLPOP", b"watched", b"0"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"watched".to_vec()),
+            RespReply::BulkString(b"a".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TTL", b"watched"]),
+        RespReply::Integer(-2)
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"watched"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"src", b"one"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"src", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"BLMOVE", b"src", b"dst", b"LEFT", b"LEFT", b"0"]
+        ),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"BRPOP", b"dst", b"0"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"one".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"dst".to_vec()),
+                RespReply::BulkString(b"one".to_vec()),
+            ]),
+        ])
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"src"]), RespReply::Integer(-2));
+    assert_eq!(execute(&mut db, &[b"TTL", b"dst"]), RespReply::Integer(-2));
 }
 
 #[test]

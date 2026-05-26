@@ -597,3 +597,24 @@ A human intervention is any manual Rust design hint, code edit, or prompt instru
 - Cleanup performed by: GPT-5 mini (copilot)
 - Did the ownership report change the next fix: N/A (no ownership diagnostics)
 - Next action: iterate on blocking list commands (BLPOP/BRPOP/BLMOVE) when client session blocking primitives exist
+
+### iteration-027
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R212 minimal blocking list commands `BLPOP`, `BRPOP`, and `BLMOVE` (immediate non-blocking compatibility)
+- Prompt summary: Implement minimal, single-threaded/session-compatible behavior for blocking list commands that returns immediately (no sleeping or event-loop wakeups). Validate timeout parsing, wrong-type errors while scanning, and ensure writes clear expirations and bump watched versions only on actual mutations. Preserve transaction queuing behavior and TCP server session compatibility.
+- Human ownership hints before attempt: none
+- Command: `cd validation/ports/redis/rust-port && mkdir -p ../reports/iteration-027 && cargo check --message-format=json > ../reports/iteration-027/cargo-check.jsonl && cargo test && npm run build && node ../../../../dist/cli/main.js --input ../reports/iteration-027/cargo-check.jsonl --json-out ../reports/iteration-027/ownership-report.json --html-out ../reports/iteration-027/ownership-report.html`
+- Result: compile success; test success (111 passed); ownership report generation success
+- Diagnostics file: `reports/iteration-027/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-027/ownership-report.json`
+- Ownership report HTML: `reports/iteration-027/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none; changes performed small, surgical edits to `execute_blocking_pop` and `execute_blmove` plus a minor fix to `execute_lmove_between_keys` to avoid premature mutation. No `unsafe`, `Rc`, or `Arc` introduced.
+- Did the ownership report change the next fix: no; ownership report contained zero diagnostics for this iteration.
+- Next action: defer full blocking/wakeup semantics to a future iteration that introduces an event loop and multi-client wakeups; continue with Phase 28 command completion or address TODOs flagged during review.

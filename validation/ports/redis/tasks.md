@@ -300,10 +300,11 @@ iteration-025: implemented and tested `GETRANGE`, `SETRANGE`, and `SET` options 
 ## Phase 27: List Command Completion And Blocking Lists
 
 - [x] R211 Add `LLEN`, `LINDEX`, `LSET`, `LTRIM`, `LREM`, `RPOPLPUSH`, `LMOVE`, and range edge cases.
-- [ ] R212 Add minimal blocking list command behavior for `BLPOP`, `BRPOP`, and `BLMOVE` once client sessions exist.
-- [ ] R213 Save diagnostics and reports for list completion iterations.
+- [x] R212 Add minimal blocking list command behavior for `BLPOP`, `BRPOP`, and `BLMOVE` once client sessions exist.
+- [x] R213 Save diagnostics and reports for list completion iterations.
 
 iteration-026: implemented and tested non-blocking list completion commands `LLEN`, `LINDEX`, `LSET`, `LTRIM`, `LREM`, `RPOPLPUSH`, and `LMOVE`.
+iteration-027: implemented and tested minimal non-sleeping compatibility for `BLPOP`, `BRPOP`, and `BLMOVE`; true blocking and multi-client wakeup semantics are deferred to a future server architecture iteration.
 
 ## Phase 28: Hash/Set/Sorted Set Completion
 

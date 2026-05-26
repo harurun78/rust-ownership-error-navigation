@@ -290,6 +290,9 @@ impl RedisMiniDb {
             CommandKind::LRem => self.execute_lrem(args),
             CommandKind::RPopLPush => self.execute_rpoplpush(args),
             CommandKind::LMove => self.execute_lmove(args),
+            CommandKind::BLPop => self.execute_blocking_pop(args, ListSide::Left),
+            CommandKind::BRPop => self.execute_blocking_pop(args, ListSide::Right),
+            CommandKind::BLMove => self.execute_blmove(args),
             CommandKind::HSet => self.execute_hset(args),
             CommandKind::HGet => self.execute_hget(args),
             CommandKind::HDel => self.execute_hdel(args),
@@ -1229,19 +1232,33 @@ impl RedisMiniDb {
             return self.execute_same_key_lmove(source, from, to);
         }
 
-        let mut remove_source = false;
-        let value = match self.values.get_mut(&source) {
+        // Check types on source and destination before performing mutations to avoid
+        // removing elements when the destination is a wrong type.
+        match self.values.get(&source) {
             Some(RedisValue::String(_))
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
             | Some(RedisValue::ZSet(_))
             | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::List(_)) | None => {}
+        }
+        match self.values.get(&destination) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::List(_)) | None => {}
+        }
+
+        let mut remove_source = false;
+        let value = match self.values.get_mut(&source) {
             Some(RedisValue::List(list)) => {
                 let value = pop_list_value(list, from);
                 remove_source = list.is_empty();
                 value
             }
-            None => None,
+            _ => None,
         };
         let Some(value) = value else {
             return RespReply::NullBulkString;
@@ -1299,6 +1316,72 @@ impl RedisMiniDb {
             }
             None => RespReply::NullBulkString,
         }
+    }
+
+    fn execute_blocking_pop(&mut self, args: Vec<Vec<u8>>, side: ListSide) -> RespReply {
+        // Minimal non-blocking compatibility: scan keys in order and pop immediately if present.
+        if args.len() < 2 {
+            return wrong_arity(side.blocking_pop_command_name());
+        }
+
+        // Last argument is timeout; validate it but do not block.
+        if let Err(reply) = parse_blocking_timeout(&args[args.len() - 1]) {
+            return reply;
+        }
+
+        for key in &args[..args.len() - 1] {
+            self.remove_if_expired(key);
+            match self.values.get_mut(key) {
+                Some(RedisValue::String(_))
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::Set(_))
+                | Some(RedisValue::ZSet(_))
+                | Some(RedisValue::Stream(_)) => return wrong_type(),
+                Some(RedisValue::List(list)) => {
+                    let Some(value) = pop_list_value(list, side) else {
+                        continue;
+                    };
+                    let remove_key = list.is_empty();
+                    if remove_key {
+                        self.values.remove(key);
+                    }
+                    self.expires_at.remove(key);
+                    self.bump_key_version(key);
+                    return RespReply::Array(vec![
+                        RespReply::BulkString(key.to_vec()),
+                        RespReply::BulkString(value),
+                    ]);
+                }
+                None => {}
+            }
+        }
+
+        RespReply::NullArray
+    }
+
+    fn execute_blmove(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        // BLMOVE source destination FROM TO timeout
+        if args.len() != 5 {
+            return wrong_arity("blmove");
+        }
+
+        let from = match parse_list_side(&args[2]) {
+            Some(side) => side,
+            None => return syntax_error(),
+        };
+        let to = match parse_list_side(&args[3]) {
+            Some(side) => side,
+            None => return syntax_error(),
+        };
+
+        if let Err(reply) = parse_blocking_timeout(&args[4]) {
+            return reply;
+        }
+
+        let mut args = args;
+        let source = args.remove(0);
+        let destination = args.remove(0);
+        self.execute_lmove_between_keys(source, destination, from, to)
     }
 
     fn execute_hset(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -2150,6 +2233,9 @@ enum CommandKind {
     LRem,
     RPopLPush,
     LMove,
+    BLPop,
+    BRPop,
+    BLMove,
     HSet,
     HGet,
     HDel,
@@ -2230,6 +2316,9 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("LREM", CommandCategory::List, CommandKind::LRem),
     command_spec("RPOPLPUSH", CommandCategory::List, CommandKind::RPopLPush),
     command_spec("LMOVE", CommandCategory::List, CommandKind::LMove),
+    command_spec("BLPOP", CommandCategory::List, CommandKind::BLPop),
+    command_spec("BRPOP", CommandCategory::List, CommandKind::BRPop),
+    command_spec("BLMOVE", CommandCategory::List, CommandKind::BLMove),
     command_spec("HSET", CommandCategory::Hash, CommandKind::HSet),
     command_spec("HGET", CommandCategory::Hash, CommandKind::HGet),
     command_spec("HDEL", CommandCategory::Hash, CommandKind::HDel),
@@ -2347,6 +2436,13 @@ impl ListSide {
             Self::Right => "rpop",
         }
     }
+
+    fn blocking_pop_command_name(self) -> &'static str {
+        match self {
+            Self::Left => "blpop",
+            Self::Right => "brpop",
+        }
+    }
 }
 
 fn execute_echo(args: Vec<Vec<u8>>) -> RespReply {
@@ -2455,6 +2551,19 @@ fn parse_list_side(value: &[u8]) -> Option<ListSide> {
         Some(ListSide::Right)
     } else {
         None
+    }
+}
+
+fn parse_blocking_timeout(value: &[u8]) -> Result<(), RespReply> {
+    // Accept non-negative finite timeouts (integer or float). Negative or parse errors are invalid.
+    let timeout = std::str::from_utf8(value)
+        .ok()
+        .and_then(|text| text.parse::<f64>().ok())
+        .filter(|t| t.is_finite());
+
+    match timeout {
+        Some(t) if t >= 0.0 => Ok(()),
+        _ => Err(integer_error()),
     }
 }
 
