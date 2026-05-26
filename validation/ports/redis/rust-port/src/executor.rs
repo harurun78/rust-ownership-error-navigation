@@ -103,6 +103,14 @@ impl RedisMiniDb {
             self.execute_sismember(args)
         } else if command_name.eq_ignore_ascii_case(b"SMEMBERS") {
             self.execute_smembers(args)
+        } else if command_name.eq_ignore_ascii_case(b"TYPE") {
+            self.execute_type(args)
+        } else if command_name.eq_ignore_ascii_case(b"RENAME") {
+            self.execute_rename(args)
+        } else if command_name.eq_ignore_ascii_case(b"RENAMENX") {
+            self.execute_renamenx(args)
+        } else if command_name.eq_ignore_ascii_case(b"KEYS") {
+            self.execute_keys(args)
         } else {
             RespReply::Error(format!(
                 "ERR unknown command '{}'",
@@ -621,6 +629,116 @@ impl RedisMiniDb {
         }
     }
 
+    fn execute_type(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("type");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(value) => RespReply::SimpleString(value.type_name()),
+            None => RespReply::SimpleString("none"),
+        }
+    }
+
+    fn execute_rename(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("rename");
+        }
+
+        let mut args = args;
+        let source = args.remove(0);
+        let destination = args.remove(0);
+        self.rename_key(source, destination, false)
+    }
+
+    fn execute_renamenx(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("renamenx");
+        }
+
+        let mut args = args;
+        let source = args.remove(0);
+        let destination = args.remove(0);
+        self.rename_key(source, destination, true)
+    }
+
+    fn rename_key(
+        &mut self,
+        source: Vec<u8>,
+        destination: Vec<u8>,
+        only_if_absent: bool,
+    ) -> RespReply {
+        self.remove_if_expired(&source);
+        self.remove_if_expired(&destination);
+
+        if !self.values.contains_key(&source) {
+            return RespReply::Error("ERR no such key".to_string());
+        }
+        if only_if_absent && self.values.contains_key(&destination) {
+            return RespReply::Integer(0);
+        }
+        if source == destination {
+            return if only_if_absent {
+                RespReply::Integer(0)
+            } else {
+                RespReply::SimpleString("OK")
+            };
+        }
+
+        let value = self.values.remove(&source).expect("source exists");
+        let deadline = self.expires_at.remove(&source);
+        self.expires_at.remove(&destination);
+        if let Some(deadline) = deadline {
+            self.expires_at.insert(destination.to_vec(), deadline);
+        }
+        self.values.insert(destination, value);
+
+        if only_if_absent {
+            RespReply::Integer(1)
+        } else {
+            RespReply::SimpleString("OK")
+        }
+    }
+
+    fn execute_keys(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("keys");
+        }
+        if args[0] != b"*" {
+            return RespReply::Error("ERR only KEYS * is supported".to_string());
+        }
+
+        self.remove_expired_keys();
+        let mut keys: Vec<&Vec<u8>> = self.values.keys().collect();
+        keys.sort();
+        RespReply::Array(
+            keys.into_iter()
+                .map(|key| RespReply::BulkString(key.to_vec()))
+                .collect(),
+        )
+    }
+
+    fn remove_expired_keys(&mut self) {
+        let now = Instant::now();
+        let expired: Vec<Vec<u8>> = self
+            .expires_at
+            .iter()
+            .filter_map(|(key, deadline)| {
+                if *deadline <= now {
+                    Some(key.to_vec())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for key in expired {
+            self.values.remove(&key);
+            self.expires_at.remove(&key);
+        }
+    }
+
     fn remove_if_expired(&mut self, key: &[u8]) {
         if self
             .expires_at
@@ -629,6 +747,17 @@ impl RedisMiniDb {
         {
             self.values.remove(key);
             self.expires_at.remove(key);
+        }
+    }
+}
+
+impl RedisValue {
+    fn type_name(&self) -> &'static str {
+        match self {
+            Self::String(_) => "string",
+            Self::List(_) => "list",
+            Self::Hash(_) => "hash",
+            Self::Set(_) => "set",
         }
     }
 }

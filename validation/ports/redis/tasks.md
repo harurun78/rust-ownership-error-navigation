@@ -153,3 +153,16 @@
 - [x] R110 Generate `reports/iteration-012/ownership-report.json`.
 - [x] R111 Generate `reports/iteration-012/ownership-report.html`.
 - [x] R112 Record iteration-012 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 15: Minimal Keyspace Commands
+
+- [x] R113 Add tests for `TYPE` across missing, string, list, hash, and set keys.
+- [x] R114 Add tests for `RENAME` moving values and expiration metadata between keys.
+- [x] R115 Add tests for `RENAMENX` preserving destination keys and moving only when absent.
+- [x] R116 Add tests for `KEYS *` returning deterministic key names after lazy expiration cleanup.
+- [x] R117 Implement minimal `TYPE`, `RENAME`, `RENAMENX`, and `KEYS` behavior.
+- [x] R118 Preserve existing expiration, string, list, hash, set, parser, and reply encoding behavior.
+- [x] R119 Save `cargo check --message-format=json` output to `reports/iteration-013/cargo-check.jsonl`.
+- [x] R120 Generate `reports/iteration-013/ownership-report.json`.
+- [x] R121 Generate `reports/iteration-013/ownership-report.html`.
+- [x] R122 Record iteration-013 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.

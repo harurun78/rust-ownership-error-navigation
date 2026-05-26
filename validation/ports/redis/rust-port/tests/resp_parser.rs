@@ -653,6 +653,281 @@ fn set_writes_clear_existing_expiration_and_set_reads_observe_expiration() {
 }
 
 #[test]
+fn executes_type_across_supported_value_kinds() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"missing"]),
+        RespReply::SimpleString("none")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"member"]),
+        RespReply::Integer(1)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"string"]),
+        RespReply::SimpleString("string")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"list"]),
+        RespReply::SimpleString("list")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"hash"]),
+        RespReply::SimpleString("hash")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"set"]),
+        RespReply::SimpleString("set")
+    );
+}
+
+#[test]
+fn rename_moves_values_across_supported_value_kinds() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"string", b"string2"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"string"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"string2"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"list", b"list2"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"list2", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"b".to_vec())
+        ])
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"hash", b"hash2"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"hash2", b"field"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"b", b"a"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"set", b"set2"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"set2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"b".to_vec())
+        ])
+    );
+}
+
+#[test]
+fn rename_overwrites_destination_and_moves_expiration_metadata() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"source", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"source", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"destination", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"destination", b"20"]),
+        RespReply::Integer(1)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"source", b"destination"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"source"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"destination"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TTL", b"source"]),
+        RespReply::Integer(-2)
+    );
+    match execute(&mut db, &[b"TTL", b"destination"]) {
+        RespReply::Integer(ttl) => assert!((0..=10).contains(&ttl)),
+        reply => panic!("expected integer ttl, got {reply:?}"),
+    }
+}
+
+#[test]
+fn renamenx_moves_only_to_absent_destinations() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"source", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"destination", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAMENX", b"source", b"destination"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"source"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"destination"]),
+        RespReply::BulkString(b"old".to_vec())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"RENAMENX", b"source", b"moved"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"source"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"moved"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+}
+
+#[test]
+fn keyspace_commands_observe_lazy_expiration() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"expired", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"expired", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"expired"]),
+        RespReply::SimpleString("none")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"expired", b"moved"]),
+        RespReply::Error("ERR no such key".to_string())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"source", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"destination", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"destination", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAMENX", b"source", b"destination"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"destination"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+}
+
+#[test]
+fn keys_star_returns_deterministic_current_key_names() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"z", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"gone", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"gone", b"0"]),
+        RespReply::Integer(1)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"KEYS", b"*"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"hash".to_vec()),
+            RespReply::BulkString(b"list".to_vec()),
+            RespReply::BulkString(b"set".to_vec()),
+            RespReply::BulkString(b"z".to_vec()),
+        ])
+    );
+}
+
+#[test]
 fn srem_removes_empty_set_key() {
     let mut db = RedisMiniDb::new();
 
