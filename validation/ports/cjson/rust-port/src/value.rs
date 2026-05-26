@@ -29,6 +29,23 @@ pub enum JsonPointerError {
     InvalidArrayIndex,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum JsonPatchError {
+    InvalidPatchDocument,
+    InvalidOperation,
+    MissingOp,
+    MissingPath,
+    MissingValue,
+    UnsupportedOperation,
+    InvalidPointer(JsonPointerError),
+    MissingTarget,
+    CannotRemoveRoot,
+    NotArray,
+    NotObject,
+    ArrayIndexOutOfBounds,
+    InvalidArrayIndex,
+}
+
 pub fn parse_json_pointer(pointer: &str) -> Result<Vec<String>, JsonPointerError> {
     if pointer.is_empty() {
         return Ok(Vec::new());
@@ -495,6 +512,180 @@ impl JsonValue {
 
         Ok(Some(current))
     }
+
+    pub fn apply_json_patch(&mut self, patch: JsonValue) -> Result<(), JsonPatchError> {
+        let JsonValue::Array(operations) = patch else {
+            return Err(JsonPatchError::InvalidPatchDocument);
+        };
+
+        for operation in operations {
+            let operation = JsonPatchOperation::from_value(operation)?;
+            self.apply_json_patch_operation(operation)?;
+        }
+
+        Ok(())
+    }
+
+    fn apply_json_patch_operation(
+        &mut self,
+        operation: JsonPatchOperation,
+    ) -> Result<(), JsonPatchError> {
+        match operation.kind.as_str() {
+            "add" => {
+                let value = operation.value.ok_or(JsonPatchError::MissingValue)?;
+                self.add_pointer_value(&operation.path, value)
+            }
+            "remove" => self.remove_pointer_value(&operation.path),
+            "replace" => {
+                let value = operation.value.ok_or(JsonPatchError::MissingValue)?;
+                self.replace_pointer_value(&operation.path, value)
+            }
+            _ => Err(JsonPatchError::UnsupportedOperation),
+        }
+    }
+
+    fn add_pointer_value(&mut self, pointer: &str, value: JsonValue) -> Result<(), JsonPatchError> {
+        let segments = parse_json_pointer(pointer).map_err(JsonPatchError::InvalidPointer)?;
+        let Some((terminal, parent_segments)) = segments.split_last() else {
+            *self = value;
+            return Ok(());
+        };
+
+        let parent = find_pointer_parent_mut(self, parent_segments)?;
+        match parent {
+            JsonValue::Array(values) => {
+                if terminal == "-" {
+                    values.push(value);
+                    return Ok(());
+                }
+
+                let index = parse_patch_array_index(terminal)?;
+                if index > values.len() {
+                    return Err(JsonPatchError::ArrayIndexOutOfBounds);
+                }
+                values.insert(index, value);
+                Ok(())
+            }
+            JsonValue::Object(entries) => {
+                for (key, entry_value) in entries.iter_mut() {
+                    if key == terminal {
+                        *entry_value = value;
+                        return Ok(());
+                    }
+                }
+                entries.push((terminal.to_owned(), value));
+                Ok(())
+            }
+            _ => Err(JsonPatchError::MissingTarget),
+        }
+    }
+
+    fn remove_pointer_value(&mut self, pointer: &str) -> Result<(), JsonPatchError> {
+        let segments = parse_json_pointer(pointer).map_err(JsonPatchError::InvalidPointer)?;
+        let Some((terminal, parent_segments)) = segments.split_last() else {
+            return Err(JsonPatchError::CannotRemoveRoot);
+        };
+
+        let parent = find_pointer_parent_mut(self, parent_segments)?;
+        match parent {
+            JsonValue::Array(values) => {
+                let index = parse_patch_array_index(terminal)?;
+                if index >= values.len() {
+                    return Err(JsonPatchError::ArrayIndexOutOfBounds);
+                }
+                values.remove(index);
+                Ok(())
+            }
+            JsonValue::Object(entries) => {
+                let Some(index) = entries.iter().position(|(key, _)| key == terminal) else {
+                    return Err(JsonPatchError::MissingTarget);
+                };
+                entries.remove(index);
+                Ok(())
+            }
+            _ => Err(JsonPatchError::MissingTarget),
+        }
+    }
+
+    fn replace_pointer_value(
+        &mut self,
+        pointer: &str,
+        value: JsonValue,
+    ) -> Result<(), JsonPatchError> {
+        let target = self
+            .get_pointer_mut(pointer)
+            .map_err(JsonPatchError::InvalidPointer)?
+            .ok_or(JsonPatchError::MissingTarget)?;
+        *target = value;
+        Ok(())
+    }
+}
+
+struct JsonPatchOperation {
+    kind: String,
+    path: String,
+    value: Option<JsonValue>,
+}
+
+impl JsonPatchOperation {
+    fn from_value(value: JsonValue) -> Result<Self, JsonPatchError> {
+        let JsonValue::Object(entries) = value else {
+            return Err(JsonPatchError::InvalidOperation);
+        };
+
+        let mut kind = None;
+        let mut path = None;
+        let mut value = None;
+
+        for (key, entry_value) in entries {
+            match (key.as_str(), entry_value) {
+                ("op", JsonValue::String(op)) => kind = Some(op),
+                ("op", _) => return Err(JsonPatchError::MissingOp),
+                ("path", JsonValue::String(pointer)) => path = Some(pointer),
+                ("path", _) => return Err(JsonPatchError::MissingPath),
+                ("value", patch_value) => value = Some(patch_value),
+                _ => {}
+            }
+        }
+
+        Ok(Self {
+            kind: kind.ok_or(JsonPatchError::MissingOp)?,
+            path: path.ok_or(JsonPatchError::MissingPath)?,
+            value,
+        })
+    }
+}
+
+fn find_pointer_parent_mut<'a>(
+    value: &'a mut JsonValue,
+    segments: &[String],
+) -> Result<&'a mut JsonValue, JsonPatchError> {
+    let mut current = value;
+
+    for segment in segments {
+        current = match current {
+            JsonValue::Array(values) => {
+                let index = parse_patch_array_index(segment)?;
+                values
+                    .get_mut(index)
+                    .ok_or(JsonPatchError::ArrayIndexOutOfBounds)?
+            }
+            JsonValue::Object(entries) => entries
+                .iter_mut()
+                .find(|(key, _)| key == segment)
+                .map(|(_, value)| value)
+                .ok_or(JsonPatchError::MissingTarget)?,
+            _ => return Err(JsonPatchError::MissingTarget),
+        };
+    }
+
+    Ok(current)
+}
+
+fn parse_patch_array_index(segment: &str) -> Result<usize, JsonPatchError> {
+    segment
+        .parse::<usize>()
+        .map_err(|_| JsonPatchError::InvalidArrayIndex)
 }
 
 fn decode_pointer_segment(segment: &str) -> Result<String, JsonPointerError> {

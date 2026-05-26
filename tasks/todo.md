@@ -145,3 +145,10 @@
 - 追加: empty/root pointer、nested lookup、array index、escaped keys、invalid prefix/escape/index tests を追加。
 - 保存: `reports/iteration-011/` に cargo JSONL、ownership JSON/HTML、notes を保存。
 - 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 62 tests passed。
+
+## 2026-05-26 cJSON low-cost iteration-012
+
+- 対応: JSON Patch add/remove/replace utility を `GPT-5 mini (copilot)` で実装。
+- 追加: object/array add、remove、replace、invalid document、unsupported op、missing path/value、array bounds tests を追加。
+- 保存: `reports/iteration-012/` に cargo JSONL、ownership JSON/HTML、notes を保存。
+- 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 73 tests passed。

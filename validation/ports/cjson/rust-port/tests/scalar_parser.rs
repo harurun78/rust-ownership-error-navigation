@@ -1,5 +1,5 @@
 use cjson_rust_port::{
-    minify_json, parse_json_pointer, parse_scalar, JsonEditError, JsonPathSegment,
+    minify_json, parse_json_pointer, parse_scalar, JsonEditError, JsonPatchError, JsonPathSegment,
     JsonPointerError, JsonValue, MinifyError,
 };
 
@@ -857,5 +857,131 @@ fn mutates_values_through_json_pointer_paths() {
     assert_eq!(
         value.get_pointer("/items/0/done"),
         Ok(Some(&JsonValue::Bool(true)))
+    );
+}
+
+#[test]
+fn json_patch_adds_object_members() {
+    let mut value = parse_scalar(r#"{"name":"cjson"}"#).unwrap();
+    let patch = parse_scalar(r#"[{"op":"add","path":"/enabled","value":true}]"#).unwrap();
+
+    assert_eq!(value.apply_json_patch(patch), Ok(()));
+    assert_eq!(
+        value,
+        parse_scalar(r#"{"name":"cjson","enabled":true}"#).unwrap()
+    );
+}
+
+#[test]
+fn json_patch_adds_array_items_by_index() {
+    let mut value = parse_scalar(r#"{"items":["first","third"]}"#).unwrap();
+    let patch = parse_scalar(r#"[{"op":"add","path":"/items/1","value":"second"}]"#).unwrap();
+
+    assert_eq!(value.apply_json_patch(patch), Ok(()));
+    assert_eq!(
+        value,
+        parse_scalar(r#"{"items":["first","second","third"]}"#).unwrap()
+    );
+}
+
+#[test]
+fn json_patch_removes_object_members() {
+    let mut value = parse_scalar(r#"{"keep":true,"remove":false}"#).unwrap();
+    let patch = parse_scalar(r#"[{"op":"remove","path":"/remove"}]"#).unwrap();
+
+    assert_eq!(value.apply_json_patch(patch), Ok(()));
+    assert_eq!(value, parse_scalar(r#"{"keep":true}"#).unwrap());
+}
+
+#[test]
+fn json_patch_removes_array_items() {
+    let mut value = parse_scalar(r#"{"items":["first","second","third"]}"#).unwrap();
+    let patch = parse_scalar(r#"[{"op":"remove","path":"/items/1"}]"#).unwrap();
+
+    assert_eq!(value.apply_json_patch(patch), Ok(()));
+    assert_eq!(
+        value,
+        parse_scalar(r#"{"items":["first","third"]}"#).unwrap()
+    );
+}
+
+#[test]
+fn json_patch_replaces_object_members() {
+    let mut value = parse_scalar(r#"{"name":"old","keep":true}"#).unwrap();
+    let patch = parse_scalar(r#"[{"op":"replace","path":"/name","value":"new"}]"#).unwrap();
+
+    assert_eq!(value.apply_json_patch(patch), Ok(()));
+    assert_eq!(
+        value,
+        parse_scalar(r#"{"name":"new","keep":true}"#).unwrap()
+    );
+}
+
+#[test]
+fn json_patch_replaces_array_items() {
+    let mut value = parse_scalar(r#"{"items":[1,2,3]}"#).unwrap();
+    let patch = parse_scalar(r#"[{"op":"replace","path":"/items/1","value":20}]"#).unwrap();
+
+    assert_eq!(value.apply_json_patch(patch), Ok(()));
+    assert_eq!(value, parse_scalar(r#"{"items":[1,20,3]}"#).unwrap());
+}
+
+#[test]
+fn json_patch_rejects_invalid_patch_document() {
+    let mut value = JsonValue::Null;
+
+    assert_eq!(
+        value.apply_json_patch(parse_scalar(r#"{"op":"add","path":"","value":true}"#).unwrap()),
+        Err(JsonPatchError::InvalidPatchDocument)
+    );
+}
+
+#[test]
+fn json_patch_rejects_unsupported_operations() {
+    let mut value = JsonValue::Null;
+    let patch = parse_scalar(r#"[{"op":"move","path":"/name","value":true}]"#).unwrap();
+
+    assert_eq!(
+        value.apply_json_patch(patch),
+        Err(JsonPatchError::UnsupportedOperation)
+    );
+}
+
+#[test]
+fn json_patch_requires_path_member() {
+    let mut value = JsonValue::Null;
+    let patch = parse_scalar(r#"[{"op":"add","value":true}]"#).unwrap();
+
+    assert_eq!(
+        value.apply_json_patch(patch),
+        Err(JsonPatchError::MissingPath)
+    );
+}
+
+#[test]
+fn json_patch_requires_value_for_add_and_replace() {
+    let mut add_target = parse_scalar(r#"{"items":[]}"#).unwrap();
+    let add_patch = parse_scalar(r#"[{"op":"add","path":"/items/0"}]"#).unwrap();
+    let mut replace_target = parse_scalar(r#"{"name":"old"}"#).unwrap();
+    let replace_patch = parse_scalar(r#"[{"op":"replace","path":"/name"}]"#).unwrap();
+
+    assert_eq!(
+        add_target.apply_json_patch(add_patch),
+        Err(JsonPatchError::MissingValue)
+    );
+    assert_eq!(
+        replace_target.apply_json_patch(replace_patch),
+        Err(JsonPatchError::MissingValue)
+    );
+}
+
+#[test]
+fn json_patch_reports_array_index_out_of_bounds() {
+    let mut value = parse_scalar(r#"{"items":[null]}"#).unwrap();
+    let patch = parse_scalar(r#"[{"op":"add","path":"/items/3","value":true}]"#).unwrap();
+
+    assert_eq!(
+        value.apply_json_patch(patch),
+        Err(JsonPatchError::ArrayIndexOutOfBounds)
     );
 }

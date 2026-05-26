@@ -203,3 +203,16 @@
 - [x] C151 Generate `reports/iteration-011/ownership-report.html`.
 - [x] C152 Record iteration-011 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] C153 Run final `cargo test` in `rust-port/`.
+
+## Phase 18: JSON Patch Add Remove Replace
+
+- [x] C154 Add tests for JSON Patch `add` on object members and array indexes.
+- [x] C155 Add tests for JSON Patch `remove` on object members and array indexes.
+- [x] C156 Add tests for JSON Patch `replace` on object members and array indexes.
+- [x] C157 Add tests for invalid patch documents, unsupported operations, missing paths, and array index bounds.
+- [x] C158 Implement a small JSON Patch utility for `add`, `remove`, and `replace` using JSON Pointer paths.
+- [x] C159 Save `cargo check --message-format=json` output to `reports/iteration-012/cargo-check.jsonl`.
+- [x] C160 Generate `reports/iteration-012/ownership-report.json`.
+- [x] C161 Generate `reports/iteration-012/ownership-report.html`.
+- [x] C162 Record iteration-012 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C163 Run final `cargo test` in `rust-port/`.
