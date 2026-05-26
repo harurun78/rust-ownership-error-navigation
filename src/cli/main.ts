@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
 import process from 'node:process';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { normalizeRustcDiagnostic } from '../diagnostics/normalizer.js';
+import { mapDiagnostics } from '../mapper/index.js';
+import { parseCargoMessagesFile } from '../parser/cargo-message-parser.js';
+import { createDiagnosticReport, renderJsonReport } from '../reporter/json-reporter.js';
+import { renderHtmlReport } from '../reporter/html-reporter.js';
 
 const HELP_TEXT = `rust-ownership-report
 
@@ -14,16 +22,62 @@ Options:
   --html-out  Static HTML report output path
   -h, --help  Show this help message`;
 
-export function main(argv = process.argv.slice(2)): number {
+export interface CliOptions {
+  input: string;
+  jsonOut: string;
+  htmlOut: string;
+}
+
+export async function main(argv = process.argv.slice(2)): Promise<number> {
   if (argv.includes('--help') || argv.includes('-h')) {
     console.log(HELP_TEXT);
     return 0;
   }
 
-  console.error('rust-ownership-report CLI implementation is pending. Run with --help for usage.');
-  return 1;
+  try {
+    const options = parseCliOptions(argv);
+    const cargoMessages = await parseCargoMessagesFile(options.input);
+    const normalizedDiagnostics = cargoMessages
+      .map((message) => message.message)
+      .filter((message) => message !== undefined)
+      .map((diagnostic, index) => normalizeRustcDiagnostic(diagnostic, { diagnosticIndex: index }));
+    const diagnostics = mapDiagnostics(normalizedDiagnostics);
+    const report = createDiagnosticReport({ input: { path: options.input }, diagnostics });
+
+    await writeOutputFile(options.jsonOut, renderJsonReport(report));
+    await writeOutputFile(options.htmlOut, renderHtmlReport(report));
+
+    return 0;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+export function parseCliOptions(argv: readonly string[]): CliOptions {
+  const input = readOption(argv, '--input');
+  const jsonOut = readOption(argv, '--json-out');
+  const htmlOut = readOption(argv, '--html-out');
+
+  if (input === undefined || jsonOut === undefined || htmlOut === undefined) {
+    throw new Error(
+      'Missing required arguments: --input, --json-out, and --html-out are required.'
+    );
+  }
+
+  return { input, jsonOut, htmlOut };
+}
+
+function readOption(argv: readonly string[], name: string): string | undefined {
+  const index = argv.indexOf(name);
+  return index === -1 ? undefined : argv[index + 1];
+}
+
+async function writeOutputFile(filePath: string, contents: string): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, contents, 'utf8');
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  process.exitCode = main();
+  process.exitCode = await main();
 }

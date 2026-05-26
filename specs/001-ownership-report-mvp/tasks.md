@@ -58,20 +58,20 @@
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Add E0382 mapper expectation tests for move cause, use conflict, context, evidence, confidence, and possible_fix in test/mapper/e0382.test.ts
-- [ ] T018 [P] [US1] Add E0382 JSON reporter snapshot test using ownership-baseline-2026-05-24.jsonl in test/reporter/json-reporter.e0382.test.ts
-- [ ] T019 [P] [US1] Add E0382 HTML reporter snapshot test for Summary, Causality Timeline, Source Spans, Evidence, and possible_fix rows in test/reporter/html-reporter.e0382.test.ts
-- [ ] T020 [P] [US1] Add E0382 CLI integration test for json-out and html-out files in test/integration/e0382-report.integration.test.ts
+- [x] T017 [P] [US1] Add E0382 mapper expectation tests for move cause, use conflict, context, evidence, confidence, and possible_fix in test/mapper/e0382.test.ts
+- [x] T018 [P] [US1] Add E0382 JSON reporter snapshot test using ownership-baseline-2026-05-24.jsonl in test/reporter/json-reporter.e0382.test.ts
+- [x] T019 [P] [US1] Add E0382 HTML reporter snapshot test for Summary, Causality Timeline, Source Spans, Evidence, and possible_fix rows in test/reporter/html-reporter.e0382.test.ts
+- [x] T020 [P] [US1] Add E0382 CLI integration test for json-out and html-out files in test/integration/e0382-report.integration.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T021 [US1] Implement E0382 span role classification and ownership event mapping in src/mapper/e0382.ts
-- [ ] T022 [US1] Implement rustc child suggestion and possible_fix extraction in src/mapper/rustc-suggestions.ts
-- [ ] T023 [US1] Implement supported diagnostic JSON report output with schemaVersion 0.1.0, input, summary, diagnostics, spans, and events in src/reporter/json-reporter.ts
-- [ ] T024 [US1] Implement static HTML report sections for supported diagnostics in src/reporter/html-reporter.ts
-- [ ] T025 [US1] Implement CLI argument parsing for --input, --json-out, and --html-out in src/cli/main.ts
-- [ ] T026 [US1] Wire parser, normalizer, mapper registry, JSON reporter, and HTML reporter in src/cli/main.ts
-- [ ] T027 [US1] Export E0382 mapper and reporter APIs from src/index.ts
+- [x] T021 [US1] Implement E0382 span role classification and ownership event mapping in src/mapper/e0382.ts
+- [x] T022 [US1] Implement rustc child suggestion and possible_fix extraction in src/mapper/rustc-suggestions.ts
+- [x] T023 [US1] Implement supported diagnostic JSON report output with schemaVersion 0.1.0, input, summary, diagnostics, spans, and events in src/reporter/json-reporter.ts
+- [x] T024 [US1] Implement static HTML report sections for supported diagnostics in src/reporter/html-reporter.ts
+- [x] T025 [US1] Implement CLI argument parsing for --input, --json-out, and --html-out in src/cli/main.ts
+- [x] T026 [US1] Wire parser, normalizer, mapper registry, JSON reporter, and HTML reporter in src/cli/main.ts
+- [x] T027 [US1] Export E0382 mapper and reporter APIs from src/index.ts
 
 **Checkpoint**: User Story 1 is independently functional and testable as the MVP.
 

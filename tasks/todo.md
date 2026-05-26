@@ -18,3 +18,11 @@
 - 実行: `npm run lint`, `npm run type-check`, `npm run test:run`, `npm run build`, `npm run format:check`
 - 結果: すべて成功。unit tests は 4 files / 14 tests passed。
 - 次: T017-T027（US1 E0382 mapper / reporter / CLI）
+
+## 2026-05-26 US1 E0382 slice
+
+- 完了: T017-T027（E0382 mapper、suggestion extraction、JSON/HTML reporters、CLI pipeline）
+- 対応 Issue: #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16
+- 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`
+- 結果: すべて成功。unit/integration は 8 files / 18 tests passed、integration 専用は 1 file / 1 test passed。
+- 次: T028-T036（US2 E0499/E0502 borrow conflict mapping）

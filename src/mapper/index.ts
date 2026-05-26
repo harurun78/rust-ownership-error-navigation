@@ -1,4 +1,5 @@
 import type { DiagnosticRecord } from './ownership-event.js';
+import { mapE0382Diagnostic } from './e0382.js';
 
 export const SUPPORTED_DIAGNOSTIC_CODES = ['E0382', 'E0499', 'E0502'] as const;
 
@@ -15,7 +16,7 @@ export function isSupportedDiagnosticCode(
 }
 
 export const defaultMapperRegistry: MapperRegistry = {
-  E0382: markSupportedDiagnostic,
+  E0382: mapE0382Diagnostic,
   E0499: markSupportedDiagnostic,
   E0502: markSupportedDiagnostic
 };
