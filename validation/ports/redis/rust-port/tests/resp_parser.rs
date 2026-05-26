@@ -403,6 +403,18 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "stream"
     );
     assert_eq!(
+        command_metadata(b"xread").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
+        command_metadata(b"xdel").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
+        command_metadata(b"xtrim").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
         command_metadata(b"scan").unwrap().category.as_str(),
         "keyspace"
     );
@@ -2908,6 +2920,210 @@ fn streams_preserve_binary_field_values_and_validate_arguments() {
     assert_eq!(
         execute(&mut db, &[b"XADD", b"stream", b"1-2", b"field"]),
         RespReply::Error("ERR wrong number of arguments for 'xadd' command".to_string())
+    );
+}
+
+#[test]
+fn stream_generated_ids_and_xrange_count_are_deterministic() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"*", b"f", b"v1"]),
+        RespReply::BulkString(b"1-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"*", b"f", b"v2"]),
+        RespReply::BulkString(b"1-1".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"2-0", b"f", b"v3"]),
+        RespReply::BulkString(b"2-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"*", b"f", b"v4"]),
+        RespReply::BulkString(b"2-1".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XRANGE", b"stream", b"-", b"+", b"COUNT", b"2"]),
+        RespReply::Array(vec![
+            RespReply::Array(vec![
+                RespReply::BulkString(b"1-0".to_vec()),
+                RespReply::Array(vec![
+                    RespReply::BulkString(b"f".to_vec()),
+                    RespReply::BulkString(b"v1".to_vec()),
+                ]),
+            ]),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"1-1".to_vec()),
+                RespReply::Array(vec![
+                    RespReply::BulkString(b"f".to_vec()),
+                    RespReply::BulkString(b"v2".to_vec()),
+                ]),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XRANGE", b"stream", b"-", b"+", b"LIMIT", b"2"]),
+        RespReply::Error("ERR unsupported XRANGE option".to_string())
+    );
+}
+
+#[test]
+fn xread_reads_one_or_more_streams_without_blocking() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"a", b"1-0", b"fa", b"va"]),
+        RespReply::BulkString(b"1-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"a", b"1-1", b"fa", b"vb"]),
+        RespReply::BulkString(b"1-1".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"b", b"2-0", b"fb", b"vc"]),
+        RespReply::BulkString(b"2-0".to_vec())
+    );
+
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XREAD", b"COUNT", b"1", b"STREAMS", b"a", b"b", b"1-0", b"0-0",
+            ]
+        ),
+        RespReply::Array(vec![
+            RespReply::Array(vec![
+                RespReply::BulkString(b"a".to_vec()),
+                RespReply::Array(vec![RespReply::Array(vec![
+                    RespReply::BulkString(b"1-1".to_vec()),
+                    RespReply::Array(vec![
+                        RespReply::BulkString(b"fa".to_vec()),
+                        RespReply::BulkString(b"vb".to_vec()),
+                    ]),
+                ])]),
+            ]),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"b".to_vec()),
+                RespReply::Array(vec![RespReply::Array(vec![
+                    RespReply::BulkString(b"2-0".to_vec()),
+                    RespReply::Array(vec![
+                        RespReply::BulkString(b"fb".to_vec()),
+                        RespReply::BulkString(b"vc".to_vec()),
+                    ]),
+                ])]),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XREAD", b"STREAMS", b"missing", b"0-0"]),
+        RespReply::NullArray
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XREAD", b"STREAMS", b"a", b"$"]),
+        RespReply::NullArray
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"XREAD", b"COUNT", b"0", b"STREAMS", b"a", b"0-0"]
+        ),
+        RespReply::Error("ERR invalid COUNT".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XREAD", b"STREAMS", b"a"]),
+        RespReply::Error("ERR wrong number of arguments for 'xread' command".to_string())
+    );
+}
+
+#[test]
+fn xdel_and_xtrim_mutate_streams_expiration_and_watch_state() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"v"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XDEL", b"string", b"1-0"]),
+        RespReply::Error(
+            "WRONGTYPE Operation against a key holding the wrong kind of value".to_string()
+        )
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"s", b"1-0", b"f", b"v1"]),
+        RespReply::BulkString(b"1-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"s", b"2-0", b"f", b"v2"]),
+        RespReply::BulkString(b"2-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"s", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"s"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XDEL", b"s", b"1-0", b"9-9"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"s"]), RespReply::Integer(-1));
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+
+    assert_eq!(
+        execute(&mut db, &[b"XTRIM", b"s", b"MAXLEN", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"EXISTS", b"s"]), RespReply::Integer(0));
+    assert_eq!(
+        execute(&mut db, &[b"XTRIM", b"s", b"MINID", b"1-0"]),
+        RespReply::Error("ERR unsupported XTRIM option".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XDEL", b"s", b"bad"]),
+        RespReply::Error("ERR Invalid stream ID specified as stream command argument".to_string())
+    );
+}
+
+#[test]
+fn stream_commands_work_in_transactions_and_tcp_server() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"q", b"*", b"f", b"v"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XREAD", b"STREAMS", b"q", b"0-0"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::Array(vec![RespReply::Array(vec![
+                RespReply::BulkString(b"q".to_vec()),
+                RespReply::Array(vec![RespReply::Array(vec![
+                    RespReply::BulkString(b"1-0".to_vec()),
+                    RespReply::Array(vec![
+                        RespReply::BulkString(b"f".to_vec()),
+                        RespReply::BulkString(b"v".to_vec()),
+                    ]),
+                ])]),
+            ])]),
+        ])
+    );
+
+    let mut input = multibulk_frame(&[b"XADD", b"tcp", b"*", b"f", b"v"]);
+    input.extend(multibulk_frame(&[b"XREAD", b"STREAMS", b"tcp", b"0-0"]));
+    assert_eq!(
+        tcp_exchange(&input),
+        b"$3\r\n1-0\r\n*1\r\n*2\r\n$3\r\ntcp\r\n*1\r\n*2\r\n$3\r\n1-0\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n".to_vec()
     );
 }
 

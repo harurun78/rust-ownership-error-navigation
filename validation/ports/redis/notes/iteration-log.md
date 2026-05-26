@@ -258,6 +258,27 @@ Use this log to separate ownership-report effects from human guidance.
 
 Notes:
 
+### iteration-031
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R218 stream base completion with generated stream IDs, `XREAD`, `XDEL`, `XTRIM`, and `XRANGE COUNT`; consumer group commands deferred.
+- Prompt summary: Implement deterministic generated stream IDs, central dispatch and metadata for `XREAD`, `XDEL`, and `XTRIM`, non-blocking `XREAD`, deletion/trimming mutation semantics, range/count options, targeted tests, cargo diagnostics, ownership reports, and task/log updates without committing.
+- Human ownership hints before attempt: none
+- Command: `mkdir -p ../reports/iteration-031 && cargo fmt && cargo check --message-format=json > ../reports/iteration-031/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-031/cargo-check.jsonl --json-out ../reports/iteration-031/ownership-report.json --html-out ../reports/iteration-031/ownership-report.html`
+- Result: compile success; test success, 129 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-031/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-031/ownership-report.json`
+- Ownership report HTML: `reports/iteration-031/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>` introduced. No broad clone shortcut introduced; reply construction retains narrow `to_vec()` copies for stored stream keys, IDs, fields, and values.
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: iteration-032 can start R219 consumer group commands (`XGROUP`, `XREADGROUP`, `XACK`, `XPENDING`, `XCLAIM`) using the iteration-031 stream base as input.
+
 - Equal-score lex subsets: `ZRANGEBYLEX`/`ZLEXCOUNT`/`ZREMRANGEBYLEX` behavior in this port is only supported when all scores are equal; tests exercise this subset and document it here for later extension.
 
 ### iteration-011

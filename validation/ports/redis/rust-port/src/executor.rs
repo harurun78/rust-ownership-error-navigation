@@ -337,6 +337,9 @@ impl RedisMiniDb {
             CommandKind::XAdd => self.execute_xadd(args),
             CommandKind::XLen => self.execute_xlen(args),
             CommandKind::XRange => self.execute_xrange(args),
+            CommandKind::XRead => self.execute_xread(args),
+            CommandKind::XDel => self.execute_xdel(args),
+            CommandKind::XTrim => self.execute_xtrim(args),
             CommandKind::Type => self.execute_type(args),
             CommandKind::Rename => self.execute_rename(args),
             CommandKind::RenameNx => self.execute_renamenx(args),
@@ -2874,10 +2877,6 @@ impl RedisMiniDb {
         let mut args = args;
         let key = args.remove(0);
         let id = args.remove(0);
-        let parsed_id = match parse_stream_id(&id) {
-            Some(id) => id,
-            None => return invalid_stream_id(),
-        };
         let mut fields = Vec::new();
         while !args.is_empty() {
             let field = args.remove(0);
@@ -2893,29 +2892,38 @@ impl RedisMiniDb {
             | Some(RedisValue::Set(_))
             | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Stream(stream)) => {
+                let (parsed_id, entry_id) = match resolve_xadd_id(&id, stream) {
+                    Some(resolved) => resolved,
+                    None => return invalid_stream_id(),
+                };
                 stream.insert(
                     parsed_id,
                     StreamEntry {
-                        id: id.to_vec(),
+                        id: entry_id.to_vec(),
                         fields,
                     },
                 );
                 self.expires_at.remove(&key);
                 self.bump_key_version(&key);
-                RespReply::BulkString(id)
+                RespReply::BulkString(entry_id)
             }
             None => {
+                let empty_stream = BTreeMap::new();
+                let (parsed_id, entry_id) = match resolve_xadd_id(&id, &empty_stream) {
+                    Some(resolved) => resolved,
+                    None => return invalid_stream_id(),
+                };
                 let mut stream = BTreeMap::new();
                 stream.insert(
                     parsed_id,
                     StreamEntry {
-                        id: id.to_vec(),
+                        id: entry_id.to_vec(),
                         fields,
                     },
                 );
                 self.bump_key_version(&key);
                 self.values.insert(key, RedisValue::Stream(stream));
-                RespReply::BulkString(id)
+                RespReply::BulkString(entry_id)
             }
         }
     }
@@ -2938,9 +2946,20 @@ impl RedisMiniDb {
     }
 
     fn execute_xrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
-        if args.len() != 3 {
+        if args.len() != 3 && args.len() != 5 {
             return wrong_arity("xrange");
         }
+        let count = if args.len() == 5 {
+            if !args[3].eq_ignore_ascii_case(b"COUNT") {
+                return RespReply::Error("ERR unsupported XRANGE option".to_string());
+            }
+            match parse_scan_index(&args[4]) {
+                Some(0) | None => return RespReply::Error("ERR invalid COUNT".to_string()),
+                Some(count) => Some(count),
+            }
+        } else {
+            None
+        };
 
         let start = match parse_stream_bound(&args[1], StreamBoundKind::Minimum) {
             Some(id) => id,
@@ -2958,24 +2977,174 @@ impl RedisMiniDb {
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
             | Some(RedisValue::ZSet(_)) => wrong_type(),
-            Some(RedisValue::Stream(stream)) => RespReply::Array(
-                stream
-                    .range(start..=end)
-                    .map(|(_id, entry)| {
-                        let mut field_values = Vec::with_capacity(entry.fields.len() * 2);
-                        for (field, value) in &entry.fields {
-                            field_values.push(RespReply::BulkString(field.to_vec()));
-                            field_values.push(RespReply::BulkString(value.to_vec()));
-                        }
-                        RespReply::Array(vec![
-                            RespReply::BulkString(entry.id.to_vec()),
-                            RespReply::Array(field_values),
-                        ])
-                    })
-                    .collect(),
-            ),
+            Some(RedisValue::Stream(stream)) => {
+                RespReply::Array(stream_range_reply(stream, start, end, count))
+            }
             None => RespReply::Array(Vec::new()),
         }
+    }
+
+    fn execute_xread(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        let mut index = 0usize;
+        let mut count = None;
+        if args.len() >= 2 && args[0].eq_ignore_ascii_case(b"COUNT") {
+            match parse_scan_index(&args[1]) {
+                Some(0) | None => return RespReply::Error("ERR invalid COUNT".to_string()),
+                Some(parsed) => count = Some(parsed),
+            }
+            index = 2;
+        }
+        if index >= args.len() || !args[index].eq_ignore_ascii_case(b"STREAMS") {
+            return RespReply::Error("ERR syntax error".to_string());
+        }
+
+        let stream_args = &args[index + 1..];
+        if stream_args.len() < 2 || stream_args.len() % 2 != 0 {
+            return wrong_arity("xread");
+        }
+        let stream_count = stream_args.len() / 2;
+        let keys = &stream_args[..stream_count];
+        let ids = &stream_args[stream_count..];
+
+        let mut parsed_ids = Vec::with_capacity(ids.len());
+        for id in ids {
+            if id == b"$" {
+                parsed_ids.push(None);
+            } else if let Some(parsed) = parse_stream_id(id) {
+                parsed_ids.push(Some(parsed));
+            } else {
+                return invalid_stream_id();
+            }
+        }
+
+        for key in keys {
+            self.remove_if_expired(key);
+        }
+
+        let mut replies = Vec::new();
+        for (key, parsed_id) in keys.iter().zip(parsed_ids.iter()) {
+            match self.values.get(key) {
+                Some(RedisValue::String(_))
+                | Some(RedisValue::List(_))
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::Set(_))
+                | Some(RedisValue::ZSet(_)) => return wrong_type(),
+                Some(RedisValue::Stream(stream)) => {
+                    let start_after = match parsed_id {
+                        Some(id) => *id,
+                        None => stream
+                            .keys()
+                            .next_back()
+                            .copied()
+                            .unwrap_or((u64::MAX, u64::MAX)),
+                    };
+                    let entries = stream_after_reply(stream, start_after, count);
+                    if !entries.is_empty() {
+                        replies.push(RespReply::Array(vec![
+                            RespReply::BulkString(key.to_vec()),
+                            RespReply::Array(entries),
+                        ]));
+                    }
+                }
+                None => {}
+            }
+        }
+
+        if replies.is_empty() {
+            RespReply::NullArray
+        } else {
+            RespReply::Array(replies)
+        }
+    }
+
+    fn execute_xdel(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("xdel");
+        }
+
+        let key = &args[0];
+        let mut ids = Vec::with_capacity(args.len() - 1);
+        for id in &args[1..] {
+            match parse_stream_id(id) {
+                Some(parsed) => ids.push(parsed),
+                None => return invalid_stream_id(),
+            }
+        }
+
+        self.remove_if_expired(key);
+        let mut should_remove_key = false;
+        let removed = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            Some(RedisValue::Stream(stream)) => {
+                let mut removed = 0usize;
+                for id in ids {
+                    if stream.remove(&id).is_some() {
+                        removed += 1;
+                    }
+                }
+                should_remove_key = stream.is_empty();
+                removed
+            }
+            None => 0,
+        };
+
+        if removed > 0 {
+            if should_remove_key {
+                self.values.remove(key);
+            }
+            self.expires_at.remove(key);
+            self.bump_key_version(key);
+        }
+
+        RespReply::Integer(removed as i64)
+    }
+
+    fn execute_xtrim(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("xtrim");
+        }
+        if !args[1].eq_ignore_ascii_case(b"MAXLEN") {
+            return RespReply::Error("ERR unsupported XTRIM option".to_string());
+        }
+        let max_len = match parse_scan_index(&args[2]) {
+            Some(value) => value,
+            None => return RespReply::Error("ERR invalid MAXLEN".to_string()),
+        };
+
+        let key = &args[0];
+        self.remove_if_expired(key);
+        let mut should_remove_key = false;
+        let removed = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            Some(RedisValue::Stream(stream)) => {
+                let excess = stream.len().saturating_sub(max_len);
+                let ids: Vec<(u64, u64)> = stream.keys().take(excess).copied().collect();
+                for id in &ids {
+                    stream.remove(id);
+                }
+                should_remove_key = stream.is_empty();
+                ids.len()
+            }
+            None => 0,
+        };
+
+        if removed > 0 {
+            if should_remove_key {
+                self.values.remove(key);
+            }
+            self.expires_at.remove(key);
+            self.bump_key_version(key);
+        }
+
+        RespReply::Integer(removed as i64)
     }
 
     fn execute_type(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -3256,6 +3425,9 @@ enum CommandKind {
     XAdd,
     XLen,
     XRange,
+    XRead,
+    XDel,
+    XTrim,
     Type,
     Rename,
     RenameNx,
@@ -3409,6 +3581,9 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("XADD", CommandCategory::Stream, CommandKind::XAdd),
     command_spec("XLEN", CommandCategory::Stream, CommandKind::XLen),
     command_spec("XRANGE", CommandCategory::Stream, CommandKind::XRange),
+    command_spec("XREAD", CommandCategory::Stream, CommandKind::XRead),
+    command_spec("XDEL", CommandCategory::Stream, CommandKind::XDel),
+    command_spec("XTRIM", CommandCategory::Stream, CommandKind::XTrim),
     command_spec("TYPE", CommandCategory::Keyspace, CommandKind::Type),
     command_spec("RENAME", CommandCategory::Keyspace, CommandKind::Rename),
     command_spec("RENAMENX", CommandCategory::Keyspace, CommandKind::RenameNx),
@@ -3964,6 +4139,63 @@ fn parse_unsigned_part(value: &[u8]) -> Option<u64> {
         return None;
     }
     std::str::from_utf8(value).ok()?.parse::<u64>().ok()
+}
+
+fn resolve_xadd_id(
+    requested_id: &[u8],
+    stream: &BTreeMap<(u64, u64), StreamEntry>,
+) -> Option<((u64, u64), Vec<u8>)> {
+    if requested_id == b"*" {
+        let next_id = match stream.keys().next_back().copied() {
+            Some((milliseconds, sequence)) => (milliseconds, sequence.checked_add(1)?),
+            None => (1, 0),
+        };
+        return Some((next_id, format!("{}-{}", next_id.0, next_id.1).into_bytes()));
+    }
+
+    let parsed = parse_stream_id(requested_id)?;
+    Some((parsed, requested_id.to_vec()))
+}
+
+fn stream_entry_reply(entry: &StreamEntry) -> RespReply {
+    let mut field_values = Vec::with_capacity(entry.fields.len() * 2);
+    for (field, value) in &entry.fields {
+        field_values.push(RespReply::BulkString(field.to_vec()));
+        field_values.push(RespReply::BulkString(value.to_vec()));
+    }
+    RespReply::Array(vec![
+        RespReply::BulkString(entry.id.to_vec()),
+        RespReply::Array(field_values),
+    ])
+}
+
+fn stream_range_reply(
+    stream: &BTreeMap<(u64, u64), StreamEntry>,
+    start: (u64, u64),
+    end: (u64, u64),
+    count: Option<usize>,
+) -> Vec<RespReply> {
+    let entries = stream
+        .range(start..=end)
+        .map(|(_id, entry)| stream_entry_reply(entry));
+    match count {
+        Some(count) => entries.take(count).collect(),
+        None => entries.collect(),
+    }
+}
+
+fn stream_after_reply(
+    stream: &BTreeMap<(u64, u64), StreamEntry>,
+    start_after: (u64, u64),
+    count: Option<usize>,
+) -> Vec<RespReply> {
+    let entries = stream
+        .range((start_after.0, start_after.1.saturating_add(1))..)
+        .map(|(_id, entry)| stream_entry_reply(entry));
+    match count {
+        Some(count) => entries.take(count).collect(),
+        None => entries.collect(),
+    }
 }
 
 fn parse_stream_bound(value: &[u8], kind: StreamBoundKind) -> Option<(u64, u64)> {

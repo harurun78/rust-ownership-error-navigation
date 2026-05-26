@@ -315,9 +315,11 @@ iteration-027: implemented and tested minimal non-sleeping compatibility for `BL
 
 ## Phase 29: Stream Consumer Groups
 
-- [ ] R218 Add generated stream IDs, `XREAD`, `XDEL`, `XTRIM`, and range/count options.
+- [x] R218 Add generated stream IDs, `XREAD`, `XDEL`, `XTRIM`, and range/count options.
 - [ ] R219 Add consumer group commands `XGROUP`, `XREADGROUP`, `XACK`, `XPENDING`, and `XCLAIM` in minimal compatible slices.
 - [ ] R220 Save diagnostics and reports for stream group iterations.
+
+iteration-031: completed R218 stream base with deterministic logical `XADD *` IDs, `XRANGE COUNT`, non-blocking `XREAD`, `XDEL`, and `XTRIM MAXLEN`; consumer group commands are intentionally deferred to R219.
 
 ## Phase 30: Pub/Sub
 
