@@ -276,10 +276,10 @@ The validation target is now expanded from a parser/executor experiment into a s
 
 ## Phase 24: RESP3 Protocol Surface
 
-- [ ] R200 Add RESP3 reply variants and encoding tests.
-- [ ] R201 Add `HELLO 2|3` protocol negotiation state for client/session execution.
-- [ ] R202 Preserve RESP2 compatibility as the default.
-- [ ] R203 Save diagnostics and reports for iteration-022.
+- [x] R200 Add RESP3 reply variants and encoding tests.
+- [x] R201 Add `HELLO 2|3` protocol negotiation state for client/session execution.
+- [x] R202 Preserve RESP2 compatibility as the default.
+- [x] R203 Save diagnostics and reports for iteration-022.
 
 ## Phase 25: Client Session And TCP Server MVP
 

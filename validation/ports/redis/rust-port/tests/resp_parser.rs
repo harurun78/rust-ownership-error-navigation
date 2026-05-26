@@ -1,6 +1,7 @@
 use rust_port::{
-    Command, CommandCategory, CommandMetadata, ParseOutcome, RedisMiniDb, RespCommandParser,
-    RespError, RespReply, command_metadata, normalize_command_name,
+    Command, CommandCategory, CommandMetadata, ParseOutcome, RedisMiniDb, RedisMiniSession,
+    RespCommandParser, RespError, RespProtocolVersion, RespReply, command_metadata,
+    normalize_command_name,
 };
 
 fn assert_incomplete(parser: &mut RespCommandParser) {
@@ -102,6 +103,10 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "keyspace"
     );
     assert_eq!(
+        command_metadata(b"hello").unwrap().category.as_str(),
+        "connection"
+    );
+    assert_eq!(
         command_metadata(b"multi").unwrap().category.as_str(),
         "transaction"
     );
@@ -160,6 +165,99 @@ fn encodes_resp_replies() {
     assert_eq!(
         RespReply::Error("ERR wrong number of arguments".to_string()).encode(),
         b"-ERR wrong number of arguments\r\n".to_vec()
+    );
+}
+
+#[test]
+fn resp3_encoding_preserves_existing_frames_except_nulls() {
+    assert_eq!(
+        RespReply::SimpleString("OK").encode_with_protocol(RespProtocolVersion::Resp3),
+        b"+OK\r\n".to_vec()
+    );
+    assert_eq!(
+        RespReply::BulkString(b"hello".to_vec()).encode_with_protocol(RespProtocolVersion::Resp3),
+        b"$5\r\nhello\r\n".to_vec()
+    );
+    assert_eq!(
+        RespReply::Integer(42).encode_with_protocol(RespProtocolVersion::Resp3),
+        b":42\r\n".to_vec()
+    );
+    assert_eq!(
+        RespReply::Error("ERR sample".to_string()).encode_with_protocol(RespProtocolVersion::Resp3),
+        b"-ERR sample\r\n".to_vec()
+    );
+    assert_eq!(
+        RespReply::NullBulkString.encode_with_protocol(RespProtocolVersion::Resp3),
+        b"_\r\n".to_vec()
+    );
+    assert_eq!(
+        RespReply::NullArray.encode_with_protocol(RespProtocolVersion::Resp3),
+        b"_\r\n".to_vec()
+    );
+    assert_eq!(
+        RespReply::Array(vec![RespReply::NullBulkString])
+            .encode_with_protocol(RespProtocolVersion::Resp2),
+        b"*1\r\n$-1\r\n".to_vec()
+    );
+    assert_eq!(
+        RespReply::Array(vec![RespReply::NullBulkString])
+            .encode_with_protocol(RespProtocolVersion::Resp3),
+        b"*1\r\n_\r\n".to_vec()
+    );
+}
+
+#[test]
+fn session_hello_switches_between_resp2_and_resp3() {
+    let mut session = RedisMiniSession::new();
+
+    assert_eq!(session.protocol_version(), RespProtocolVersion::Resp2);
+    assert_eq!(
+        session.execute(command(&[b"HELLO", b"3"])),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"server".to_vec()),
+            RespReply::BulkString(b"redis-mini".to_vec()),
+            RespReply::BulkString(b"proto".to_vec()),
+            RespReply::Integer(3),
+        ])
+    );
+    assert_eq!(session.protocol_version(), RespProtocolVersion::Resp3);
+    assert_eq!(
+        session.execute_encoded(command(&[b"GET", b"missing"])),
+        b"_\r\n".to_vec()
+    );
+
+    assert_eq!(
+        session.execute(command(&[b"HELLO", b"2"])),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"server".to_vec()),
+            RespReply::BulkString(b"redis-mini".to_vec()),
+            RespReply::BulkString(b"proto".to_vec()),
+            RespReply::Integer(2),
+        ])
+    );
+    assert_eq!(session.protocol_version(), RespProtocolVersion::Resp2);
+    assert_eq!(
+        session.execute_encoded(command(&[b"GET", b"missing"])),
+        b"$-1\r\n".to_vec()
+    );
+}
+
+#[test]
+fn direct_hello_returns_simplified_structured_reply_without_session_state() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"HELLO", b"3"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"server".to_vec()),
+            RespReply::BulkString(b"redis-mini".to_vec()),
+            RespReply::BulkString(b"proto".to_vec()),
+            RespReply::Integer(3),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HELLO", b"4"]),
+        RespReply::Error("NOPROTO unsupported protocol version".to_string())
     );
 }
 

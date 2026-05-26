@@ -13,7 +13,7 @@ mod parser;
 pub use command::Command;
 pub use error::RespError;
 pub use executor::{
-    CommandCategory, CommandMetadata, RedisMiniDb, RespReply, command_metadata,
-    normalize_command_name,
+    CommandCategory, CommandMetadata, RedisMiniDb, RedisMiniSession, RespProtocolVersion,
+    RespReply, command_metadata, normalize_command_name,
 };
 pub use parser::{ParseOutcome, RespCommandParser};

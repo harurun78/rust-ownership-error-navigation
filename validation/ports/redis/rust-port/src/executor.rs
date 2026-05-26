@@ -5,6 +5,22 @@ use crate::Command;
 
 const DATABASE_COUNT: usize = 16;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub enum RespProtocolVersion {
+    #[default]
+    Resp2,
+    Resp3,
+}
+
+impl RespProtocolVersion {
+    fn number(self) -> i64 {
+        match self {
+            Self::Resp2 => 2,
+            Self::Resp3 => 3,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum RespReply {
     SimpleString(&'static str),
@@ -18,15 +34,66 @@ pub enum RespReply {
 
 impl RespReply {
     pub fn encode(&self) -> Vec<u8> {
+        self.encode_with_protocol(RespProtocolVersion::Resp2)
+    }
+
+    pub fn encode_with_protocol(&self, protocol_version: RespProtocolVersion) -> Vec<u8> {
         match self {
             Self::SimpleString(value) => encode_prefixed_string(b'+', value.as_bytes()),
             Self::BulkString(value) => encode_bulk_string(value),
+            Self::NullBulkString | Self::NullArray
+                if protocol_version == RespProtocolVersion::Resp3 =>
+            {
+                b"_\r\n".to_vec()
+            }
             Self::NullBulkString => b"$-1\r\n".to_vec(),
             Self::NullArray => b"*-1\r\n".to_vec(),
             Self::Integer(value) => format!(":{value}\r\n").into_bytes(),
-            Self::Array(values) => encode_array(values),
+            Self::Array(values) => encode_array(values, protocol_version),
             Self::Error(message) => encode_error(message),
         }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct RedisMiniSession {
+    db: RedisMiniDb,
+    protocol_version: RespProtocolVersion,
+}
+
+impl RedisMiniSession {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn protocol_version(&self) -> RespProtocolVersion {
+        self.protocol_version
+    }
+
+    pub fn execute(&mut self, command: Command) -> RespReply {
+        if is_hello_command(&command.args) {
+            return self.execute_hello(command.args);
+        }
+
+        self.db.execute(command)
+    }
+
+    pub fn execute_encoded(&mut self, command: Command) -> Vec<u8> {
+        let reply = self.execute(command);
+        reply.encode_with_protocol(self.protocol_version)
+    }
+
+    fn execute_hello(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("hello");
+        }
+
+        let Some(protocol_version) = parse_protocol_version(&args[1]) else {
+            return unsupported_protocol_version();
+        };
+
+        self.protocol_version = protocol_version;
+        hello_reply(protocol_version)
     }
 }
 
@@ -217,6 +284,7 @@ impl RedisMiniDb {
             CommandKind::RenameNx => self.execute_renamenx(args),
             CommandKind::Keys => self.execute_keys(args),
             CommandKind::Scan => self.execute_scan(args),
+            CommandKind::Hello => execute_hello(args),
             CommandKind::Select => self.execute_select(args),
             CommandKind::DbSize => self.execute_dbsize(args),
             CommandKind::Multi
@@ -1520,6 +1588,7 @@ enum CommandKind {
     RenameNx,
     Keys,
     Scan,
+    Hello,
     Select,
     DbSize,
     Multi,
@@ -1593,6 +1662,7 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("RENAMENX", CommandCategory::Keyspace, CommandKind::RenameNx),
     command_spec("KEYS", CommandCategory::Keyspace, CommandKind::Keys),
     command_spec("SCAN", CommandCategory::Keyspace, CommandKind::Scan),
+    command_spec("HELLO", CommandCategory::Connection, CommandKind::Hello),
     command_spec("SELECT", CommandCategory::Connection, CommandKind::Select),
     command_spec("DBSIZE", CommandCategory::Keyspace, CommandKind::DbSize),
     command_spec("MULTI", CommandCategory::Transaction, CommandKind::Multi),
@@ -1687,6 +1757,44 @@ fn execute_echo(args: Vec<Vec<u8>>) -> RespReply {
 
     let mut args = args;
     RespReply::BulkString(args.remove(0))
+}
+
+fn execute_hello(args: Vec<Vec<u8>>) -> RespReply {
+    if args.len() != 1 {
+        return wrong_arity("hello");
+    }
+
+    let Some(protocol_version) = parse_protocol_version(&args[0]) else {
+        return unsupported_protocol_version();
+    };
+
+    hello_reply(protocol_version)
+}
+
+fn is_hello_command(args: &[Vec<u8>]) -> bool {
+    args.first()
+        .is_some_and(|command_name| command_name.eq_ignore_ascii_case(b"HELLO"))
+}
+
+fn parse_protocol_version(value: &[u8]) -> Option<RespProtocolVersion> {
+    match value {
+        b"2" => Some(RespProtocolVersion::Resp2),
+        b"3" => Some(RespProtocolVersion::Resp3),
+        _ => None,
+    }
+}
+
+fn hello_reply(protocol_version: RespProtocolVersion) -> RespReply {
+    RespReply::Array(vec![
+        RespReply::BulkString(b"server".to_vec()),
+        RespReply::BulkString(b"redis-mini".to_vec()),
+        RespReply::BulkString(b"proto".to_vec()),
+        RespReply::Integer(protocol_version.number()),
+    ])
+}
+
+fn unsupported_protocol_version() -> RespReply {
+    RespReply::Error("NOPROTO unsupported protocol version".to_string())
 }
 
 fn wrong_arity(command_name: &str) -> RespReply {
@@ -1787,10 +1895,10 @@ fn encode_bulk_string(value: &[u8]) -> Vec<u8> {
     encoded
 }
 
-fn encode_array(values: &[RespReply]) -> Vec<u8> {
+fn encode_array(values: &[RespReply], protocol_version: RespProtocolVersion) -> Vec<u8> {
     let mut encoded = format!("*{}\r\n", values.len()).into_bytes();
     for value in values {
-        encoded.extend_from_slice(&value.encode());
+        encoded.extend_from_slice(&value.encode_with_protocol(protocol_version));
     }
     encoded
 }
