@@ -39,20 +39,65 @@ impl RespCommandParser {
         self.buffer.extend_from_slice(bytes);
     }
 
+    pub fn buffer_len(&self) -> usize {
+        self.buffer.len()
+    }
+
     pub fn parse_available(&mut self) -> Result<ParseOutcome, RespError> {
-        let (command, consumed) = match parse_request(&self.buffer, self.max_line_length)? {
-            ParsedFrame::Complete { command, consumed } => (command, consumed),
+        let command = match parse_request(&self.buffer, self.max_line_length)? {
+            ParsedFrame::Complete { command, consumed } => {
+                self.buffer.drain(..consumed);
+                command
+            }
+            ParsedFrame::CompleteMultibulk {
+                bulk_ranges,
+                consumed,
+            } => Command::new(extract_owned_bulk_args(
+                &mut self.buffer,
+                bulk_ranges,
+                consumed,
+            )),
             ParsedFrame::Incomplete => return Ok(ParseOutcome::Incomplete),
         };
 
-        self.buffer.drain(..consumed);
         Ok(ParseOutcome::Complete(command))
     }
 }
 
+#[derive(Debug)]
+struct BulkRange {
+    start: usize,
+    end: usize,
+}
+
 enum ParsedFrame {
-    Complete { command: Command, consumed: usize },
+    Complete {
+        command: Command,
+        consumed: usize,
+    },
+    CompleteMultibulk {
+        bulk_ranges: Vec<BulkRange>,
+        consumed: usize,
+    },
     Incomplete,
+}
+
+fn extract_owned_bulk_args(
+    buffer: &mut Vec<u8>,
+    bulk_ranges: Vec<BulkRange>,
+    consumed: usize,
+) -> Vec<Vec<u8>> {
+    let remaining = buffer.split_off(consumed);
+    let mut frame = std::mem::replace(buffer, remaining);
+    let mut args = Vec::with_capacity(bulk_ranges.len());
+
+    for range in bulk_ranges.into_iter().rev() {
+        let _suffix = frame.split_off(range.end);
+        args.push(frame.split_off(range.start));
+    }
+
+    args.reverse();
+    args
 }
 
 fn parse_request(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame, RespError> {
@@ -101,7 +146,7 @@ fn parse_multibulk(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame,
     }
 
     let mut cursor = header_end + 2;
-    let mut args = Vec::with_capacity(arg_count);
+    let mut bulk_ranges = Vec::with_capacity(arg_count);
 
     for _ in 0..arg_count {
         if cursor >= buffer.len() {
@@ -132,12 +177,15 @@ fn parse_multibulk(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame,
             return Err(RespError::InvalidBulkTerminator);
         }
 
-        args.push(buffer[data_start..data_end].to_vec());
+        bulk_ranges.push(BulkRange {
+            start: data_start,
+            end: data_end,
+        });
         cursor = frame_end;
     }
 
-    Ok(ParsedFrame::Complete {
-        command: Command::new(args),
+    Ok(ParsedFrame::CompleteMultibulk {
+        bulk_ranges,
         consumed: cursor,
     })
 }

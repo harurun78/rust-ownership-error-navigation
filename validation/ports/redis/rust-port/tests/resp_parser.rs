@@ -23,6 +23,16 @@ fn parse_next_complete(parser: &mut RespCommandParser) -> Command {
     }
 }
 
+fn multibulk_frame(args: &[&[u8]]) -> Vec<u8> {
+    let mut frame = format!("*{}\r\n", args.len()).into_bytes();
+    for arg in args {
+        frame.extend_from_slice(format!("${}\r\n", arg.len()).as_bytes());
+        frame.extend_from_slice(arg);
+        frame.extend_from_slice(b"\r\n");
+    }
+    frame
+}
+
 fn assert_parse_error(frame: &[u8], expected: RespError) {
     let mut parser = RespCommandParser::new();
     parser.append(frame);
@@ -57,6 +67,18 @@ fn parses_binary_safe_bulk_string() {
         command.args,
         vec![b"SET".to_vec(), b"key".to_vec(), b"hello \0world".to_vec()]
     );
+}
+
+#[test]
+fn parses_large_bulk_payload() {
+    let payload = vec![b'x'; 64 * 1024];
+    let frame = multibulk_frame(&[b"ECHO", payload.as_slice()]);
+
+    let command = parse_complete(&frame);
+
+    assert_eq!(command.args[0], b"ECHO".to_vec());
+    assert_eq!(command.args[1].len(), payload.len());
+    assert_eq!(command.args[1], payload);
 }
 
 #[test]
@@ -198,6 +220,48 @@ fn keeps_incomplete_trailing_command_after_complete_command() {
 
     assert_eq!(second.args, vec![b"GET".to_vec(), b"key".to_vec()]);
     assert_incomplete(&mut parser);
+}
+
+#[test]
+fn compacts_after_large_argument_before_next_command() {
+    let payload = vec![b'y'; 64 * 1024];
+    let first_frame = multibulk_frame(&[b"ECHO", payload.as_slice()]);
+    let second_frame = multibulk_frame(&[b"PING"]);
+    let mut parser = RespCommandParser::new();
+
+    parser.append(&first_frame);
+    parser.append(&second_frame);
+
+    let first = parse_next_complete(&mut parser);
+    assert_eq!(first.args[0], b"ECHO".to_vec());
+    assert_eq!(first.args[1], payload);
+    assert_eq!(parser.buffer_len(), second_frame.len());
+
+    let second = parse_next_complete(&mut parser);
+    assert_eq!(second.args, vec![b"PING".to_vec()]);
+    assert_eq!(parser.buffer_len(), 0);
+}
+
+#[test]
+fn keeps_incomplete_trailing_command_after_large_command() {
+    let payload = vec![b'z'; 64 * 1024];
+    let first_frame = multibulk_frame(&[b"ECHO", payload.as_slice()]);
+    let trailing = b"*2\r\n$3\r\nGET\r\n$3\r\n";
+    let mut parser = RespCommandParser::new();
+
+    parser.append(&first_frame);
+    parser.append(trailing);
+
+    let first = parse_next_complete(&mut parser);
+    assert_eq!(first.args[0], b"ECHO".to_vec());
+    assert_eq!(first.args[1], payload);
+    assert_eq!(parser.buffer_len(), trailing.len());
+    assert_incomplete(&mut parser);
+
+    parser.append(b"key\r\n");
+    let second = parse_next_complete(&mut parser);
+    assert_eq!(second.args, vec![b"GET".to_vec(), b"key".to_vec()]);
+    assert_eq!(parser.buffer_len(), 0);
 }
 
 #[test]

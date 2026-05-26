@@ -65,8 +65,8 @@
 
 ## Phase 8: Ownership Pressure Slice
 
-- [ ] R043 Add tests for large bulk payload extraction.
-- [ ] R044 Add tests for compaction after extracting a large argument.
-- [ ] R045 Attempt to move owned byte ranges out of the parser buffer where practical.
-- [ ] R046 Record shortcut pressure: `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and `unsafe`.
-- [ ] R047 Save and report diagnostics for iteration-006.
+- [x] R043 Add tests for large bulk payload extraction.
+- [x] R044 Add tests for compaction after extracting a large argument.
+- [x] R045 Attempt to move owned byte ranges out of the parser buffer where practical.
+- [x] R046 Record shortcut pressure: `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and `unsafe`.
+- [x] R047 Save and report diagnostics for iteration-006.

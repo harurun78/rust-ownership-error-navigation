@@ -130,6 +130,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: iteration-006 should add large bulk payload extraction and compaction tests, then record any ownership pressure around moving owned byte ranges from the parser buffer.
 
+### iteration-006
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R043-R047 ownership-pressure slice for large bulk payload extraction, compaction, diagnostic capture, ownership reports, and ledger updates.
+- Prompt summary: Add cheap large bulk payload tests around 64 KiB, verify consumed-byte compaction before a following command, verify incomplete trailing commands remain after a complete large command, add a narrow parser buffer inspection helper if needed, attempt owned byte extraction without broad copying, capture cargo diagnostics, generate ownership reports, and update notes/tasks without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-006/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-006/cargo-check.jsonl --json-out ../reports/iteration-006/ownership-report.json --html-out ../reports/iteration-006/ownership-report.html`
+- Result: compile success; test success, 26 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-006/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-006/ownership-report.json`
+- Ownership report HTML: `reports/iteration-006/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none; no `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or `unsafe` introduced. Multibulk extraction now moves the consumed frame out of the parser buffer with `split_off`/`replace` and extracts argument ranges with `split_off`; no broad clone shortcut was used.
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: evaluate whether a later slice needs Redis-style threshold behavior for very large buffers or protocol maximum bulk length enforcement.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.
