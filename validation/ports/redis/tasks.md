@@ -166,3 +166,16 @@
 - [x] R120 Generate `reports/iteration-013/ownership-report.json`.
 - [x] R121 Generate `reports/iteration-013/ownership-report.html`.
 - [x] R122 Record iteration-013 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 16: Set Algebra Store Commands
+
+- [x] R123 Add tests for `SUNIONSTORE` with missing and existing source sets.
+- [x] R124 Add tests for `SINTERSTORE` and `SDIFFSTORE` with multiple source sets.
+- [x] R125 Add tests that store commands overwrite destination values and expiration metadata.
+- [x] R126 Add tests for wrong-type errors when source keys are not sets.
+- [x] R127 Implement minimal `SUNIONSTORE`, `SINTERSTORE`, and `SDIFFSTORE` behavior.
+- [x] R128 Preserve existing expiration, keyspace, string, list, hash, set, parser, and reply encoding behavior.
+- [x] R129 Save `cargo check --message-format=json` output to `reports/iteration-014/cargo-check.jsonl`.
+- [x] R130 Generate `reports/iteration-014/ownership-report.json`.
+- [x] R131 Generate `reports/iteration-014/ownership-report.html`.
+- [x] R132 Record iteration-014 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.

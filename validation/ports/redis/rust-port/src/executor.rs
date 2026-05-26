@@ -103,6 +103,12 @@ impl RedisMiniDb {
             self.execute_sismember(args)
         } else if command_name.eq_ignore_ascii_case(b"SMEMBERS") {
             self.execute_smembers(args)
+        } else if command_name.eq_ignore_ascii_case(b"SUNIONSTORE") {
+            self.execute_set_store(args, SetStoreOp::Union)
+        } else if command_name.eq_ignore_ascii_case(b"SINTERSTORE") {
+            self.execute_set_store(args, SetStoreOp::Intersection)
+        } else if command_name.eq_ignore_ascii_case(b"SDIFFSTORE") {
+            self.execute_set_store(args, SetStoreOp::Difference)
         } else if command_name.eq_ignore_ascii_case(b"TYPE") {
             self.execute_type(args)
         } else if command_name.eq_ignore_ascii_case(b"RENAME") {
@@ -629,6 +635,105 @@ impl RedisMiniDb {
         }
     }
 
+    fn execute_set_store(&mut self, args: Vec<Vec<u8>>, operation: SetStoreOp) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity(operation.command_name());
+        }
+
+        let mut args = args;
+        let destination = args.remove(0);
+        let source_keys = args;
+
+        for key in &source_keys {
+            self.remove_if_expired(key);
+        }
+        for key in &source_keys {
+            match self.values.get(key) {
+                Some(RedisValue::Set(_)) | None => {}
+                Some(RedisValue::String(_))
+                | Some(RedisValue::List(_))
+                | Some(RedisValue::Hash(_)) => return wrong_type(),
+            }
+        }
+
+        let result = match operation {
+            SetStoreOp::Union => self.set_union(&source_keys),
+            SetStoreOp::Intersection => self.set_intersection(&source_keys),
+            SetStoreOp::Difference => self.set_difference(&source_keys),
+        };
+        let len = result.len() as i64;
+
+        self.expires_at.remove(&destination);
+        if result.is_empty() {
+            self.values.remove(&destination);
+        } else {
+            self.values.insert(destination, RedisValue::Set(result));
+        }
+
+        RespReply::Integer(len)
+    }
+
+    fn set_union(&self, source_keys: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
+        let mut result = BTreeSet::new();
+        for key in source_keys {
+            if let Some(RedisValue::Set(set)) = self.values.get(key) {
+                for member in set {
+                    result.insert(member.to_vec());
+                }
+            }
+        }
+        result
+    }
+
+    fn set_intersection(&self, source_keys: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
+        let mut keys = source_keys.iter();
+        let first_key = match keys.next() {
+            Some(key) => key,
+            None => return BTreeSet::new(),
+        };
+        let first_set = match self.values.get(first_key) {
+            Some(RedisValue::Set(set)) => set,
+            _ => return BTreeSet::new(),
+        };
+
+        let mut result = BTreeSet::new();
+        'member: for member in first_set {
+            for key in keys.clone() {
+                match self.values.get(key) {
+                    Some(RedisValue::Set(set)) if set.contains(member) => {}
+                    _ => continue 'member,
+                }
+            }
+            result.insert(member.to_vec());
+        }
+        result
+    }
+
+    fn set_difference(&self, source_keys: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
+        let mut keys = source_keys.iter();
+        let first_key = match keys.next() {
+            Some(key) => key,
+            None => return BTreeSet::new(),
+        };
+        let first_set = match self.values.get(first_key) {
+            Some(RedisValue::Set(set)) => set,
+            _ => return BTreeSet::new(),
+        };
+
+        let mut result = BTreeSet::new();
+        'member: for member in first_set {
+            for key in keys.clone() {
+                if let Some(RedisValue::Set(set)) = self.values.get(key) {
+                    if set.contains(member) {
+                        continue 'member;
+                    }
+                }
+            }
+            result.insert(member.to_vec());
+        }
+        result
+    }
+
     fn execute_type(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.len() != 1 {
             return wrong_arity("type");
@@ -766,6 +871,23 @@ impl RedisValue {
 enum ListSide {
     Left,
     Right,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum SetStoreOp {
+    Union,
+    Intersection,
+    Difference,
+}
+
+impl SetStoreOp {
+    fn command_name(self) -> &'static str {
+        match self {
+            Self::Union => "sunionstore",
+            Self::Intersection => "sinterstore",
+            Self::Difference => "sdiffstore",
+        }
+    }
 }
 
 impl ListSide {

@@ -298,6 +298,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: if validation continues, consider Redis-compatible keyspace edge cases such as glob patterns, database-size reporting, or scan-like incremental iteration.
 
+### iteration-014
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R123-R132 minimal set algebra store commands, diagnostic capture, ownership reports, and ledger updates.
+- Prompt summary: Add minimal `SUNIONSTORE`, `SINTERSTORE`, and `SDIFFSTORE`; preserve parser, RESP replies, expiration, keyspace, string, list, hash, and set behavior; cover destination-as-source, missing sources, wrong-type sources, destination overwrite, expiration clearing, empty-result deletion, cargo diagnostic capture, ownership report generation, and notes/tasks updates without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-014/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-014/cargo-check.jsonl --json-out ../reports/iteration-014/ownership-report.json --html-out ../reports/iteration-014/ownership-report.html`
+- Result: compile success; test success, 61 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-014/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-014/ownership-report.json`
+- Ownership report HTML: `reports/iteration-014/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or `unsafe`; no broad clone shortcut. Set algebra builds retained destination sets by copying retained source members with `to_vec()`, and uses only iterator cloning while checking later source sets.
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: if validation continues, consider non-store set algebra commands such as `SUNION`, `SINTER`, and `SDIFF`, or larger set-algebra ownership pressure cases.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.

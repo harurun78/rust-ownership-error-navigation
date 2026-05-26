@@ -653,6 +653,203 @@ fn set_writes_clear_existing_expiration_and_set_reads_observe_expiration() {
 }
 
 #[test]
+fn sunionstore_stores_union_from_existing_and_missing_sources() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"a", b"one", b"two"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"b", b"two", b"three"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"out", b"a", b"missing", b"b"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"out"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"one".to_vec()),
+            RespReply::BulkString(b"three".to_vec()),
+            RespReply::BulkString(b"two".to_vec()),
+        ])
+    );
+}
+
+#[test]
+fn set_store_commands_allow_destination_as_source() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"dest", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"other", b"b", b"c"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"dest", b"dest", b"other"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"dest"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SINTERSTORE", b"dest", b"dest", b"other"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"dest"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"b".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SDIFFSTORE", b"dest", b"dest", b"other"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"dest"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn sinterstore_and_sdiffstore_store_expected_results() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"a", b"one", b"two", b"three"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"b", b"two", b"three", b"four"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"c", b"three", b"four"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTERSTORE", b"inter", b"a", b"b", b"c"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"inter"]),
+        RespReply::Array(vec![RespReply::BulkString(b"three".to_vec())])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTERSTORE", b"empty", b"a", b"missing", b"b"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"empty"]),
+        RespReply::Integer(0)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SDIFFSTORE", b"diff", b"a", b"b", b"c"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"diff"]),
+        RespReply::Array(vec![RespReply::BulkString(b"one".to_vec())])
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"SDIFFSTORE", b"missing-first", b"missing", b"a"]
+        ),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"missing-first"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn set_store_overwrites_destination_and_clears_expiration() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"source", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"dest", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"dest", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"dest", b"source"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"dest"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"dest"]),
+        RespReply::Array(vec![RespReply::BulkString(b"member".to_vec())])
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"dest", b"missing"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"dest"]), RespReply::Integer(-2));
+}
+
+#[test]
+fn set_store_commands_reject_wrong_type_sources_without_overwriting_destination() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"good", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"bad", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"dest", b"old"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"dest", b"good", b"bad"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTERSTORE", b"dest", b"good", b"bad"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SDIFFSTORE", b"dest", b"good", b"bad"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"dest"]),
+        RespReply::Array(vec![RespReply::BulkString(b"old".to_vec())])
+    );
+}
+
+#[test]
 fn executes_type_across_supported_value_kinds() {
     let mut db = RedisMiniDb::new();
 
@@ -1059,6 +1256,18 @@ fn rejects_wrong_type_access_between_sets_strings_lists_and_hashes() {
         wrong_type
     );
     assert_eq!(execute(&mut db, &[b"SMEMBERS", b"string"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"out", b"string"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTERSTORE", b"out", b"string"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SDIFFSTORE", b"out", b"string"]),
+        wrong_type
+    );
 
     assert_eq!(
         execute(&mut db, &[b"RPUSH", b"list", b"a"]),
@@ -1068,6 +1277,18 @@ fn rejects_wrong_type_access_between_sets_strings_lists_and_hashes() {
     assert_eq!(execute(&mut db, &[b"SREM", b"list", b"x"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"SISMEMBER", b"list", b"x"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"SMEMBERS", b"list"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"out", b"list"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTERSTORE", b"out", b"list"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SDIFFSTORE", b"out", b"list"]),
+        wrong_type
+    );
 
     assert_eq!(
         execute(&mut db, &[b"HSET", b"hash", b"f", b"v"]),
@@ -1077,6 +1298,18 @@ fn rejects_wrong_type_access_between_sets_strings_lists_and_hashes() {
     assert_eq!(execute(&mut db, &[b"SREM", b"hash", b"x"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"SISMEMBER", b"hash", b"x"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"SMEMBERS", b"hash"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"out", b"hash"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTERSTORE", b"out", b"hash"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SDIFFSTORE", b"out", b"hash"]),
+        wrong_type
+    );
 
     assert_eq!(
         execute(&mut db, &[b"SADD", b"set", b"x"]),
