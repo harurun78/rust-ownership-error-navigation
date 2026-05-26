@@ -1650,6 +1650,244 @@ fn executes_hgetall_with_binary_safe_fields_and_values() {
 }
 
 #[test]
+fn executes_hash_completion_reads_in_deterministic_order() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"HMGET", b"missing", b"a", b"b"]),
+        RespReply::Array(vec![RespReply::NullBulkString, RespReply::NullBulkString])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HLEN", b"missing"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HKEYS", b"missing"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HVALS", b"missing"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"b", b"two", b"a\0", b"one\0"]),
+        RespReply::Integer(2)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"HMGET", b"hash", b"a\0", b"missing", b"b"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"one\0".to_vec()),
+            RespReply::NullBulkString,
+            RespReply::BulkString(b"two".to_vec()),
+        ])
+    );
+    assert_eq!(execute(&mut db, &[b"HLEN", b"hash"]), RespReply::Integer(2));
+    assert_eq!(
+        execute(&mut db, &[b"HKEYS", b"hash"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a\0".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HVALS", b"hash"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"one\0".to_vec()),
+            RespReply::BulkString(b"two".to_vec()),
+        ])
+    );
+}
+
+#[test]
+fn executes_hincrby_with_integer_errors_overflow_expiration_and_watch_invalidation() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"counter", b"5"]),
+        RespReply::Integer(5)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"counter", b"-2"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"hash", b"counter"]),
+        RespReply::BulkString(b"3".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"text", b"nope"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"text", b"1"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"counter", b"bad"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"max", b"9223372036854775807"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"max", b"1"]),
+        RespReply::Error("ERR increment or decrement would overflow".to_string())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"hash", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"counter", b"0"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"hash"]), RespReply::Integer(-1));
+
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"hash"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"counter", b"1"]),
+        RespReply::Integer(4)
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"queued"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+}
+
+#[test]
+fn hscan_uses_existing_deterministic_cursor_style() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"missing", b"0"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(Vec::new()),
+        ])
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"HSET", b"hash", b"b", b"two", b"a", b"one", b"c", b"three"]
+        ),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"hash", b"0", b"COUNT", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"2".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"a".to_vec()),
+                RespReply::BulkString(b"one".to_vec()),
+                RespReply::BulkString(b"b".to_vec()),
+                RespReply::BulkString(b"two".to_vec()),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"hash", b"2", b"count", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"c".to_vec()),
+                RespReply::BulkString(b"three".to_vec()),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"hash", b"bad"]),
+        RespReply::Error("ERR invalid cursor".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"hash", b"4"]),
+        RespReply::Error("ERR invalid cursor".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"hash", b"0", b"MATCH", b"*"]),
+        RespReply::Error("ERR unsupported HSCAN option".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"hash", b"0", b"COUNT", b"0"]),
+        RespReply::Error("ERR invalid COUNT".to_string())
+    );
+}
+
+#[test]
+fn hash_completion_commands_reject_wrong_arity_wrong_type_and_queue_transactions() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"HMGET", b"string", b"f"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HKEYS", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HVALS", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HLEN", b"string"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"string", b"f", b"1"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"HSCAN", b"string", b"0"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"HMGET", b"hash"]),
+        RespReply::Error("ERR wrong number of arguments for 'hmget' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HKEYS", b"hash", b"extra"]),
+        RespReply::Error("ERR wrong number of arguments for 'hkeys' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"hash", b"field"]),
+        RespReply::Error("ERR wrong number of arguments for 'hincrby' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSCAN", b"hash"]),
+        RespReply::Error("ERR wrong number of arguments for 'hscan' command".to_string())
+    );
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"HINCRBY", b"queued-hash", b"f", b"2"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HMGET", b"queued-hash", b"f"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::Integer(2),
+            RespReply::Array(vec![RespReply::BulkString(b"2".to_vec())]),
+        ])
+    );
+}
+
+#[test]
+fn tcp_server_executes_hash_completion_commands() {
+    let mut input = multibulk_frame(&[b"HINCRBY", b"tcp-hash", b"f", b"2"]);
+    input.extend(multibulk_frame(&[b"HMGET", b"tcp-hash", b"f", b"missing"]));
+
+    assert_eq!(
+        tcp_exchange(&input),
+        b":2\r\n*2\r\n$1\r\n2\r\n$-1\r\n".to_vec()
+    );
+}
+
+#[test]
 fn executes_expire_ttl_and_persist() {
     let mut db = RedisMiniDb::new();
 

@@ -308,7 +308,7 @@ iteration-027: implemented and tested minimal non-sleeping compatibility for `BL
 
 ## Phase 28: Hash/Set/Sorted Set Completion
 
-- [ ] R214 Complete hash commands including `HMGET`, `HGETALL`, `HKEYS`, `HVALS`, `HLEN`, `HINCRBY`, and scan variants.
+- [x] R214 Complete hash commands including `HMGET`, `HGETALL`, `HKEYS`, `HVALS`, `HLEN`, `HINCRBY`, and scan variants.
 - [ ] R215 Complete set commands including `SPOP`, `SRANDMEMBER`, `SMOVE`, `SCARD`, `SDIFF`, `SINTER`, `SUNION`, and scan variants.
 - [ ] R216 Complete sorted set commands including score ranges, rank/removal commands, cardinality, lex ranges, and scan variants.
 - [ ] R217 Save diagnostics and reports for collection completion iterations.

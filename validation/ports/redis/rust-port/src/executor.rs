@@ -295,8 +295,14 @@ impl RedisMiniDb {
             CommandKind::BLMove => self.execute_blmove(args),
             CommandKind::HSet => self.execute_hset(args),
             CommandKind::HGet => self.execute_hget(args),
+            CommandKind::HMGet => self.execute_hmget(args),
             CommandKind::HDel => self.execute_hdel(args),
             CommandKind::HGetAll => self.execute_hgetall(args),
+            CommandKind::HKeys => self.execute_hkeys(args),
+            CommandKind::HVals => self.execute_hvals(args),
+            CommandKind::HLen => self.execute_hlen(args),
+            CommandKind::HIncrBy => self.execute_hincrby(args),
+            CommandKind::HScan => self.execute_hscan(args),
             CommandKind::SAdd => self.execute_sadd(args),
             CommandKind::SRem => self.execute_srem(args),
             CommandKind::SIsMember => self.execute_sismember(args),
@@ -1512,6 +1518,180 @@ impl RedisMiniDb {
         }
     }
 
+    fn execute_hmget(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("hmget");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => RespReply::Array(
+                args[1..]
+                    .iter()
+                    .map(|field| match hash.get(field) {
+                        Some(value) => RespReply::BulkString(value.to_vec()),
+                        None => RespReply::NullBulkString,
+                    })
+                    .collect(),
+            ),
+            None => RespReply::Array(
+                args[1..]
+                    .iter()
+                    .map(|_| RespReply::NullBulkString)
+                    .collect(),
+            ),
+        }
+    }
+
+    fn execute_hkeys(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("hkeys");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => RespReply::Array(
+                hash.keys()
+                    .map(|field| RespReply::BulkString(field.to_vec()))
+                    .collect(),
+            ),
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_hvals(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("hvals");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => RespReply::Array(
+                hash.values()
+                    .map(|value| RespReply::BulkString(value.to_vec()))
+                    .collect(),
+            ),
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_hlen(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("hlen");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => RespReply::Integer(hash.len() as i64),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_hincrby(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("hincrby");
+        }
+
+        let delta = match parse_integer(&args[2]) {
+            Some(delta) => delta,
+            None => return integer_error(),
+        };
+        let mut args = args;
+        let key = args.remove(0);
+        let field = args.remove(0);
+        self.remove_if_expired(&key);
+
+        match self.values.get_mut(&key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => {
+                let current = match hash.get(&field) {
+                    Some(value) => match parse_integer(value) {
+                        Some(value) => value,
+                        None => return integer_error(),
+                    },
+                    None => 0,
+                };
+                let Some(next) = current.checked_add(delta) else {
+                    return RespReply::Error(
+                        "ERR increment or decrement would overflow".to_string(),
+                    );
+                };
+                hash.insert(field, next.to_string().into_bytes());
+                self.expires_at.remove(&key);
+                self.bump_key_version(&key);
+                RespReply::Integer(next)
+            }
+            None => {
+                let mut hash = BTreeMap::new();
+                hash.insert(field, delta.to_string().into_bytes());
+                self.bump_key_version(&key);
+                self.values.insert(key, RedisValue::Hash(hash));
+                RespReply::Integer(delta)
+            }
+        }
+    }
+
+    fn execute_hscan(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 && args.len() != 4 {
+            return wrong_arity("hscan");
+        }
+
+        let cursor = match parse_scan_index(&args[1]) {
+            Some(cursor) => cursor,
+            None => return RespReply::Error("ERR invalid cursor".to_string()),
+        };
+        let count = if args.len() == 4 {
+            if !args[2].eq_ignore_ascii_case(b"COUNT") {
+                return RespReply::Error("ERR unsupported HSCAN option".to_string());
+            }
+            match parse_scan_index(&args[3]) {
+                Some(0) | None => return RespReply::Error("ERR invalid COUNT".to_string()),
+                Some(count) => Some(count),
+            }
+        } else {
+            None
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => scan_hash_entries(hash, cursor, count),
+            None if cursor == 0 => RespReply::Array(vec![
+                RespReply::BulkString(b"0".to_vec()),
+                RespReply::Array(Vec::new()),
+            ]),
+            None => RespReply::Error("ERR invalid cursor".to_string()),
+        }
+    }
+
     fn execute_sadd(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.len() < 2 {
             return wrong_arity("sadd");
@@ -2238,8 +2418,14 @@ enum CommandKind {
     BLMove,
     HSet,
     HGet,
+    HMGet,
     HDel,
     HGetAll,
+    HKeys,
+    HVals,
+    HLen,
+    HIncrBy,
+    HScan,
     SAdd,
     SRem,
     SIsMember,
@@ -2321,8 +2507,14 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("BLMOVE", CommandCategory::List, CommandKind::BLMove),
     command_spec("HSET", CommandCategory::Hash, CommandKind::HSet),
     command_spec("HGET", CommandCategory::Hash, CommandKind::HGet),
+    command_spec("HMGET", CommandCategory::Hash, CommandKind::HMGet),
     command_spec("HDEL", CommandCategory::Hash, CommandKind::HDel),
     command_spec("HGETALL", CommandCategory::Hash, CommandKind::HGetAll),
+    command_spec("HKEYS", CommandCategory::Hash, CommandKind::HKeys),
+    command_spec("HVALS", CommandCategory::Hash, CommandKind::HVals),
+    command_spec("HLEN", CommandCategory::Hash, CommandKind::HLen),
+    command_spec("HINCRBY", CommandCategory::Hash, CommandKind::HIncrBy),
+    command_spec("HSCAN", CommandCategory::Hash, CommandKind::HScan),
     command_spec("SADD", CommandCategory::Set, CommandKind::SAdd),
     command_spec("SREM", CommandCategory::Set, CommandKind::SRem),
     command_spec("SISMEMBER", CommandCategory::Set, CommandKind::SIsMember),
@@ -2618,6 +2810,32 @@ fn remove_list_elements(list: &mut Vec<Vec<u8>>, count: i64, element: &[u8]) -> 
         }
     }
     removed
+}
+
+fn scan_hash_entries(
+    hash: &BTreeMap<Vec<u8>, Vec<u8>>,
+    cursor: usize,
+    count: Option<usize>,
+) -> RespReply {
+    if cursor > hash.len() {
+        return RespReply::Error("ERR invalid cursor".to_string());
+    }
+
+    let end = match count {
+        Some(count) => cursor.saturating_add(count).min(hash.len()),
+        None => hash.len(),
+    };
+    let next_cursor = if end < hash.len() { end } else { 0 };
+    let mut field_values = Vec::new();
+    for (field, value) in hash.iter().skip(cursor).take(end - cursor) {
+        field_values.push(RespReply::BulkString(field.to_vec()));
+        field_values.push(RespReply::BulkString(value.to_vec()));
+    }
+
+    RespReply::Array(vec![
+        RespReply::BulkString(next_cursor.to_string().into_bytes()),
+        RespReply::Array(field_values),
+    ])
 }
 
 fn parse_set_options(args: &[Vec<u8>]) -> Result<SetOptions, RespReply> {

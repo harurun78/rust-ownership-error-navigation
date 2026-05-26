@@ -258,6 +258,27 @@ Use this log to separate ownership-report effects from human guidance.
 
 ### iteration-012
 
+### iteration-028
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R214 focused hash command completion: HMGET, HKEYS, HVALS, HLEN, HINCRBY, HSCAN
+- Prompt summary: Implement hash completion commands, metadata and central dispatch, deterministic HSCAN compatible with existing SCAN style, and targeted tests; capture cargo diagnostics and generate ownership reports for iteration-028.
+- Human ownership hints before attempt: none
+- Command: `cargo check --message-format=json > ../reports/iteration-028/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-028/cargo-check.jsonl --json-out ../reports/iteration-028/ownership-report.json --html-out ../reports/iteration-028/ownership-report.html`
+- Result: compile success; test success, 116 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-028/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-028/ownership-report.json`
+- Ownership report HTML: `reports/iteration-028/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none observed; implementation uses `BTreeMap` iteration and `to_vec()` replies where needed
+- Did the ownership report change the next fix: N/A (no ownership diagnostics emitted)
+- Next action: Continue Phase 28 with Set and Sorted Set command completion (R215-R216), preserving transaction and WATCH semantics.
+
 - Date: 2026-05-26
 - Model: GPT-5 mini (copilot)
 - Task slice: R102-R112 minimal set commands, set value typing, diagnostic capture, ownership reports, and ledger updates.
