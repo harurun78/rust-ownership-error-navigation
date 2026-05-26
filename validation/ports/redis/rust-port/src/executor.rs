@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::time::{Duration, Instant};
 
 use crate::Command;
@@ -31,6 +31,7 @@ enum RedisValue {
     String(Vec<u8>),
     List(Vec<Vec<u8>>),
     Hash(BTreeMap<Vec<u8>, Vec<u8>>),
+    Set(BTreeSet<Vec<u8>>),
 }
 
 #[derive(Debug, Default)]
@@ -94,6 +95,14 @@ impl RedisMiniDb {
             self.execute_hdel(args)
         } else if command_name.eq_ignore_ascii_case(b"HGETALL") {
             self.execute_hgetall(args)
+        } else if command_name.eq_ignore_ascii_case(b"SADD") {
+            self.execute_sadd(args)
+        } else if command_name.eq_ignore_ascii_case(b"SREM") {
+            self.execute_srem(args)
+        } else if command_name.eq_ignore_ascii_case(b"SISMEMBER") {
+            self.execute_sismember(args)
+        } else if command_name.eq_ignore_ascii_case(b"SMEMBERS") {
+            self.execute_smembers(args)
         } else {
             RespReply::Error(format!(
                 "ERR unknown command '{}'",
@@ -124,7 +133,7 @@ impl RedisMiniDb {
         self.remove_if_expired(&key);
         if matches!(
             self.values.get(&key),
-            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_))
+            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_))
         ) {
             return wrong_type();
         }
@@ -142,7 +151,9 @@ impl RedisMiniDb {
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
             Some(RedisValue::String(value)) => RespReply::BulkString(value.to_vec()),
-            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
+            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
+                wrong_type()
+            }
             None => RespReply::NullBulkString,
         }
     }
@@ -277,7 +288,9 @@ impl RedisMiniDb {
                 Some(value) => value,
                 None => return integer_error(),
             },
-            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => return wrong_type(),
+            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
+                return wrong_type();
+            }
             None => 0,
         };
 
@@ -301,7 +314,9 @@ impl RedisMiniDb {
         let key = args.remove(0);
         self.remove_if_expired(&key);
         match self.values.get_mut(&key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
+                wrong_type()
+            }
             Some(RedisValue::List(list)) => {
                 for value in args {
                     match side {
@@ -334,7 +349,9 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get_mut(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
+                wrong_type()
+            }
             Some(RedisValue::List(list)) => match side {
                 ListSide::Left => {
                     if list.is_empty() {
@@ -368,7 +385,9 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
+                wrong_type()
+            }
             Some(RedisValue::List(list)) => match normalize_range(list.len(), start, stop) {
                 Some((start, stop)) => RespReply::Array(
                     list[start..=stop]
@@ -391,7 +410,9 @@ impl RedisMiniDb {
         let key = args.remove(0);
         self.remove_if_expired(&key);
         match self.values.get_mut(&key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
+                wrong_type()
+            }
             Some(RedisValue::Hash(hash)) => {
                 let mut added = 0i64;
                 while !args.is_empty() {
@@ -429,7 +450,9 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
+                wrong_type()
+            }
             Some(RedisValue::Hash(hash)) => match hash.get(&args[1]) {
                 Some(value) => RespReply::BulkString(value.to_vec()),
                 None => RespReply::NullBulkString,
@@ -447,7 +470,9 @@ impl RedisMiniDb {
         self.remove_if_expired(key);
         let mut remove_key = false;
         let removed = match self.values.get_mut(key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => return wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
+                return wrong_type();
+            }
             Some(RedisValue::Hash(hash)) => {
                 let mut removed = 0i64;
                 for field in &args[1..] {
@@ -476,7 +501,9 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
+                wrong_type()
+            }
             Some(RedisValue::Hash(hash)) => {
                 let mut values = Vec::with_capacity(hash.len() * 2);
                 for (field, value) in hash {
@@ -485,6 +512,111 @@ impl RedisMiniDb {
                 }
                 RespReply::Array(values)
             }
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_sadd(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("sadd");
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        self.remove_if_expired(&key);
+        match self.values.get_mut(&key) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
+                wrong_type()
+            }
+            Some(RedisValue::Set(set)) => {
+                let mut added = 0i64;
+                for member in args {
+                    if set.insert(member) {
+                        added += 1;
+                    }
+                }
+                self.expires_at.remove(&key);
+                RespReply::Integer(added)
+            }
+            None => {
+                let mut set = BTreeSet::new();
+                let mut added = 0i64;
+                for member in args {
+                    if set.insert(member) {
+                        added += 1;
+                    }
+                }
+                self.values.insert(key, RedisValue::Set(set));
+                RespReply::Integer(added)
+            }
+        }
+    }
+
+    fn execute_srem(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("srem");
+        }
+
+        let key = &args[0];
+        self.remove_if_expired(key);
+        let mut remove_key = false;
+        let removed = match self.values.get_mut(key) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
+                return wrong_type();
+            }
+            Some(RedisValue::Set(set)) => {
+                let mut removed = 0i64;
+                for member in &args[1..] {
+                    if set.remove(member) {
+                        removed += 1;
+                    }
+                }
+                remove_key = set.is_empty();
+                removed
+            }
+            None => 0,
+        };
+
+        if remove_key {
+            self.values.remove(key);
+            self.expires_at.remove(key);
+        } else if removed > 0 {
+            self.expires_at.remove(key);
+        }
+
+        RespReply::Integer(removed)
+    }
+
+    fn execute_sismember(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("sismember");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
+                wrong_type()
+            }
+            Some(RedisValue::Set(set)) => RespReply::Integer(i64::from(set.contains(&args[1]))),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_smembers(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("smembers");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
+                wrong_type()
+            }
+            Some(RedisValue::Set(set)) => RespReply::Array(
+                set.iter()
+                    .map(|member| RespReply::BulkString(member.to_vec()))
+                    .collect(),
+            ),
             None => RespReply::Array(Vec::new()),
         }
     }

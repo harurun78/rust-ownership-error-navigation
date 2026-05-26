@@ -139,3 +139,17 @@
 - [x] R099 Generate `reports/iteration-011/ownership-report.json`.
 - [x] R100 Generate `reports/iteration-011/ownership-report.html`.
 - [x] R101 Record iteration-011 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 14: Minimal Set Commands
+
+- [x] R102 Add tests for `SADD`, `SREM`, and `SISMEMBER` on missing and existing set keys.
+- [x] R103 Add tests for `SMEMBERS` RESP array replies with deterministic ordering.
+- [x] R104 Add tests for binary-safe set members.
+- [x] R105 Add tests for wrong-type errors between sets, strings, lists, and hashes.
+- [x] R106 Refactor the DB value model to support set values without regressing existing value types.
+- [x] R107 Implement minimal `SADD`, `SREM`, `SISMEMBER`, and `SMEMBERS` behavior.
+- [x] R108 Preserve existing expiration behavior for set writes and reads.
+- [x] R109 Save `cargo check --message-format=json` output to `reports/iteration-012/cargo-check.jsonl`.
+- [x] R110 Generate `reports/iteration-012/ownership-report.json`.
+- [x] R111 Generate `reports/iteration-012/ownership-report.html`.
+- [x] R112 Record iteration-012 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.

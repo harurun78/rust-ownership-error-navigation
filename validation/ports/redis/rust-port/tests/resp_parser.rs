@@ -566,6 +566,111 @@ fn writes_clear_existing_expiration() {
 }
 
 #[test]
+fn executes_sadd_srem_and_sismember_on_missing_and_existing_sets() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SISMEMBER", b"missing", b"a"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"a", b"b", b"a"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"b", b"c"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SISMEMBER", b"set", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SISMEMBER", b"set", b"missing"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SREM", b"set", b"missing", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SISMEMBER", b"set", b"a"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn executes_smembers_with_deterministic_order_and_binary_safe_members() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"missing"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"z", b"a\0member", b"a member"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"set"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a\0member".to_vec()),
+            RespReply::BulkString(b"a member".to_vec()),
+            RespReply::BulkString(b"z".to_vec()),
+        ])
+    );
+}
+
+#[test]
+fn set_writes_clear_existing_expiration_and_set_reads_observe_expiration() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"set", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"b"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"set"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"set", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SISMEMBER", b"set", b"a"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"set"]),
+        RespReply::Array(Vec::new())
+    );
+}
+
+#[test]
+fn srem_removes_empty_set_key() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SREM", b"set", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"set"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
 fn del_clears_expiration_metadata() {
     let mut db = RedisMiniDb::new();
 
@@ -659,6 +764,64 @@ fn rejects_wrong_type_access_between_hashes_strings_and_lists() {
         execute(&mut db, &[b"LRANGE", b"hash", b"0", b"-1"]),
         wrong_type
     );
+}
+
+#[test]
+fn rejects_wrong_type_access_between_sets_strings_lists_and_hashes() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"SADD", b"string", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SREM", b"string", b"x"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"SISMEMBER", b"string", b"x"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"SMEMBERS", b"string"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"SADD", b"list", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SREM", b"list", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SISMEMBER", b"list", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SMEMBERS", b"list"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"f", b"v"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"SADD", b"hash", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SREM", b"hash", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SISMEMBER", b"hash", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SMEMBERS", b"hash"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"x"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"GET", b"set"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SET", b"set", b"value"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"INCR", b"set"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"LPUSH", b"set", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"RPUSH", b"set", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"LPOP", b"set"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"RPOP", b"set"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"set", b"0", b"-1"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"HGET", b"set", b"f"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HSET", b"set", b"f", b"v"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HDEL", b"set", b"f"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HGETALL", b"set"]), wrong_type);
 }
 
 #[test]
