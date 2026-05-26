@@ -294,6 +294,8 @@ The validation target is now expanded from a parser/executor experiment into a s
 - [ ] R209 Add Redis-compatible edge-case tests for integer and binary-safe strings.
 - [ ] R210 Save diagnostics and reports for the string completion iterations.
 
+iteration-024 partial slice: implemented and tested `MGET`, `MSET`, `APPEND`, `STRLEN`, and `GETSET`; deferred `GETRANGE`, `SETRANGE`, and `SET` options to later string-completion iterations.
+
 ## Phase 27: List Command Completion And Blocking Lists
 
 - [ ] R211 Add `LLEN`, `LINDEX`, `LSET`, `LTRIM`, `LREM`, `RPOPLPUSH`, `LMOVE`, and range edge cases.

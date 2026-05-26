@@ -139,6 +139,26 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "string"
     );
     assert_eq!(
+        command_metadata(b"mget").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
+        command_metadata(b"mset").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
+        command_metadata(b"append").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
+        command_metadata(b"strlen").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
+        command_metadata(b"getset").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
         command_metadata(b"lpush").unwrap().category.as_str(),
         "list"
     );
@@ -372,6 +392,179 @@ fn executes_set_get_del_and_exists() {
         execute(&mut db, &[b"GET", b"key"]),
         RespReply::NullBulkString
     );
+}
+
+#[test]
+fn executes_mget_mset_append_strlen_and_getset_with_binary_values() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"MSET", b"a", b"one\0", b"b", b"two words"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"MGET", b"missing", b"a", b"b"]),
+        RespReply::Array(vec![
+            RespReply::NullBulkString,
+            RespReply::BulkString(b"one\0".to_vec()),
+            RespReply::BulkString(b"two words".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"APPEND", b"a", b"more\0bytes"]),
+        RespReply::Integer(14)
+    );
+    assert_eq!(execute(&mut db, &[b"STRLEN", b"a"]), RespReply::Integer(14));
+    assert_eq!(
+        execute(&mut db, &[b"APPEND", b"new", b"value"]),
+        RespReply::Integer(5)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETSET", b"new", b"replacement"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETSET", b"absent", b"created"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"MGET", b"new", b"absent"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"replacement".to_vec()),
+            RespReply::BulkString(b"created".to_vec()),
+        ])
+    );
+}
+
+#[test]
+fn string_completion_commands_validate_arity_wrong_types_and_expiration() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(execute(&mut db, &[b"MGET"]), wrong_arity_reply("mget"));
+    assert_eq!(
+        execute(&mut db, &[b"MSET", b"key"]),
+        wrong_arity_reply("mset")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"APPEND", b"key"]),
+        wrong_arity_reply("append")
+    );
+    assert_eq!(execute(&mut db, &[b"STRLEN"]), wrong_arity_reply("strlen"));
+    assert_eq!(
+        execute(&mut db, &[b"GETSET", b"key"]),
+        wrong_arity_reply("getset")
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"x"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"MGET", b"list"]),
+        RespReply::Array(vec![RespReply::NullBulkString])
+    );
+    assert_eq!(execute(&mut db, &[b"MSET", b"list", b"value"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"APPEND", b"list", b"value"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"STRLEN", b"list"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"GETSET", b"list", b"value"]),
+        wrong_type
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"exp", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"exp", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"MSET", b"exp", b"new"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"exp"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"exp", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"APPEND", b"exp", b"!"]),
+        RespReply::Integer(4)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"exp"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"exp", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETSET", b"exp", b"final"]),
+        RespReply::BulkString(b"new!".to_vec())
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"exp"]), RespReply::Integer(-1));
+}
+
+#[test]
+fn string_completion_commands_invalidate_watches_and_run_in_transactions() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"a"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"MSET", b"a", b"1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"a"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"APPEND", b"a", b"2"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"STRLEN", b"a"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETSET", b"a", b"done"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"MGET", b"a", b"missing"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::Integer(2),
+            RespReply::Integer(2),
+            RespReply::BulkString(b"12".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"done".to_vec()),
+                RespReply::NullBulkString,
+            ]),
+        ])
+    );
+}
+
+fn wrong_arity_reply(command_name: &str) -> RespReply {
+    RespReply::Error(format!(
+        "ERR wrong number of arguments for '{}' command",
+        command_name
+    ))
 }
 
 #[test]

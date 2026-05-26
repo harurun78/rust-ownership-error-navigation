@@ -248,6 +248,11 @@ impl RedisMiniDb {
             CommandKind::Echo => execute_echo(args),
             CommandKind::Set => self.execute_set(args),
             CommandKind::Get => self.execute_get(args),
+            CommandKind::MGet => self.execute_mget(args),
+            CommandKind::MSet => self.execute_mset(args),
+            CommandKind::Append => self.execute_append(args),
+            CommandKind::StrLen => self.execute_strlen(args),
+            CommandKind::GetSet => self.execute_getset(args),
             CommandKind::Del => self.execute_del(args),
             CommandKind::Exists => self.execute_exists(args),
             CommandKind::Expire => self.execute_expire(args),
@@ -466,6 +471,132 @@ impl RedisMiniDb {
             | Some(RedisValue::Stream(_)) => wrong_type(),
             None => RespReply::NullBulkString,
         }
+    }
+
+    fn execute_mget(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.is_empty() {
+            return wrong_arity("mget");
+        }
+
+        let mut replies = Vec::with_capacity(args.len());
+        for key in args {
+            self.remove_if_expired(&key);
+            match self.values.get(&key) {
+                Some(RedisValue::String(value)) => {
+                    replies.push(RespReply::BulkString(value.to_vec()))
+                }
+                Some(RedisValue::List(_))
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::Set(_))
+                | Some(RedisValue::ZSet(_))
+                | Some(RedisValue::Stream(_))
+                | None => replies.push(RespReply::NullBulkString),
+            }
+        }
+        RespReply::Array(replies)
+    }
+
+    fn execute_mset(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.is_empty() || args.len() % 2 != 0 {
+            return wrong_arity("mset");
+        }
+
+        for pair in args.chunks(2) {
+            self.remove_if_expired(&pair[0]);
+        }
+        for pair in args.chunks(2) {
+            if matches!(
+                self.values.get(&pair[0]),
+                Some(RedisValue::List(_))
+                    | Some(RedisValue::Hash(_))
+                    | Some(RedisValue::Set(_))
+                    | Some(RedisValue::ZSet(_))
+                    | Some(RedisValue::Stream(_))
+            ) {
+                return wrong_type();
+            }
+        }
+
+        let mut args = args.into_iter();
+        while let Some(key) = args.next() {
+            let value = args.next().expect("mset value after arity check");
+            self.expires_at.remove(&key);
+            self.bump_key_version(&key);
+            self.values.insert(key, RedisValue::String(value));
+        }
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_append(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("append");
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        let value = args.remove(0);
+        self.remove_if_expired(&key);
+        let len = match self.values.get_mut(&key) {
+            Some(RedisValue::String(existing)) => {
+                existing.extend(value);
+                existing.len() as i64
+            }
+            Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            None => {
+                let len = value.len() as i64;
+                self.values.insert(key.to_vec(), RedisValue::String(value));
+                len
+            }
+        };
+        self.expires_at.remove(&key);
+        self.bump_key_version(&key);
+        RespReply::Integer(len)
+    }
+
+    fn execute_strlen(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("strlen");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(value)) => RespReply::Integer(value.len() as i64),
+            Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_getset(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("getset");
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        let value = args.remove(0);
+        self.remove_if_expired(&key);
+        let old_value = match self.values.get(&key) {
+            Some(RedisValue::String(existing)) => RespReply::BulkString(existing.to_vec()),
+            Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            None => RespReply::NullBulkString,
+        };
+
+        self.expires_at.remove(&key);
+        self.bump_key_version(&key);
+        self.values.insert(key, RedisValue::String(value));
+        old_value
     }
 
     fn execute_del(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -1552,6 +1683,11 @@ enum CommandKind {
     Echo,
     Set,
     Get,
+    MGet,
+    MSet,
+    Append,
+    StrLen,
+    GetSet,
     Del,
     Exists,
     Expire,
@@ -1618,6 +1754,11 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("ECHO", CommandCategory::Connection, CommandKind::Echo),
     command_spec("SET", CommandCategory::String, CommandKind::Set),
     command_spec("GET", CommandCategory::String, CommandKind::Get),
+    command_spec("MGET", CommandCategory::String, CommandKind::MGet),
+    command_spec("MSET", CommandCategory::String, CommandKind::MSet),
+    command_spec("APPEND", CommandCategory::String, CommandKind::Append),
+    command_spec("STRLEN", CommandCategory::String, CommandKind::StrLen),
+    command_spec("GETSET", CommandCategory::String, CommandKind::GetSet),
     command_spec("DEL", CommandCategory::Keyspace, CommandKind::Del),
     command_spec("EXISTS", CommandCategory::Keyspace, CommandKind::Exists),
     command_spec("EXPIRE", CommandCategory::Keyspace, CommandKind::Expire),
