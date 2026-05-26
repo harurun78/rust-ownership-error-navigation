@@ -74,6 +74,8 @@ impl RespReply {
 pub struct RedisMiniSession {
     db: RedisMiniDb,
     protocol_version: RespProtocolVersion,
+    subscriptions: BTreeSet<Vec<u8>>,
+    pattern_subscriptions: BTreeSet<Vec<u8>>,
 }
 
 impl RedisMiniSession {
@@ -90,7 +92,173 @@ impl RedisMiniSession {
             return self.execute_hello(command.args);
         }
 
+        if command.args.is_empty() {
+            return RespReply::Error("ERR unknown command ''".to_string());
+        }
+
+        let command_kind = find_command_spec(&command.args[0]).map(|spec| spec.kind);
+
+        if self.subscribed_mode() {
+            if let Some(kind) = command_kind {
+                match kind {
+                    CommandKind::Subscribe
+                    | CommandKind::Unsubscribe
+                    | CommandKind::PSubscribe
+                    | CommandKind::PUnsubscribe
+                    | CommandKind::Ping
+                    | CommandKind::Hello => {}
+                    _ => {
+                        return RespReply::Error(
+                            "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT / HELLO allowed in subscribed state".to_string(),
+                        )
+                    }
+                }
+            }
+        }
+
+        if let Some(kind) = command_kind {
+            match kind {
+                CommandKind::Subscribe
+                | CommandKind::PSubscribe
+                | CommandKind::Unsubscribe
+                | CommandKind::PUnsubscribe
+                | CommandKind::Publish => return self.handle_pubsub(kind, command.args),
+                _ => {}
+            }
+        }
+
         self.db.execute(command)
+    }
+
+    fn subscribed_mode(&self) -> bool {
+        !self.subscriptions.is_empty() || !self.pattern_subscriptions.is_empty()
+    }
+
+    fn handle_pubsub(&mut self, kind: CommandKind, mut args: Vec<Vec<u8>>) -> RespReply {
+        // args includes the command name at args[0]
+        if args.is_empty() {
+            return RespReply::Error("ERR unknown command ''".to_string());
+        }
+        let _cmd = args.remove(0);
+        match kind {
+            CommandKind::Subscribe => {
+                if args.is_empty() {
+                    return wrong_arity("subscribe");
+                }
+                let mut replies = Vec::with_capacity(args.len());
+                for channel in args.iter() {
+                    self.subscriptions.insert(channel.to_vec());
+                    replies.push(subscription_ack(
+                        "subscribe",
+                        Some(channel.to_vec()),
+                        self.pubsub_subscription_count(),
+                    ));
+                }
+                pubsub_ack_reply(replies)
+            }
+            CommandKind::PSubscribe => {
+                if args.is_empty() {
+                    return wrong_arity("psubscribe");
+                }
+                let mut replies = Vec::with_capacity(args.len());
+                for pat in args.iter() {
+                    self.pattern_subscriptions.insert(pat.to_vec());
+                    replies.push(subscription_ack(
+                        "psubscribe",
+                        Some(pat.to_vec()),
+                        self.pubsub_subscription_count(),
+                    ));
+                }
+                pubsub_ack_reply(replies)
+            }
+            CommandKind::Unsubscribe => {
+                if args.is_empty() {
+                    if self.subscriptions.is_empty() {
+                        return subscription_ack(
+                            "unsubscribe",
+                            None,
+                            self.pubsub_subscription_count(),
+                        );
+                    }
+
+                    let channels: Vec<Vec<u8>> = self
+                        .subscriptions
+                        .iter()
+                        .map(|channel| channel.to_vec())
+                        .collect();
+                    let mut replies = Vec::with_capacity(channels.len());
+                    for channel in channels {
+                        self.subscriptions.remove(&channel);
+                        replies.push(subscription_ack(
+                            "unsubscribe",
+                            Some(channel),
+                            self.pubsub_subscription_count(),
+                        ));
+                    }
+                    return pubsub_ack_reply(replies);
+                }
+
+                let mut replies = Vec::with_capacity(args.len());
+                for channel in args.iter() {
+                    self.subscriptions.remove(channel);
+                    replies.push(subscription_ack(
+                        "unsubscribe",
+                        Some(channel.to_vec()),
+                        self.pubsub_subscription_count(),
+                    ));
+                }
+                pubsub_ack_reply(replies)
+            }
+            CommandKind::PUnsubscribe => {
+                if args.is_empty() {
+                    if self.pattern_subscriptions.is_empty() {
+                        return subscription_ack(
+                            "punsubscribe",
+                            None,
+                            self.pubsub_subscription_count(),
+                        );
+                    }
+
+                    let patterns: Vec<Vec<u8>> = self
+                        .pattern_subscriptions
+                        .iter()
+                        .map(|pattern| pattern.to_vec())
+                        .collect();
+                    let mut replies = Vec::with_capacity(patterns.len());
+                    for pattern in patterns {
+                        self.pattern_subscriptions.remove(&pattern);
+                        replies.push(subscription_ack(
+                            "punsubscribe",
+                            Some(pattern),
+                            self.pubsub_subscription_count(),
+                        ));
+                    }
+                    return pubsub_ack_reply(replies);
+                }
+
+                let mut replies = Vec::with_capacity(args.len());
+                for pat in args.iter() {
+                    self.pattern_subscriptions.remove(pat);
+                    replies.push(subscription_ack(
+                        "punsubscribe",
+                        Some(pat.to_vec()),
+                        self.pubsub_subscription_count(),
+                    ));
+                }
+                pubsub_ack_reply(replies)
+            }
+            CommandKind::Publish => {
+                if args.len() != 2 {
+                    return wrong_arity("publish");
+                }
+                RespReply::Integer(0)
+            }
+            _ => RespReply::Error("ERR unsupported pubsub operation".to_string()),
+        }
+    }
+
+    fn pubsub_subscription_count(&self) -> usize {
+        self.subscriptions.len() + self.pattern_subscriptions.len()
     }
 
     pub fn execute_encoded(&mut self, command: Command) -> Vec<u8> {
@@ -112,9 +280,101 @@ impl RedisMiniSession {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct RedisPubSubBroker {
+    sessions: BTreeMap<usize, RedisMiniSession>,
+    pending_messages: BTreeMap<usize, Vec<RespReply>>,
+    next_session_id: usize,
+}
+
+impl RedisPubSubBroker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_session(&mut self) -> usize {
+        let session_id = self.next_session_id;
+        self.next_session_id = self.next_session_id.saturating_add(1);
+        self.sessions.insert(session_id, RedisMiniSession::new());
+        self.pending_messages.insert(session_id, Vec::new());
+        session_id
+    }
+
+    pub fn execute(&mut self, session_id: usize, command: Command) -> RespReply {
+        let Some(command_name) = command.args.first() else {
+            return RespReply::Error("ERR unknown command ''".to_string());
+        };
+        let command_kind = find_command_spec(command_name).map(|spec| spec.kind);
+
+        if command_kind == Some(CommandKind::Publish) {
+            if self
+                .sessions
+                .get(&session_id)
+                .is_some_and(RedisMiniSession::subscribed_mode)
+            {
+                let Some(session) = self.sessions.get_mut(&session_id) else {
+                    return unknown_session_error(session_id);
+                };
+                return session.execute(command);
+            }
+
+            return self.execute_publish(command.args);
+        }
+
+        let Some(session) = self.sessions.get_mut(&session_id) else {
+            return unknown_session_error(session_id);
+        };
+        session.execute(command)
+    }
+
+    pub fn drain_messages(&mut self, session_id: usize) -> Vec<RespReply> {
+        match self.pending_messages.get_mut(&session_id) {
+            Some(messages) => std::mem::take(messages),
+            None => Vec::new(),
+        }
+    }
+
+    fn execute_publish(&mut self, mut args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("publish");
+        }
+
+        let _command_name = args.remove(0);
+        let channel = args.remove(0);
+        let message = args.remove(0);
+        let mut recipient_count = 0i64;
+        let mut deliveries: Vec<(usize, Vec<RespReply>)> = Vec::new();
+
+        for (session_id, session) in &self.sessions {
+            let mut session_messages = Vec::new();
+            if session.subscriptions.contains(&channel) {
+                session_messages.push(message_reply(&channel, &message));
+            }
+            for pattern in &session.pattern_subscriptions {
+                if pubsub_pattern_matches(pattern, &channel) {
+                    session_messages.push(pattern_message_reply(pattern, &channel, &message));
+                }
+            }
+            if !session_messages.is_empty() {
+                recipient_count += 1;
+                deliveries.push((*session_id, session_messages));
+            }
+        }
+
+        for (session_id, messages) in deliveries {
+            if let Some(pending) = self.pending_messages.get_mut(&session_id) {
+                pending.extend(messages);
+            }
+        }
+
+        RespReply::Integer(recipient_count)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CommandCategory {
     Connection,
+    PubSub,
     String,
     List,
     Hash,
@@ -130,6 +390,7 @@ impl CommandCategory {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Connection => "connection",
+            Self::PubSub => "pubsub",
             Self::String => "string",
             Self::List => "list",
             Self::Hash => "hash",
@@ -370,6 +631,19 @@ impl RedisMiniDb {
             CommandKind::Scan => self.execute_scan(args),
             CommandKind::Hello => execute_hello(args),
             CommandKind::Select => self.execute_select(args),
+            CommandKind::Subscribe => {
+                RespReply::Error("ERR SUBSCRIBE handled by session".to_string())
+            }
+            CommandKind::PSubscribe => {
+                RespReply::Error("ERR PSUBSCRIBE handled by session".to_string())
+            }
+            CommandKind::Unsubscribe => {
+                RespReply::Error("ERR UNSUBSCRIBE handled by session".to_string())
+            }
+            CommandKind::PUnsubscribe => {
+                RespReply::Error("ERR PUNSUBSCRIBE handled by session".to_string())
+            }
+            CommandKind::Publish => RespReply::Error("ERR PUBLISH handled by session".to_string()),
             CommandKind::DbSize => self.execute_dbsize(args),
             CommandKind::Multi
             | CommandKind::Exec
@@ -3890,6 +4164,11 @@ enum CommandKind {
     Hello,
     Select,
     DbSize,
+    Subscribe,
+    Unsubscribe,
+    Publish,
+    PSubscribe,
+    PUnsubscribe,
     Multi,
     Exec,
     Discard,
@@ -4055,6 +4334,23 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("HELLO", CommandCategory::Connection, CommandKind::Hello),
     command_spec("SELECT", CommandCategory::Connection, CommandKind::Select),
     command_spec("DBSIZE", CommandCategory::Keyspace, CommandKind::DbSize),
+    command_spec("SUBSCRIBE", CommandCategory::PubSub, CommandKind::Subscribe),
+    command_spec(
+        "UNSUBSCRIBE",
+        CommandCategory::PubSub,
+        CommandKind::Unsubscribe,
+    ),
+    command_spec("PUBLISH", CommandCategory::PubSub, CommandKind::Publish),
+    command_spec(
+        "PSUBSCRIBE",
+        CommandCategory::PubSub,
+        CommandKind::PSubscribe,
+    ),
+    command_spec(
+        "PUNSUBSCRIBE",
+        CommandCategory::PubSub,
+        CommandKind::PUnsubscribe,
+    ),
     command_spec("MULTI", CommandCategory::Transaction, CommandKind::Multi),
     command_spec("EXEC", CommandCategory::Transaction, CommandKind::Exec),
     command_spec(
@@ -4209,6 +4505,85 @@ fn hello_reply(protocol_version: RespProtocolVersion) -> RespReply {
 
 fn unsupported_protocol_version() -> RespReply {
     RespReply::Error("NOPROTO unsupported protocol version".to_string())
+}
+
+fn pubsub_ack_reply(mut replies: Vec<RespReply>) -> RespReply {
+    if replies.len() == 1 {
+        replies.remove(0)
+    } else {
+        RespReply::Array(replies)
+    }
+}
+
+fn subscription_ack(kind: &'static str, item: Option<Vec<u8>>, count: usize) -> RespReply {
+    let item_reply = match item {
+        Some(value) => RespReply::BulkString(value),
+        None => RespReply::NullBulkString,
+    };
+    RespReply::Array(vec![
+        RespReply::BulkString(kind.as_bytes().to_vec()),
+        item_reply,
+        RespReply::Integer(count as i64),
+    ])
+}
+
+fn message_reply(channel: &[u8], message: &[u8]) -> RespReply {
+    RespReply::Array(vec![
+        RespReply::BulkString(b"message".to_vec()),
+        RespReply::BulkString(channel.to_vec()),
+        RespReply::BulkString(message.to_vec()),
+    ])
+}
+
+fn pattern_message_reply(pattern: &[u8], channel: &[u8], message: &[u8]) -> RespReply {
+    RespReply::Array(vec![
+        RespReply::BulkString(b"pmessage".to_vec()),
+        RespReply::BulkString(pattern.to_vec()),
+        RespReply::BulkString(channel.to_vec()),
+        RespReply::BulkString(message.to_vec()),
+    ])
+}
+
+fn pubsub_pattern_matches(pattern: &[u8], channel: &[u8]) -> bool {
+    if !pattern.contains(&b'*') {
+        return pattern == channel;
+    }
+
+    let mut position = 0usize;
+    let mut first = true;
+    for segment in pattern.split(|byte| *byte == b'*') {
+        if segment.is_empty() {
+            first = false;
+            continue;
+        }
+        if first && !pattern.starts_with(b"*") {
+            if !channel.starts_with(segment) {
+                return false;
+            }
+            position = segment.len();
+        } else {
+            let Some(offset) = find_subslice(&channel[position..], segment) else {
+                return false;
+            };
+            position += offset + segment.len();
+        }
+        first = false;
+    }
+
+    pattern.ends_with(b"*") || position == channel.len()
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+fn unknown_session_error(session_id: usize) -> RespReply {
+    RespReply::Error(format!("ERR unknown client session {session_id}"))
 }
 
 fn wrong_arity(command_name: &str) -> RespReply {

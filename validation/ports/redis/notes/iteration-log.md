@@ -347,6 +347,27 @@ Notes:
 - Did the ownership report change the next fix: no; the report had no E0382/E0499/E0502 ownership diagnostics.
 - Next action: Continue Phase 28 with sorted set command completion (R216), preserving transaction, expiration, and WATCH semantics.
 
+### iteration-033
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R221-R223 Phase 30 Pub/Sub cleanup: client subscription state, `SUBSCRIBE`, `UNSUBSCRIBE`, `PUBLISH`, `PSUBSCRIBE`, `PUNSUBSCRIBE`, deterministic broker harness, tests, diagnostics, reports, and ledger updates.
+- Prompt summary: Continue and complete Redis porting validation iteration-033 cleanup after an initial session-local Pub/Sub attempt; remove stray root report artifacts; save all artifacts under `validation/ports/redis/reports/iteration-033/`; add strong tests and avoid shared mutability shortcuts.
+- Human ownership hints before attempt: add in-memory deterministic broker/harness if session-local behavior is insufficient for multi-client delivery; avoid `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, broad `clone`, and `unsafe`.
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-033/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-033/cargo-check.jsonl --json-out ../reports/iteration-033/ownership-report.json --html-out ../reports/iteration-033/ownership-report.html`
+- Result: compile success; test success, 139 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-033/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-033/ownership-report.json`
+- Ownership report HTML: `reports/iteration-033/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>` introduced. No broad clone shortcut introduced; narrow `to_vec()` copies are used for retained subscription identifiers and outbound Pub/Sub replies/messages.
+- Did the ownership report change the next fix: no; cargo check succeeded and the generated report has zero diagnostics.
+- Next action: Phase 31 can start persistence R224-R227; synchronous TCP Pub/Sub fanout is still a deferred compatibility gap outside this minimal broker-backed slice.
+
 ### iteration-028
 
 - Date: 2026-05-26

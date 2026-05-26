@@ -1,7 +1,7 @@
 use rust_port::{
     Command, CommandCategory, CommandMetadata, ParseOutcome, RedisMiniDb, RedisMiniServer,
-    RedisMiniSession, RespCommandParser, RespError, RespProtocolVersion, RespReply,
-    command_metadata, normalize_command_name,
+    RedisMiniSession, RedisPubSubBroker, RespCommandParser, RespError, RespProtocolVersion,
+    RespReply, command_metadata, normalize_command_name,
 };
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -192,6 +192,35 @@ fn tcp_exchange(input: &[u8]) -> Vec<u8> {
 
 fn hello3_response() -> Vec<u8> {
     b"*4\r\n$6\r\nserver\r\n$10\r\nredis-mini\r\n$5\r\nproto\r\n:3\r\n".to_vec()
+}
+
+fn pubsub_ack(kind: &[u8], item: Option<&[u8]>, count: i64) -> RespReply {
+    let item_reply = match item {
+        Some(value) => RespReply::BulkString(value.to_vec()),
+        None => RespReply::NullBulkString,
+    };
+    RespReply::Array(vec![
+        RespReply::BulkString(kind.to_vec()),
+        item_reply,
+        RespReply::Integer(count),
+    ])
+}
+
+fn pubsub_message(channel: &[u8], message: &[u8]) -> RespReply {
+    RespReply::Array(vec![
+        RespReply::BulkString(b"message".to_vec()),
+        RespReply::BulkString(channel.to_vec()),
+        RespReply::BulkString(message.to_vec()),
+    ])
+}
+
+fn pubsub_pattern_message(pattern: &[u8], channel: &[u8], message: &[u8]) -> RespReply {
+    RespReply::Array(vec![
+        RespReply::BulkString(b"pmessage".to_vec()),
+        RespReply::BulkString(pattern.to_vec()),
+        RespReply::BulkString(channel.to_vec()),
+        RespReply::BulkString(message.to_vec()),
+    ])
 }
 
 #[test]
@@ -447,6 +476,26 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "keyspace"
     );
     assert_eq!(
+        command_metadata(b"subscribe").unwrap().category.as_str(),
+        "pubsub"
+    );
+    assert_eq!(
+        command_metadata(b"unsubscribe").unwrap().category.as_str(),
+        "pubsub"
+    );
+    assert_eq!(
+        command_metadata(b"publish").unwrap().category.as_str(),
+        "pubsub"
+    );
+    assert_eq!(
+        command_metadata(b"psubscribe").unwrap().category.as_str(),
+        "pubsub"
+    );
+    assert_eq!(
+        command_metadata(b"punsubscribe").unwrap().category.as_str(),
+        "pubsub"
+    );
+    assert_eq!(
         command_metadata(b"hello").unwrap().category.as_str(),
         "connection"
     );
@@ -485,6 +534,176 @@ fn central_dispatcher_preserves_unknown_arity_and_transaction_queue_behavior() {
             RespReply::SimpleString("PONG"),
             RespReply::Error("ERR unknown command 'NOPE'".to_string()),
         ])
+    );
+}
+
+#[test]
+fn pubsub_commands_validate_arity_and_return_subscription_acks() {
+    let mut session = RedisMiniSession::new();
+
+    assert_eq!(
+        session.execute(command(&[b"SUBSCRIBE"])),
+        RespReply::Error("ERR wrong number of arguments for 'subscribe' command".to_string())
+    );
+    assert_eq!(
+        session.execute(command(&[b"PSUBSCRIBE"])),
+        RespReply::Error("ERR wrong number of arguments for 'psubscribe' command".to_string())
+    );
+    assert_eq!(
+        session.execute(command(&[b"PUBLISH", b"channel"])),
+        RespReply::Error("ERR wrong number of arguments for 'publish' command".to_string())
+    );
+
+    assert_eq!(
+        session.execute(command(&[b"SUBSCRIBE", b"news", b"sports"])),
+        RespReply::Array(vec![
+            pubsub_ack(b"subscribe", Some(b"news"), 1),
+            pubsub_ack(b"subscribe", Some(b"sports"), 2),
+        ])
+    );
+    assert_eq!(
+        session.execute(command(&[b"PSUBSCRIBE", b"news.*"])),
+        pubsub_ack(b"psubscribe", Some(b"news.*"), 3)
+    );
+}
+
+#[test]
+fn subscribed_mode_rejects_ordinary_commands_and_allows_ping_and_unsubscribe() {
+    let mut session = RedisMiniSession::new();
+
+    assert_eq!(
+        session.execute(command(&[b"SUBSCRIBE", b"news", b"sports"])),
+        RespReply::Array(vec![
+            pubsub_ack(b"subscribe", Some(b"news"), 1),
+            pubsub_ack(b"subscribe", Some(b"sports"), 2),
+        ])
+    );
+    assert_eq!(
+        session.execute(command(&[b"GET", b"news"])),
+        RespReply::Error(
+            "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT / HELLO allowed in subscribed state"
+                .to_string()
+        )
+    );
+    assert_eq!(
+        session.execute(command(&[b"PUBLISH", b"news", b"hello"])),
+        RespReply::Error(
+            "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT / HELLO allowed in subscribed state"
+                .to_string()
+        )
+    );
+    assert_eq!(
+        session.execute(command(&[b"PING"])),
+        RespReply::SimpleString("PONG")
+    );
+    assert_eq!(
+        session.execute(command(&[b"UNSUBSCRIBE", b"news"])),
+        pubsub_ack(b"unsubscribe", Some(b"news"), 1)
+    );
+    assert_eq!(
+        session.execute(command(&[b"UNSUBSCRIBE"])),
+        pubsub_ack(b"unsubscribe", Some(b"sports"), 0)
+    );
+    assert_eq!(
+        session.execute(command(&[b"GET", b"news"])),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn pattern_subscriptions_match_simple_globs_and_can_be_removed() {
+    let mut broker = RedisPubSubBroker::new();
+    let subscriber = broker.add_session();
+    let publisher = broker.add_session();
+
+    assert_eq!(
+        broker.execute(subscriber, command(&[b"PSUBSCRIBE", b"news.*", b"alerts*"])),
+        RespReply::Array(vec![
+            pubsub_ack(b"psubscribe", Some(b"news.*"), 1),
+            pubsub_ack(b"psubscribe", Some(b"alerts*"), 2),
+        ])
+    );
+    assert_eq!(
+        broker.execute(publisher, command(&[b"PUBLISH", b"news.sports", b"goal"])),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        broker.drain_messages(subscriber),
+        vec![pubsub_pattern_message(b"news.*", b"news.sports", b"goal")]
+    );
+    assert_eq!(
+        broker.execute(subscriber, command(&[b"PUNSUBSCRIBE", b"news.*"])),
+        pubsub_ack(b"punsubscribe", Some(b"news.*"), 1)
+    );
+    assert_eq!(
+        broker.execute(publisher, command(&[b"PUBLISH", b"news.sports", b"again"])),
+        RespReply::Integer(0)
+    );
+    assert_eq!(broker.drain_messages(subscriber), Vec::new());
+}
+
+#[test]
+fn pubsub_broker_delivers_to_multiple_clients_without_double_counting_client() {
+    let mut broker = RedisPubSubBroker::new();
+    let direct = broker.add_session();
+    let mixed = broker.add_session();
+    let publisher = broker.add_session();
+
+    assert_eq!(
+        broker.execute(direct, command(&[b"SUBSCRIBE", b"news"])),
+        pubsub_ack(b"subscribe", Some(b"news"), 1)
+    );
+    assert_eq!(
+        broker.execute(mixed, command(&[b"SUBSCRIBE", b"news"])),
+        pubsub_ack(b"subscribe", Some(b"news"), 1)
+    );
+    assert_eq!(
+        broker.execute(mixed, command(&[b"PSUBSCRIBE", b"n*"])),
+        pubsub_ack(b"psubscribe", Some(b"n*"), 2)
+    );
+
+    assert_eq!(
+        broker.execute(publisher, command(&[b"PUBLISH", b"news", b"hello"])),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        broker.drain_messages(direct),
+        vec![pubsub_message(b"news", b"hello")]
+    );
+    assert_eq!(
+        broker.drain_messages(mixed),
+        vec![
+            pubsub_message(b"news", b"hello"),
+            pubsub_pattern_message(b"n*", b"news", b"hello"),
+        ]
+    );
+    assert_eq!(broker.drain_messages(publisher), Vec::new());
+}
+
+#[test]
+fn pubsub_session_remains_compatible_with_transactions_and_tcp_ack_encoding() {
+    let mut session = RedisMiniSession::new();
+    assert_eq!(
+        session.execute(command(&[b"MULTI"])),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        session.execute(command(&[b"SUBSCRIBE", b"queued"])),
+        pubsub_ack(b"subscribe", Some(b"queued"), 1)
+    );
+    assert_eq!(
+        session.execute(command(&[b"EXEC"])),
+        RespReply::Error(
+            "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT / HELLO allowed in subscribed state"
+                .to_string()
+        )
+    );
+
+    let mut input = multibulk_frame(&[b"SUBSCRIBE", b"tcp"]);
+    input.extend(multibulk_frame(&[b"GET", b"tcp"]));
+    assert_eq!(
+        tcp_exchange(&input),
+        b"*3\r\n$9\r\nsubscribe\r\n$3\r\ntcp\r\n:1\r\n-ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT / HELLO allowed in subscribed state\r\n".to_vec()
     );
 }
 

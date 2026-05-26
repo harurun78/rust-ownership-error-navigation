@@ -324,9 +324,11 @@ iteration-032: completed R219 stream consumer group dispatch, metadata, behavior
 
 ## Phase 30: Pub/Sub
 
-- [ ] R221 Add client subscription state and `SUBSCRIBE`, `UNSUBSCRIBE`, `PUBLISH`, `PSUBSCRIBE`, and `PUNSUBSCRIBE`.
-- [ ] R222 Add multi-client integration tests for message delivery and subscribed-mode command restrictions.
-- [ ] R223 Save diagnostics and reports for pub/sub iterations.
+- [x] R221 Add client subscription state and `SUBSCRIBE`, `UNSUBSCRIBE`, `PUBLISH`, `PSUBSCRIBE`, and `PUNSUBSCRIBE`.
+- [x] R222 Add multi-client integration tests for message delivery and subscribed-mode command restrictions.
+- [x] R223 Save diagnostics and reports for pub/sub iterations.
+
+iteration-033: completed minimal compatible Pub/Sub with Redis-like subscription acknowledgements, subscribed-mode restrictions, simple `*` pattern subscriptions, and a deterministic in-memory `RedisPubSubBroker` harness for multi-client delivery; synchronous TCP fanout remains deferred.
 
 ## Phase 31: Persistence
 
