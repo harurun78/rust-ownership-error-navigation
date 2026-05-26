@@ -235,6 +235,31 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: if validation continues, consider hash command arity coverage or additional Redis-compatible hash edge cases.
 
+### iteration-030
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R216 sorted-set completion (ZCARD, ZCOUNT, ZRANK, ZREVRANK, ZREVRANGE, ZRANGEBYSCORE, ZREMRANGEBYRANK, ZREMRANGEBYSCORE, ZRANGEBYLEX, ZLEXCOUNT, ZREMRANGEBYLEX, ZSCAN — lex commands minimally supported)
+- Prompt summary: Implement missing sorted-set commands, add command metadata, and register scan/lex helpers; capture cargo diagnostics and produce ownership report artifacts under `reports/iteration-030/`.
+- Human ownership hints before attempt: none
+- Command: `mkdir -p ../reports/iteration-030 && cargo check --message-format=json > ../reports/iteration-030/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-030/cargo-check.jsonl --json-out ../reports/iteration-030/ownership-report.json --html-out ../reports/iteration-030/ownership-report.html`
+- Result: pending (apply_patch edits added new Z\* implementations and tests; diagnostics not yet captured)
+- Diagnostics file: `reports/iteration-030/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-030/ownership-report.json`
+- Ownership report HTML: `reports/iteration-030/ownership-report.html`
+- E0382 count: pending
+- E0499 count: pending
+- E0502 count: pending
+- Repeated ownership diagnostics: pending
+- Human intervention count: pending
+- `clone` / shared mutability / `unsafe` pressure: none introduced in this patch; no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>` used. Some copying via `to_vec()` retained for reply construction.
+- Did the ownership report change the next fix: pending
+- Next action: run cargo check and capture diagnostics, then run cargo test and generate ownership reports if check succeeds.
+
+Notes:
+
+- Equal-score lex subsets: `ZRANGEBYLEX`/`ZLEXCOUNT`/`ZREMRANGEBYLEX` behavior in this port is only supported when all scores are equal; tests exercise this subset and document it here for later extension.
+
 ### iteration-011
 
 - Date: 2026-05-26

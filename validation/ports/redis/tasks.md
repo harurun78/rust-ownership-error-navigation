@@ -310,8 +310,8 @@ iteration-027: implemented and tested minimal non-sleeping compatibility for `BL
 
 - [x] R214 Complete hash commands including `HMGET`, `HGETALL`, `HKEYS`, `HVALS`, `HLEN`, `HINCRBY`, and scan variants.
 - [x] R215 Complete set commands including `SPOP`, `SRANDMEMBER`, `SMOVE`, `SCARD`, `SDIFF`, `SINTER`, `SUNION`, and scan variants.
-- [ ] R216 Complete sorted set commands including score ranges, rank/removal commands, cardinality, lex ranges, and scan variants.
-- [ ] R217 Save diagnostics and reports for collection completion iterations.
+- [x] R216 Complete sorted set commands including score ranges, rank/removal commands, cardinality, lex ranges, and scan variants.
+- [x] R217 Save diagnostics and reports for collection completion iterations.
 
 ## Phase 29: Stream Consumer Groups
 

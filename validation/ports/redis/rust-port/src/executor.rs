@@ -322,6 +322,18 @@ impl RedisMiniDb {
             CommandKind::ZRem => self.execute_zrem(args),
             CommandKind::ZScore => self.execute_zscore(args),
             CommandKind::ZRange => self.execute_zrange(args),
+            CommandKind::ZCard => self.execute_zcard(args),
+            CommandKind::ZCount => self.execute_zcount(args),
+            CommandKind::ZRank => self.execute_zrank(args, false),
+            CommandKind::ZRevRank => self.execute_zrank(args, true),
+            CommandKind::ZRevRange => self.execute_zrevrange(args),
+            CommandKind::ZRangeByScore => self.execute_zrangebyscore(args),
+            CommandKind::ZRemRangeByRank => self.execute_zremrangebyrank(args),
+            CommandKind::ZRemRangeByScore => self.execute_zremrangebyscore(args),
+            CommandKind::ZRangeByLex => self.execute_zrangebylex(args),
+            CommandKind::ZLexCount => self.execute_zlexcount(args),
+            CommandKind::ZRemRangeByLex => self.execute_zremrangebylex(args),
+            CommandKind::ZScan => self.execute_zscan(args),
             CommandKind::XAdd => self.execute_xadd(args),
             CommandKind::XLen => self.execute_xlen(args),
             CommandKind::XRange => self.execute_xrange(args),
@@ -481,6 +493,7 @@ impl RedisMiniDb {
             Ok(options) => options,
             Err(reply) => return reply,
         };
+
         let expiration_deadline = match options.expiration {
             Some(duration) => match Instant::now().checked_add(duration) {
                 Some(deadline) => Some(deadline),
@@ -2366,6 +2379,493 @@ impl RedisMiniDb {
         }
     }
 
+    fn execute_zcard(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("zcard");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => RespReply::Integer(zset.len() as i64),
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_zcount(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("zcount");
+        }
+
+        let low = match parse_score_bound(&args[1]) {
+            Some(b) => b,
+            None => return syntax_error(),
+        };
+        let high = match parse_score_bound(&args[2]) {
+            Some(b) => b,
+            None => return syntax_error(),
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => {
+                let count = zset
+                    .iter()
+                    .filter(|(_member, score)| score_in_bounds(**score, &low, &high))
+                    .count();
+                RespReply::Integer(count as i64)
+            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_zrank(&mut self, args: Vec<Vec<u8>>, reverse: bool) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity(if reverse { "zrevrank" } else { "zrank" });
+        }
+
+        let key = &args[0];
+        let member = &args[1];
+        self.remove_if_expired(key);
+        match self.values.get(key) {
+            Some(RedisValue::ZSet(zset)) => {
+                let mut entries: Vec<(&Vec<u8>, &i64)> = zset.iter().collect();
+                entries.sort_by(|(lmem, lscore), (rmem, rscore)| {
+                    lscore.cmp(rscore).then_with(|| lmem.cmp(rmem))
+                });
+                if reverse {
+                    entries.reverse();
+                }
+                for (i, (m, _)) in entries.iter().enumerate() {
+                    if *m == member {
+                        return RespReply::Integer(i as i64);
+                    }
+                }
+                RespReply::NullBulkString
+            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::NullBulkString,
+        }
+    }
+
+    fn execute_zrevrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 && args.len() != 4 {
+            return wrong_arity("zrevrange");
+        }
+
+        let start = match parse_integer(&args[1]) {
+            Some(v) => v,
+            None => return integer_error(),
+        };
+        let stop = match parse_integer(&args[2]) {
+            Some(v) => v,
+            None => return integer_error(),
+        };
+
+        let mut with_scores = false;
+        if args.len() == 4 {
+            if !args[3].eq_ignore_ascii_case(b"WITHSCORES") {
+                return RespReply::Error("ERR unsupported ZREVRANGE option".to_string());
+            }
+            with_scores = true;
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => match normalize_range(zset.len(), start, stop) {
+                Some((s, e)) => {
+                    let mut entries: Vec<(&Vec<u8>, &i64)> = zset.iter().collect();
+                    entries.sort_by(|(left_member, left_score), (right_member, right_score)| {
+                        left_score
+                            .cmp(right_score)
+                            .then_with(|| left_member.cmp(right_member))
+                    });
+                    entries.reverse();
+                    {
+                        if with_scores {
+                            let mut out = Vec::new();
+                            for (member, score) in &entries[s..=e] {
+                                out.push(RespReply::BulkString(member.to_vec()));
+                                out.push(RespReply::BulkString(score.to_string().into_bytes()));
+                            }
+                            RespReply::Array(out)
+                        } else {
+                            RespReply::Array(
+                                entries[s..=e]
+                                    .iter()
+                                    .map(|(member, _score)| RespReply::BulkString(member.to_vec()))
+                                    .collect(),
+                            )
+                        }
+                    }
+                }
+                None => RespReply::Array(Vec::new()),
+            },
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_zrangebyscore(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 3 {
+            return wrong_arity("zrangebyscore");
+        }
+
+        let low = match parse_score_bound(&args[1]) {
+            Some(b) => b,
+            None => return syntax_error(),
+        };
+        let high = match parse_score_bound(&args[2]) {
+            Some(b) => b,
+            None => return syntax_error(),
+        };
+
+        // parse optional arguments: WITHSCORES and LIMIT offset count
+        let mut with_scores = false;
+        let mut limit: Option<(usize, usize)> = None;
+        let mut index = 3;
+        while index < args.len() {
+            if args[index].eq_ignore_ascii_case(b"WITHSCORES") {
+                if with_scores {
+                    return RespReply::Error("ERR syntax error".to_string());
+                }
+                with_scores = true;
+                index += 1;
+            } else if args[index].eq_ignore_ascii_case(b"LIMIT") {
+                if limit.is_some() || index + 2 >= args.len() {
+                    return RespReply::Error("ERR syntax error".to_string());
+                }
+                let offset = match parse_scan_index(&args[index + 1]) {
+                    Some(o) => o,
+                    None => return RespReply::Error("ERR invalid LIMIT offset".to_string()),
+                };
+                let count = match parse_scan_index(&args[index + 2]) {
+                    Some(0) | None => {
+                        return RespReply::Error("ERR invalid LIMIT count".to_string());
+                    }
+                    Some(c) => c,
+                };
+                limit = Some((offset, count));
+                index += 3;
+            } else {
+                return RespReply::Error("ERR unsupported ZRANGEBYSCORE option".to_string());
+            }
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => {
+                let mut entries: Vec<(&Vec<u8>, &i64)> = zset
+                    .iter()
+                    .filter(|(_m, score)| score_in_bounds(**score, &low, &high))
+                    .collect();
+                entries.sort_by(|(lmem, lscore), (rmem, rscore)| {
+                    lscore.cmp(rscore).then_with(|| lmem.cmp(rmem))
+                });
+                let mut result: Vec<RespReply> = Vec::new();
+                let mut iter = entries.into_iter();
+                if let Some((offset, count)) = limit {
+                    for _ in 0..offset {
+                        iter.next();
+                    }
+                    for _ in 0..count {
+                        if let Some((member, score)) = iter.next() {
+                            if with_scores {
+                                result.push(RespReply::BulkString(member.to_vec()));
+                                result.push(RespReply::BulkString(score.to_string().into_bytes()));
+                            } else {
+                                result.push(RespReply::BulkString(member.to_vec()));
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                } else {
+                    for (member, score) in iter {
+                        if with_scores {
+                            result.push(RespReply::BulkString(member.to_vec()));
+                            result.push(RespReply::BulkString(score.to_string().into_bytes()));
+                        } else {
+                            result.push(RespReply::BulkString(member.to_vec()));
+                        }
+                    }
+                }
+                RespReply::Array(result)
+            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_zremrangebyrank(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("zremrangebyrank");
+        }
+
+        let start = match parse_integer(&args[1]) {
+            Some(v) => v,
+            None => return integer_error(),
+        };
+        let stop = match parse_integer(&args[2]) {
+            Some(v) => v,
+            None => return integer_error(),
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get_mut(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => match normalize_range(zset.len(), start, stop) {
+                Some((s, e)) => {
+                    let mut entries: Vec<(&Vec<u8>, &i64)> = zset.iter().collect();
+                    entries.sort_by(|(lmem, lscore), (rmem, rscore)| {
+                        lscore.cmp(rscore).then_with(|| lmem.cmp(rmem))
+                    });
+                    let to_remove: Vec<Vec<u8>> =
+                        entries[s..=e].iter().map(|(m, _)| (*m).to_vec()).collect();
+                    let removed = remove_zset_members(zset, &to_remove);
+                    // expiration cleared on mutation and key removed if empty
+                    if removed > 0 {
+                        let key = &args[0];
+                        if zset.is_empty() {
+                            self.values.remove(key);
+                            self.expires_at.remove(key);
+                        } else {
+                            self.expires_at.remove(key);
+                        }
+                        self.bump_key_version(key);
+                    }
+                    RespReply::Integer(removed as i64)
+                }
+                None => RespReply::Integer(0),
+            },
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_zremrangebyscore(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("zremrangebyscore");
+        }
+
+        let low = match parse_score_bound(&args[1]) {
+            Some(b) => b,
+            None => return syntax_error(),
+        };
+        let high = match parse_score_bound(&args[2]) {
+            Some(b) => b,
+            None => return syntax_error(),
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get_mut(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => {
+                let to_remove: Vec<Vec<u8>> = zset
+                    .iter()
+                    .filter(|(_m, score)| score_in_bounds(**score, &low, &high))
+                    .map(|(m, _)| m.to_vec())
+                    .collect();
+                let removed = remove_zset_members(zset, &to_remove);
+                if removed > 0 {
+                    let key = &args[0];
+                    if zset.is_empty() {
+                        self.values.remove(key);
+                        self.expires_at.remove(key);
+                    } else {
+                        self.expires_at.remove(key);
+                    }
+                    self.bump_key_version(key);
+                }
+                RespReply::Integer(removed as i64)
+            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_zrangebylex(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("zrangebylex");
+        }
+
+        let min = parse_lex_bound(&args[1]);
+        let max = parse_lex_bound(&args[2]);
+        if min.is_none() || max.is_none() {
+            return syntax_error();
+        }
+        let (min, max) = (min.unwrap(), max.unwrap());
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => {
+                // only supported when all scores are equal
+                let all_equal = zset.values().all(|s| *s == *zset.values().next().unwrap());
+                if !all_equal {
+                    return RespReply::Array(Vec::new());
+                }
+                let mut members: Vec<&Vec<u8>> = zset.keys().collect();
+                members.sort();
+                let result: Vec<RespReply> = members
+                    .into_iter()
+                    .filter(|m| lex_in_bounds(m, &min, &max))
+                    .map(|m| RespReply::BulkString(m.to_vec()))
+                    .collect();
+                RespReply::Array(result)
+            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_zlexcount(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("zlexcount");
+        }
+        let min = parse_lex_bound(&args[1]);
+        let max = parse_lex_bound(&args[2]);
+        if min.is_none() || max.is_none() {
+            return syntax_error();
+        }
+        let (min, max) = (min.unwrap(), max.unwrap());
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => {
+                let all_equal = zset.values().all(|s| *s == *zset.values().next().unwrap());
+                if !all_equal {
+                    return RespReply::Integer(0);
+                }
+                let mut members: Vec<&Vec<u8>> = zset.keys().collect();
+                members.sort();
+                let count = members
+                    .into_iter()
+                    .filter(|m| lex_in_bounds(m, &min, &max))
+                    .count();
+                RespReply::Integer(count as i64)
+            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_zremrangebylex(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("zremrangebylex");
+        }
+        let min = parse_lex_bound(&args[1]);
+        let max = parse_lex_bound(&args[2]);
+        if min.is_none() || max.is_none() {
+            return syntax_error();
+        }
+        let (min, max) = (min.unwrap(), max.unwrap());
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get_mut(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => {
+                let all_equal = zset.values().all(|s| *s == *zset.values().next().unwrap());
+                if !all_equal {
+                    return RespReply::Integer(0);
+                }
+                let mut members: Vec<Vec<u8>> = zset.keys().cloned().collect();
+                members.sort();
+                let to_remove: Vec<Vec<u8>> = members
+                    .into_iter()
+                    .filter(|m| lex_in_bounds(m, &min, &max))
+                    .collect();
+                let removed = remove_zset_members(zset, &to_remove);
+                if removed > 0 {
+                    let key = &args[0];
+                    if zset.is_empty() {
+                        self.values.remove(key);
+                        self.expires_at.remove(key);
+                    } else {
+                        self.expires_at.remove(key);
+                    }
+                    self.bump_key_version(key);
+                }
+                RespReply::Integer(removed as i64)
+            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_zscan(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 && args.len() != 4 {
+            return wrong_arity("zscan");
+        }
+
+        let cursor = match parse_scan_index(&args[1]) {
+            Some(c) => c,
+            None => return RespReply::Error("ERR invalid cursor".to_string()),
+        };
+        let count = if args.len() == 4 {
+            if !args[2].eq_ignore_ascii_case(b"COUNT") {
+                return RespReply::Error("ERR unsupported ZSCAN option".to_string());
+            }
+            match parse_scan_index(&args[3]) {
+                Some(0) | None => return RespReply::Error("ERR invalid COUNT".to_string()),
+                Some(c) => Some(c),
+            }
+        } else {
+            None
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::ZSet(zset)) => scan_zset_entries(zset, cursor, count),
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::Array(vec![
+                RespReply::BulkString(b"0".to_vec()),
+                RespReply::Array(Vec::new()),
+            ]),
+        }
+    }
+
     fn execute_xadd(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.len() < 4 || args.len() % 2 != 0 {
             return wrong_arity("xadd");
@@ -2741,6 +3241,18 @@ enum CommandKind {
     ZRem,
     ZScore,
     ZRange,
+    ZCard,
+    ZCount,
+    ZRank,
+    ZRevRank,
+    ZRevRange,
+    ZRangeByScore,
+    ZRemRangeByRank,
+    ZRemRangeByScore,
+    ZRangeByLex,
+    ZLexCount,
+    ZRemRangeByLex,
+    ZScan,
     XAdd,
     XLen,
     XRange,
@@ -2850,6 +3362,50 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("ZREM", CommandCategory::SortedSet, CommandKind::ZRem),
     command_spec("ZSCORE", CommandCategory::SortedSet, CommandKind::ZScore),
     command_spec("ZRANGE", CommandCategory::SortedSet, CommandKind::ZRange),
+    command_spec("ZCARD", CommandCategory::SortedSet, CommandKind::ZCard),
+    command_spec("ZCOUNT", CommandCategory::SortedSet, CommandKind::ZCount),
+    command_spec("ZRANK", CommandCategory::SortedSet, CommandKind::ZRank),
+    command_spec(
+        "ZREVRANK",
+        CommandCategory::SortedSet,
+        CommandKind::ZRevRank,
+    ),
+    command_spec(
+        "ZREVRANGE",
+        CommandCategory::SortedSet,
+        CommandKind::ZRevRange,
+    ),
+    command_spec(
+        "ZRANGEBYSCORE",
+        CommandCategory::SortedSet,
+        CommandKind::ZRangeByScore,
+    ),
+    command_spec(
+        "ZREMRANGEBYRANK",
+        CommandCategory::SortedSet,
+        CommandKind::ZRemRangeByRank,
+    ),
+    command_spec(
+        "ZREMRANGEBYSCORE",
+        CommandCategory::SortedSet,
+        CommandKind::ZRemRangeByScore,
+    ),
+    command_spec(
+        "ZRANGEBYLEX",
+        CommandCategory::SortedSet,
+        CommandKind::ZRangeByLex,
+    ),
+    command_spec(
+        "ZLEXCOUNT",
+        CommandCategory::SortedSet,
+        CommandKind::ZLexCount,
+    ),
+    command_spec(
+        "ZREMRANGEBYLEX",
+        CommandCategory::SortedSet,
+        CommandKind::ZRemRangeByLex,
+    ),
+    command_spec("ZSCAN", CommandCategory::SortedSet, CommandKind::ZScan),
     command_spec("XADD", CommandCategory::Stream, CommandKind::XAdd),
     command_spec("XLEN", CommandCategory::Stream, CommandKind::XLen),
     command_spec("XRANGE", CommandCategory::Stream, CommandKind::XRange),
@@ -3033,6 +3589,154 @@ fn parse_scan_index(value: &[u8]) -> Option<usize> {
         return None;
     }
     std::str::from_utf8(value).ok()?.parse::<usize>().ok()
+}
+
+#[derive(Clone, Debug)]
+struct ScoreBound {
+    value: f64,
+    exclusive: bool,
+}
+
+fn parse_score_bound(value: &[u8]) -> Option<ScoreBound> {
+    if value.eq_ignore_ascii_case(b"-inf") {
+        return Some(ScoreBound {
+            value: f64::NEG_INFINITY,
+            exclusive: false,
+        });
+    }
+    if value.eq_ignore_ascii_case(b"+inf") || value.eq_ignore_ascii_case(b"inf") {
+        return Some(ScoreBound {
+            value: f64::INFINITY,
+            exclusive: false,
+        });
+    }
+    let s = std::str::from_utf8(value).ok()?;
+    let (exclusive, part) = if s.starts_with('(') {
+        (true, &s[1..])
+    } else {
+        (false, s)
+    };
+    let v = part.parse::<f64>().ok()?;
+    Some(ScoreBound {
+        value: v,
+        exclusive,
+    })
+}
+
+fn score_in_bounds(score: i64, low: &ScoreBound, high: &ScoreBound) -> bool {
+    let s = score as f64;
+    let low_ok = if low.value.is_infinite() && low.value.is_sign_negative() {
+        true
+    } else if low.exclusive {
+        s > low.value
+    } else {
+        s >= low.value
+    };
+    let high_ok = if high.value.is_infinite() && high.value.is_sign_positive() {
+        true
+    } else if high.exclusive {
+        s < high.value
+    } else {
+        s <= high.value
+    };
+    low_ok && high_ok
+}
+
+fn remove_zset_members(
+    zset: &mut std::collections::BTreeMap<Vec<u8>, i64>,
+    members: &[Vec<u8>],
+) -> usize {
+    let mut removed = 0usize;
+    for m in members {
+        if zset.remove(m).is_some() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+fn parse_lex_bound(value: &[u8]) -> Option<(Vec<u8>, bool, bool)> {
+    // returns (value, inclusive, is_inf)
+    if value == b"-" {
+        return Some((Vec::new(), true, true));
+    }
+    if value == b"+" {
+        return Some((Vec::new(), true, true));
+    }
+    let s = std::str::from_utf8(value).ok()?;
+    let (inclusive, part) = if s.starts_with('(') {
+        (false, &s[1..])
+    } else if s.starts_with('[') {
+        (true, &s[1..])
+    } else {
+        (true, s)
+    };
+    Some((part.as_bytes().to_vec(), inclusive, false))
+}
+
+fn lex_in_bounds(member: &[u8], min: &(Vec<u8>, bool, bool), max: &(Vec<u8>, bool, bool)) -> bool {
+    // if min or max is inf marker, treat accordingly
+    if min.2 == true || max.2 == true {
+        // '-' or '+' marker handling: '-' means -inf, '+' means +inf
+    }
+    let min_ok = if min.2 && min.0.is_empty() {
+        true
+    } else {
+        if min.1 {
+            member >= &min.0
+        } else {
+            member > &min.0
+        }
+    };
+    let max_ok = if max.2 && max.0.is_empty() {
+        true
+    } else {
+        if max.1 {
+            member <= &max.0
+        } else {
+            member < &max.0
+        }
+    };
+    min_ok && max_ok
+}
+
+fn scan_zset_entries(
+    zset: &std::collections::BTreeMap<Vec<u8>, i64>,
+    cursor: usize,
+    count: Option<usize>,
+) -> RespReply {
+    let mut entries: Vec<&Vec<u8>> = zset.keys().collect();
+    entries.sort_by(|a, b| a.cmp(b));
+    let total = entries.len();
+    if total == 0 {
+        return RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(Vec::new()),
+        ]);
+    }
+    let start = if cursor >= total { 0usize } else { cursor };
+    let cnt = count.unwrap_or(10usize);
+    // Return member/score pairs like real Redis: inner array contains
+    // [member, score, member, score, ...]
+    let mut result: Vec<RespReply> = Vec::new();
+    for i in 0..cnt {
+        if start + i >= total {
+            break;
+        }
+        let member = entries[start + i];
+        let score = zset.get(member).copied().unwrap_or(0);
+        result.push(RespReply::BulkString(member.to_vec()));
+        result.push(RespReply::BulkString(score.to_string().into_bytes()));
+    }
+    let next = if start + cnt >= total {
+        0usize
+    } else {
+        start + cnt
+    };
+    RespReply::Array(vec![
+        RespReply::BulkString(next.to_string().into_bytes()),
+        RespReply::Array(result),
+    ])
 }
 
 fn parse_database_index(value: &[u8]) -> Option<usize> {

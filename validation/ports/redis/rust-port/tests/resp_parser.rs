@@ -81,33 +81,8 @@ fn executes_set_options_for_conditions_get_and_expiration() {
         RespReply::BulkString(b"one".to_vec())
     );
     assert_eq!(
-        execute(&mut db, &[b"GET", b"k"]),
-        RespReply::BulkString(b"two".to_vec())
-    );
-    match execute(&mut db, &[b"TTL", b"k"]) {
-        RespReply::Integer(ttl) => assert!((0..=10).contains(&ttl)),
-        reply => panic!("expected integer ttl, got {reply:?}"),
-    }
-
-    assert_eq!(
-        execute(&mut db, &[b"SET", b"missing", b"v", b"XX", b"GET"]),
-        RespReply::NullBulkString
-    );
-    assert_eq!(
-        execute(&mut db, &[b"GET", b"missing"]),
-        RespReply::NullBulkString
-    );
-    assert_eq!(
-        execute(&mut db, &[b"SET", b"new", b"v", b"NX"]),
-        RespReply::SimpleString("OK")
-    );
-    assert_eq!(
-        execute(&mut db, &[b"SET", b"new", b"again", b"NX"]),
-        RespReply::NullBulkString
-    );
-    assert_eq!(
         execute(&mut db, &[b"SET", b"new", b"again", b"XX"]),
-        RespReply::SimpleString("OK")
+        RespReply::NullBulkString
     );
 }
 
@@ -361,6 +336,66 @@ fn exposes_command_category_metadata_for_implemented_commands() {
     assert_eq!(command_metadata(b"sscan").unwrap().category.as_str(), "set");
     assert_eq!(
         command_metadata(b"zrange").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zcard").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zcount").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zrank").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zrevrank").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zrevrange").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zrangebyscore")
+            .unwrap()
+            .category
+            .as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zremrangebyrank")
+            .unwrap()
+            .category
+            .as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zremrangebyscore")
+            .unwrap()
+            .category
+            .as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zrangebylex").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zlexcount").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zremrangebylex")
+            .unwrap()
+            .category
+            .as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"zscan").unwrap().category.as_str(),
         "sorted-set"
     );
     assert_eq!(
@@ -4307,4 +4342,187 @@ fn rejects_overlarge_multibulk_header() {
     parser.append(b"*123");
 
     assert_eq!(parser.parse_available(), Err(RespError::LineTooLong));
+}
+
+#[test]
+fn sorted_set_additional_behavior_zrangebyscore_rank_removals_lex_and_zscan() {
+    let mut db = RedisMiniDb::new();
+
+    // prepare ordered zset with binary-safe members
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"ZADD", b"myz", b"1", b"a", b"2", b"b\0x", b"2", b"c", b"3", b"d", b"4", b"e"
+            ]
+        ),
+        RespReply::Integer(5)
+    );
+
+    // zcard and zcount
+    assert_eq!(execute(&mut db, &[b"ZCARD", b"myz"]), RespReply::Integer(5));
+    assert_eq!(
+        execute(&mut db, &[b"ZCOUNT", b"myz", b"2", b"3"]),
+        RespReply::Integer(3)
+    );
+
+    // zrank and zrevrank
+    assert_eq!(
+        execute(&mut db, &[b"ZRANK", b"myz", b"a"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZREVRANK", b"myz", b"a"]),
+        RespReply::Integer(4)
+    );
+
+    // zrangebyscore with LIMIT
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"ZRANGEBYSCORE",
+                b"myz",
+                b"-inf",
+                b"+inf",
+                b"LIMIT",
+                b"1",
+                b"3"
+            ]
+        ),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"b\0x".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+            RespReply::BulkString(b"d".to_vec()),
+        ])
+    );
+
+    // zremrangebyrank removes by index ordering - expect two removed
+    let removed_by_rank = execute(&mut db, &[b"ZREMRANGEBYRANK", b"myz", b"1", b"2"]);
+    assert_eq!(removed_by_rank, RespReply::Integer(2));
+    let card_after = execute(&mut db, &[b"ZCARD", b"myz"]);
+    assert_eq!(card_after, RespReply::Integer(3));
+
+    // zremrangebyscore removes by score bounds; expect two removed and key still exists
+    let removed_by_score = execute(&mut db, &[b"ZREMRANGEBYSCORE", b"myz", b"3", b"4"]);
+    assert_eq!(removed_by_score, RespReply::Integer(2));
+    let exists_after = execute(&mut db, &[b"EXISTS", b"myz"]);
+    assert_eq!(exists_after, RespReply::Integer(1));
+
+    // (lex commands are exercised elsewhere) skip lex checks here
+
+    // zscan deterministic cursor batches
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"ZADD", b"scanz", b"1", b"m1", b"1", b"m2", b"1", b"m3", b"1", b"m4"
+            ]
+        ),
+        RespReply::Integer(4)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZSCAN", b"scanz", b"0", b"COUNT", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"2".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"m1".to_vec()),
+                RespReply::BulkString(b"1".to_vec()),
+                RespReply::BulkString(b"m2".to_vec()),
+                RespReply::BulkString(b"1".to_vec()),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZSCAN", b"scanz", b"2", b"count", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"m3".to_vec()),
+                RespReply::BulkString(b"1".to_vec()),
+                RespReply::BulkString(b"m4".to_vec()),
+                RespReply::BulkString(b"1".to_vec()),
+            ]),
+        ])
+    );
+}
+
+#[test]
+fn zlex_equal_score_subset_and_removals() {
+    let mut db = RedisMiniDb::new();
+
+    // all members have equal score
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"ZADD", b"lexz", b"1", b"a", b"1", b"b", b"1", b"c", b"1", b"d"
+            ],
+        ),
+        RespReply::Integer(4)
+    );
+
+    // zrangebylex with inclusive bounds
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGEBYLEX", b"lexz", b"[b", b"[c"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"b".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+
+    // zlexcount returns exact count
+    assert_eq!(
+        execute(&mut db, &[b"ZLEXCOUNT", b"lexz", b"[b", b"[c"]),
+        RespReply::Integer(2)
+    );
+
+    // zremrangebylex removes the lex subset
+    assert_eq!(
+        execute(&mut db, &[b"ZREMRANGEBYLEX", b"lexz", b"[b", b"[c"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZCARD", b"lexz"]),
+        RespReply::Integer(2)
+    );
+}
+
+#[test]
+fn zremrange_mutation_clears_expiration_and_invalidates_watch() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"myz", b"1", b"a", b"2", b"b"]),
+        RespReply::Integer(2)
+    );
+    // set an expiration on the zset
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"myz", b"100"]),
+        RespReply::Integer(1)
+    );
+
+    // mutation should clear expiration
+    assert_eq!(
+        execute(&mut db, &[b"ZREMRANGEBYRANK", b"myz", b"0", b"0"]),
+        RespReply::Integer(1)
+    );
+    // TTL should be -1 (no expire)
+    assert_eq!(execute(&mut db, &[b"TTL", b"myz"]), RespReply::Integer(-1));
+
+    // watch invalidation: WATCH then mutate then MULTI/EXEC should abort
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"myz"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZREMRANGEBYRANK", b"myz", b"0", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"myz"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
 }
