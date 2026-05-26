@@ -34,7 +34,7 @@ Start with a small slice before attempting API compatibility:
 4. Generate `cargo check --message-format=json` output for each failed iteration.
 5. Run this repository's reporter against the JSONL output and save reports under `reports/`.
 
-The detailed porting specification is [spec.md](spec.md). Upstream acquisition details are tracked in [upstream/UPSTREAM.md](upstream/UPSTREAM.md).
+The detailed porting specification is [spec.md](spec.md). The implementation plan is [plan.md](plan.md), task breakdown is [tasks.md](tasks.md), and execution guide is [quickstart.md](quickstart.md). Upstream acquisition details are tracked in [upstream/UPSTREAM.md](upstream/UPSTREAM.md).
 
 ## Proposed Local Layout
 

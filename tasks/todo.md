@@ -74,3 +74,4 @@
 - 対応: 最初の検証ターゲットとして `validation/ports/cjson/` を作成。
 - 目的: ownership-error navigation が低コスト AI モデルの Rust 移植で有効かを、cJSON の tree ownership / cleanup / string ownership を題材に検証する。
 - 追加: cJSON upstream `v1.7.19` (`c859b25da02955fef659d658b8f324b5cde87be3`) をローカル取得し、Git には source snapshot を含めず取得手順と porting spec を記録。
+- 追加: Spec Kit 風に `validation/ports/cjson/plan.md`, `tasks.md`, `quickstart.md`, `notes/iteration-log.md` を作成し、scalar parser phase の境界・検証手順・評価指標を明確化。

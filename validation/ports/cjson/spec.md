@@ -54,6 +54,29 @@ This intentionally avoids parent pointers, sibling linked lists, borrowed string
 
 ## Phases
 
+## Phase 1 Boundary
+
+The initial scalar parser phase must not implement array or object parsing. Array and object enum variants may exist only to preserve the eventual data model, but parser support for `[` and `{` must be deferred to later phases.
+
+## Experiment Protocol
+
+Each model-generated failed iteration should be saved under `reports/iteration-NNN/` with:
+
+- `cargo-check.jsonl`
+- `ownership-report.json`
+- `ownership-report.html`
+- `notes.md` or an entry in `notes/iteration-log.md`
+
+The notes must record model identity, prompt summary, human hints, diagnostic counts, repeated ownership diagnostics, and whether the report influenced the next fix.
+
+## Human Intervention Definition
+
+A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.
+
+## Scalar Compatibility Boundary
+
+Phase 1 uses upstream scalar behavior as guidance, not full behavioral parity. Number parsing may use Rust `f64` parsing if differences from cJSON `strtod` are documented. Unicode string escape support should include common escapes and surrogate pairs because upstream scalar tests cover them.
+
 ### Phase 1: Scalar Parser
 
 - Create a minimal Rust crate in `rust-port/`.
@@ -115,4 +138,5 @@ node dist/cli/main.js \
 - At least one failed iteration's JSONL diagnostics are captured under `reports/`.
 - This repository generates a JSON report and a static HTML report from that JSONL.
 - `notes/` records whether the generated report helped resolve the ownership issue.
+- Iteration notes state whether repeated E0382, E0499, and E0502 diagnostics decreased after report use.
 - No upstream source snapshot is committed to this repository.
