@@ -22,6 +22,30 @@ pub enum JsonEditError {
     NotObject,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum JsonPointerError {
+    InvalidPrefix,
+    InvalidEscape,
+    InvalidArrayIndex,
+}
+
+pub fn parse_json_pointer(pointer: &str) -> Result<Vec<String>, JsonPointerError> {
+    if pointer.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    if !pointer.starts_with('/') {
+        return Err(JsonPointerError::InvalidPrefix);
+    }
+
+    let mut segments = Vec::new();
+    for raw_segment in pointer[1..].split('/') {
+        segments.push(decode_pointer_segment(raw_segment)?);
+    }
+
+    Ok(segments)
+}
+
 impl JsonValue {
     pub fn is_null(&self) -> bool {
         matches!(self, JsonValue::Null)
@@ -411,6 +435,86 @@ impl JsonValue {
             JsonPathSegment::Key(key) => parent.detach_object_member(key),
         }
     }
+
+    pub fn get_pointer(&self, pointer: &str) -> Result<Option<&JsonValue>, JsonPointerError> {
+        let segments = parse_json_pointer(pointer)?;
+        let mut current = self;
+
+        for segment in &segments {
+            current = match current {
+                JsonValue::Array(values) => {
+                    let index = segment
+                        .parse::<usize>()
+                        .map_err(|_| JsonPointerError::InvalidArrayIndex)?;
+                    let Some(value) = values.get(index) else {
+                        return Ok(None);
+                    };
+                    value
+                }
+                JsonValue::Object(entries) => {
+                    let Some((_, value)) = entries.iter().find(|(key, _)| key == segment) else {
+                        return Ok(None);
+                    };
+                    value
+                }
+                _ => return Ok(None),
+            };
+        }
+
+        Ok(Some(current))
+    }
+
+    pub fn get_pointer_mut(
+        &mut self,
+        pointer: &str,
+    ) -> Result<Option<&mut JsonValue>, JsonPointerError> {
+        let segments = parse_json_pointer(pointer)?;
+        let mut current = self;
+
+        for segment in &segments {
+            current = match current {
+                JsonValue::Array(values) => {
+                    let index = segment
+                        .parse::<usize>()
+                        .map_err(|_| JsonPointerError::InvalidArrayIndex)?;
+                    let Some(value) = values.get_mut(index) else {
+                        return Ok(None);
+                    };
+                    value
+                }
+                JsonValue::Object(entries) => {
+                    let Some((_, value)) = entries.iter_mut().find(|(key, _)| key == segment)
+                    else {
+                        return Ok(None);
+                    };
+                    value
+                }
+                _ => return Ok(None),
+            };
+        }
+
+        Ok(Some(current))
+    }
+}
+
+fn decode_pointer_segment(segment: &str) -> Result<String, JsonPointerError> {
+    let mut decoded = String::new();
+    let mut chars = segment.chars();
+
+    while let Some(ch) = chars.next() {
+        if ch != '~' {
+            decoded.push(ch);
+            continue;
+        }
+
+        match chars.next() {
+            Some('0') => decoded.push('~'),
+            Some('1') => decoded.push('/'),
+            _ => return Err(JsonPointerError::InvalidEscape),
+        }
+    }
+
+    Ok(decoded)
 }
 
 fn write_indent(output: &mut String, depth: usize) {

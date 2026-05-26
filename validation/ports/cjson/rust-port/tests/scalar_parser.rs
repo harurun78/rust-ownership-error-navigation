@@ -1,5 +1,6 @@
 use cjson_rust_port::{
-    minify_json, parse_scalar, JsonEditError, JsonPathSegment, JsonValue, MinifyError,
+    minify_json, parse_json_pointer, parse_scalar, JsonEditError, JsonPathSegment,
+    JsonPointerError, JsonValue, MinifyError,
 };
 
 use JsonPathSegment::{Index, Key};
@@ -769,4 +770,92 @@ fn object_merge_patch_turns_non_object_target_into_object() {
     value.apply_merge_patch(parse_scalar(r#"{"created":true}"#).unwrap());
 
     assert_eq!(value, parse_scalar(r#"{"created":true}"#).unwrap());
+}
+
+#[test]
+fn parses_empty_and_basic_json_pointers() {
+    assert_eq!(parse_json_pointer(""), Ok(Vec::new()));
+    assert_eq!(parse_json_pointer("/name"), Ok(vec![String::from("name")]));
+    assert_eq!(
+        parse_json_pointer("/items/0/name"),
+        Ok(vec![
+            String::from("items"),
+            String::from("0"),
+            String::from("name"),
+        ])
+    );
+}
+
+#[test]
+fn decodes_json_pointer_escapes() {
+    assert_eq!(
+        parse_json_pointer("/a~1b/c~0d"),
+        Ok(vec![String::from("a/b"), String::from("c~d")])
+    );
+}
+
+#[test]
+fn rejects_invalid_json_pointer_syntax() {
+    assert_eq!(
+        parse_json_pointer("name"),
+        Err(JsonPointerError::InvalidPrefix)
+    );
+    assert_eq!(
+        parse_json_pointer("/bad~2escape"),
+        Err(JsonPointerError::InvalidEscape)
+    );
+    assert_eq!(
+        parse_json_pointer("/dangling~"),
+        Err(JsonPointerError::InvalidEscape)
+    );
+}
+
+#[test]
+fn resolves_json_pointer_paths() {
+    let value =
+        parse_scalar(r#"{"name":"root","items":[{"name":"first"}],"a/b":{"c~d":true}}"#).unwrap();
+
+    assert_eq!(value.get_pointer(""), Ok(Some(&value)));
+    assert_eq!(
+        value.get_pointer("/name"),
+        Ok(Some(&JsonValue::String(String::from("root"))))
+    );
+    assert_eq!(
+        value.get_pointer("/items/0/name"),
+        Ok(Some(&JsonValue::String(String::from("first"))))
+    );
+    assert_eq!(
+        value.get_pointer("/a~1b/c~0d"),
+        Ok(Some(&JsonValue::Bool(true)))
+    );
+}
+
+#[test]
+fn reports_json_pointer_missing_paths_and_array_parse_failures() {
+    let value = parse_scalar(r#"{"items":[null],"0":"object key"}"#).unwrap();
+
+    assert_eq!(value.get_pointer("/missing"), Ok(None));
+    assert_eq!(value.get_pointer("/items/4"), Ok(None));
+    assert_eq!(
+        value.get_pointer("/items/not-a-number"),
+        Err(JsonPointerError::InvalidArrayIndex)
+    );
+    assert_eq!(
+        value.get_pointer("/0"),
+        Ok(Some(&JsonValue::String(String::from("object key"))))
+    );
+}
+
+#[test]
+fn mutates_values_through_json_pointer_paths() {
+    let mut value = parse_scalar(r#"{"items":[{"done":false}]}"#).unwrap();
+
+    if let Some(target) = value.get_pointer_mut("/items/0/done").unwrap() {
+        *target = JsonValue::Bool(true);
+    }
+
+    assert_eq!(
+        value.get_pointer("/items/0/done"),
+        Ok(Some(&JsonValue::Bool(true)))
+    );
 }

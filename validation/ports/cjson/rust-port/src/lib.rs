@@ -8,4 +8,4 @@ pub mod value;
 pub use error::ParseError;
 pub use minify::{minify_json, MinifyError};
 pub use parser::parse_scalar;
-pub use value::{JsonEditError, JsonPathSegment, JsonValue};
+pub use value::{parse_json_pointer, JsonEditError, JsonPathSegment, JsonPointerError, JsonValue};

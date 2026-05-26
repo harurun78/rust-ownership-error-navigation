@@ -190,3 +190,16 @@
 - [x] C141 Generate `reports/iteration-010/ownership-report.html`.
 - [x] C142 Record iteration-010 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] C143 Run final `cargo test` in `rust-port/`.
+
+## Phase 17: JSON Pointer Utility
+
+- [x] C144 Add tests for parsing empty, root member, nested member, and array-index JSON Pointers.
+- [x] C145 Add tests for JSON Pointer escape decoding for `~0` and `~1`.
+- [x] C146 Add tests for rejecting malformed JSON Pointer escape sequences and non-pointer strings.
+- [x] C147 Implement a JSON Pointer parser that produces path segments or an equivalent owned path model.
+- [x] C148 Add lookup helpers that resolve JSON Pointer strings against `JsonValue`.
+- [x] C149 Save `cargo check --message-format=json` output to `reports/iteration-011/cargo-check.jsonl`.
+- [x] C150 Generate `reports/iteration-011/ownership-report.json`.
+- [x] C151 Generate `reports/iteration-011/ownership-report.html`.
+- [x] C152 Record iteration-011 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C153 Run final `cargo test` in `rust-port/`.
