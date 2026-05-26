@@ -70,7 +70,16 @@ export function parseCliOptions(argv: readonly string[]): CliOptions {
 
 function readOption(argv: readonly string[], name: string): string | undefined {
   const index = argv.indexOf(name);
-  return index === -1 ? undefined : argv[index + 1];
+  if (index === -1) {
+    return undefined;
+  }
+
+  const value = argv[index + 1];
+  if (value === undefined || value.startsWith('--')) {
+    throw new Error(`Missing value for ${name}.`);
+  }
+
+  return value;
 }
 
 async function writeOutputFile(filePath: string, contents: string): Promise<void> {
