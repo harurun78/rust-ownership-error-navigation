@@ -283,6 +283,13 @@ impl RedisMiniDb {
             CommandKind::LPop => self.execute_pop(args, ListSide::Left),
             CommandKind::RPop => self.execute_pop(args, ListSide::Right),
             CommandKind::LRange => self.execute_lrange(args),
+            CommandKind::LLen => self.execute_llen(args),
+            CommandKind::LIndex => self.execute_lindex(args),
+            CommandKind::LSet => self.execute_lset(args),
+            CommandKind::LTrim => self.execute_ltrim(args),
+            CommandKind::LRem => self.execute_lrem(args),
+            CommandKind::RPopLPush => self.execute_rpoplpush(args),
+            CommandKind::LMove => self.execute_lmove(args),
             CommandKind::HSet => self.execute_hset(args),
             CommandKind::HGet => self.execute_hget(args),
             CommandKind::HDel => self.execute_hdel(args),
@@ -1004,6 +1011,293 @@ impl RedisMiniDb {
                 None => RespReply::Array(Vec::new()),
             },
             None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_llen(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("llen");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::List(list)) => RespReply::Integer(list.len() as i64),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_lindex(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("lindex");
+        }
+
+        let index = match parse_integer(&args[1]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::List(list)) => match normalize_index(list.len(), index) {
+                Some(index) => RespReply::BulkString(list[index].to_vec()),
+                None => RespReply::NullBulkString,
+            },
+            None => RespReply::NullBulkString,
+        }
+    }
+
+    fn execute_lset(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("lset");
+        }
+
+        let index = match parse_integer(&args[1]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+
+        let mut args = args;
+        let key = args.remove(0);
+        let _index = args.remove(0);
+        let element = args.remove(0);
+        self.remove_if_expired(&key);
+        match self.values.get_mut(&key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::List(list)) => match normalize_index(list.len(), index) {
+                Some(index) => {
+                    list[index] = element;
+                    self.expires_at.remove(&key);
+                    self.bump_key_version(&key);
+                    RespReply::SimpleString("OK")
+                }
+                None => out_of_range(),
+            },
+            None => out_of_range(),
+        }
+    }
+
+    fn execute_ltrim(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("ltrim");
+        }
+
+        let start = match parse_integer(&args[1]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+        let stop = match parse_integer(&args[2]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+
+        let key = &args[0];
+        self.remove_if_expired(key);
+        let (remove_key, mutated) = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::List(list)) => {
+                let original_len = list.len();
+                match normalize_range(original_len, start, stop) {
+                    Some((start, stop)) => {
+                        if start > 0 {
+                            list.drain(0..start);
+                        }
+                        let keep_len = stop - start + 1;
+                        list.truncate(keep_len);
+                    }
+                    None => list.clear(),
+                }
+                (list.is_empty(), list.len() != original_len)
+            }
+            None => return RespReply::SimpleString("OK"),
+        };
+
+        if remove_key {
+            self.values.remove(key);
+            self.expires_at.remove(key);
+        } else if mutated {
+            self.expires_at.remove(key);
+        }
+        if mutated {
+            self.bump_key_version(key);
+        }
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_lrem(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("lrem");
+        }
+
+        let count = match parse_integer(&args[1]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+
+        let key = &args[0];
+        let element = &args[2];
+        self.remove_if_expired(key);
+        let mut remove_key = false;
+        let removed = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::List(list)) => {
+                let removed = remove_list_elements(list, count, element);
+                remove_key = list.is_empty();
+                removed
+            }
+            None => 0,
+        };
+
+        if remove_key {
+            self.values.remove(key);
+            self.expires_at.remove(key);
+        } else if removed > 0 {
+            self.expires_at.remove(key);
+        }
+        if removed > 0 {
+            self.bump_key_version(key);
+        }
+
+        RespReply::Integer(removed as i64)
+    }
+
+    fn execute_rpoplpush(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("rpoplpush");
+        }
+
+        let mut args = args;
+        let source = args.remove(0);
+        let destination = args.remove(0);
+        self.execute_lmove_between_keys(source, destination, ListSide::Right, ListSide::Left)
+    }
+
+    fn execute_lmove(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 4 {
+            return wrong_arity("lmove");
+        }
+
+        let from = match parse_list_side(&args[2]) {
+            Some(side) => side,
+            None => return syntax_error(),
+        };
+        let to = match parse_list_side(&args[3]) {
+            Some(side) => side,
+            None => return syntax_error(),
+        };
+
+        let mut args = args;
+        let source = args.remove(0);
+        let destination = args.remove(0);
+        self.execute_lmove_between_keys(source, destination, from, to)
+    }
+
+    fn execute_lmove_between_keys(
+        &mut self,
+        source: Vec<u8>,
+        destination: Vec<u8>,
+        from: ListSide,
+        to: ListSide,
+    ) -> RespReply {
+        self.remove_if_expired(&source);
+        if source != destination {
+            self.remove_if_expired(&destination);
+        }
+
+        if source == destination {
+            return self.execute_same_key_lmove(source, from, to);
+        }
+
+        let mut remove_source = false;
+        let value = match self.values.get_mut(&source) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::List(list)) => {
+                let value = pop_list_value(list, from);
+                remove_source = list.is_empty();
+                value
+            }
+            None => None,
+        };
+        let Some(value) = value else {
+            return RespReply::NullBulkString;
+        };
+
+        match self.values.get_mut(&destination) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::List(list)) => push_list_value(list, to, value.to_vec()),
+            None => {
+                let mut list = Vec::new();
+                push_list_value(&mut list, to, value.to_vec());
+                self.values
+                    .insert(destination.to_vec(), RedisValue::List(list));
+            }
+        }
+
+        if remove_source {
+            self.values.remove(&source);
+            self.expires_at.remove(&source);
+        } else {
+            self.expires_at.remove(&source);
+        }
+        self.expires_at.remove(&destination);
+        self.bump_key_version(&source);
+        self.bump_key_version(&destination);
+        RespReply::BulkString(value)
+    }
+
+    fn execute_same_key_lmove(&mut self, key: Vec<u8>, from: ListSide, to: ListSide) -> RespReply {
+        let value = match self.values.get_mut(&key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::List(list)) => {
+                let value = pop_list_value(list, from);
+                if let Some(value) = &value {
+                    push_list_value(list, to, value.to_vec());
+                }
+                value
+            }
+            None => None,
+        };
+
+        match value {
+            Some(value) => {
+                self.expires_at.remove(&key);
+                self.bump_key_version(&key);
+                RespReply::BulkString(value)
+            }
+            None => RespReply::NullBulkString,
         }
     }
 
@@ -1849,6 +2143,13 @@ enum CommandKind {
     LPop,
     RPop,
     LRange,
+    LLen,
+    LIndex,
+    LSet,
+    LTrim,
+    LRem,
+    RPopLPush,
+    LMove,
     HSet,
     HGet,
     HDel,
@@ -1922,6 +2223,13 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("LPOP", CommandCategory::List, CommandKind::LPop),
     command_spec("RPOP", CommandCategory::List, CommandKind::RPop),
     command_spec("LRANGE", CommandCategory::List, CommandKind::LRange),
+    command_spec("LLEN", CommandCategory::List, CommandKind::LLen),
+    command_spec("LINDEX", CommandCategory::List, CommandKind::LIndex),
+    command_spec("LSET", CommandCategory::List, CommandKind::LSet),
+    command_spec("LTRIM", CommandCategory::List, CommandKind::LTrim),
+    command_spec("LREM", CommandCategory::List, CommandKind::LRem),
+    command_spec("RPOPLPUSH", CommandCategory::List, CommandKind::RPopLPush),
+    command_spec("LMOVE", CommandCategory::List, CommandKind::LMove),
     command_spec("HSET", CommandCategory::Hash, CommandKind::HSet),
     command_spec("HGET", CommandCategory::Hash, CommandKind::HGet),
     command_spec("HDEL", CommandCategory::Hash, CommandKind::HDel),
@@ -2120,6 +2428,87 @@ fn syntax_error() -> RespReply {
 
 fn invalid_expire_time() -> RespReply {
     RespReply::Error("ERR invalid expire time".to_string())
+}
+
+fn out_of_range() -> RespReply {
+    RespReply::Error("ERR index out of range".to_string())
+}
+
+fn normalize_index(len: usize, index: i64) -> Option<usize> {
+    if len == 0 {
+        return None;
+    }
+
+    let len = len as i64;
+    let index = if index < 0 { len + index } else { index };
+    if index < 0 || index >= len {
+        None
+    } else {
+        Some(index as usize)
+    }
+}
+
+fn parse_list_side(value: &[u8]) -> Option<ListSide> {
+    if value.eq_ignore_ascii_case(b"LEFT") {
+        Some(ListSide::Left)
+    } else if value.eq_ignore_ascii_case(b"RIGHT") {
+        Some(ListSide::Right)
+    } else {
+        None
+    }
+}
+
+fn pop_list_value(list: &mut Vec<Vec<u8>>, side: ListSide) -> Option<Vec<u8>> {
+    match side {
+        ListSide::Left => {
+            if list.is_empty() {
+                None
+            } else {
+                Some(list.remove(0))
+            }
+        }
+        ListSide::Right => list.pop(),
+    }
+}
+
+fn push_list_value(list: &mut Vec<Vec<u8>>, side: ListSide, value: Vec<u8>) {
+    match side {
+        ListSide::Left => list.insert(0, value),
+        ListSide::Right => list.push(value),
+    }
+}
+
+fn remove_list_elements(list: &mut Vec<Vec<u8>>, count: i64, element: &[u8]) -> usize {
+    let mut removed = 0usize;
+    if count >= 0 {
+        let limit = count as usize;
+        let mut index = 0;
+        while index < list.len() {
+            if list[index] == element && (limit == 0 || removed < limit) {
+                list.remove(index);
+                removed += 1;
+                if limit != 0 && removed == limit {
+                    break;
+                }
+            } else {
+                index += 1;
+            }
+        }
+    } else {
+        let limit = count.unsigned_abs() as usize;
+        let mut index = list.len();
+        while index > 0 {
+            index -= 1;
+            if list[index] == element {
+                list.remove(index);
+                removed += 1;
+                if removed == limit {
+                    break;
+                }
+            }
+        }
+    }
+    removed
 }
 
 fn parse_set_options(args: &[Vec<u8>]) -> Result<SetOptions, RespReply> {

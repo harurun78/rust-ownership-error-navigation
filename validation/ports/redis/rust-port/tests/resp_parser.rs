@@ -312,6 +312,17 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "list"
     );
     assert_eq!(
+        command_metadata(b"llen").unwrap(),
+        CommandMetadata {
+            name: "LLEN",
+            category: CommandCategory::List,
+        }
+    );
+    assert_eq!(
+        command_metadata(b"lmove").unwrap().category.as_str(),
+        "list"
+    );
+    assert_eq!(
         command_metadata(b"hgetall").unwrap().category.as_str(),
         "hash"
     );
@@ -1099,6 +1110,246 @@ fn executes_lrange_with_positive_and_negative_indexes() {
     assert_eq!(
         execute(&mut db, &[b"LRANGE", b"letters", b"3", b"1"]),
         RespReply::Array(Vec::new())
+    );
+}
+
+#[test]
+fn executes_llen_lindex_and_lset_with_binary_safe_negative_indexes() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"LLEN", b"missing"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LINDEX", b"missing", b"0"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a\0", b"b", b"c"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(execute(&mut db, &[b"LLEN", b"list"]), RespReply::Integer(3));
+    assert_eq!(
+        execute(&mut db, &[b"LINDEX", b"list", b"-1"]),
+        RespReply::BulkString(b"c".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LINDEX", b"list", b"3"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LSET", b"list", b"-2", b"B\0B"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"list", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a\0".to_vec()),
+            RespReply::BulkString(b"B\0B".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LSET", b"list", b"4", b"x"]),
+        RespReply::Error("ERR index out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LSET", b"missing", b"0", b"x"]),
+        RespReply::Error("ERR index out of range".to_string())
+    );
+}
+
+#[test]
+fn executes_ltrim_and_lrem_with_negative_ranges_and_removal_counts() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"LTRIM", b"missing", b"0", b"-1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a", b"b", b"a", b"c", b"a"]),
+        RespReply::Integer(5)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LTRIM", b"list", b"1", b"-2"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"list", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"b".to_vec()),
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LREM", b"list", b"1", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"b", b"a", b"a"]),
+        RespReply::Integer(5)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LREM", b"list", b"-1", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LREM", b"list", b"0", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"list", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"c".to_vec()),
+            RespReply::BulkString(b"a".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LTRIM", b"list", b"5", b"1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"list"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn executes_rpoplpush_and_lmove_across_and_within_lists() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"RPOPLPUSH", b"missing", b"dest"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"source", b"a", b"b", b"c"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPOPLPUSH", b"source", b"dest"]),
+        RespReply::BulkString(b"c".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"dest", b"0", b"-1"]),
+        RespReply::Array(vec![RespReply::BulkString(b"c".to_vec())])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LMOVE", b"source", b"dest", b"LEFT", b"RIGHT"]),
+        RespReply::BulkString(b"a".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"dest", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"c".to_vec()),
+            RespReply::BulkString(b"a".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LMOVE", b"dest", b"dest", b"RIGHT", b"LEFT"]),
+        RespReply::BulkString(b"a".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"dest", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+}
+
+#[test]
+fn list_completion_validates_errors_expiration_watches_and_transactions() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(execute(&mut db, &[b"LLEN"]), wrong_arity_reply("llen"));
+    assert_eq!(
+        execute(&mut db, &[b"LINDEX", b"k", b"bad"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LMOVE", b"a", b"b", b"NOPE", b"LEFT"]),
+        RespReply::Error("ERR syntax error".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    for command in [
+        vec![b"LLEN".as_slice(), b"string"],
+        vec![b"LINDEX", b"string", b"0"],
+        vec![b"LSET", b"string", b"0", b"x"],
+        vec![b"LTRIM", b"string", b"0", b"-1"],
+        vec![b"LREM", b"string", b"0", b"x"],
+        vec![b"RPOPLPUSH", b"string", b"dest"],
+        vec![b"LMOVE", b"string", b"dest", b"LEFT", b"LEFT"],
+    ] {
+        assert_eq!(execute(&mut db, &command), wrong_type);
+    }
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"list", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LSET", b"list", b"0", b"A"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"list"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"list", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LREM", b"list", b"0", b"A"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"list"]), RespReply::Integer(-1));
+
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"list"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LTRIM", b"list", b"1", b"0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"LLEN", b"list"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"tx", b"one", b"two"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"RPOPLPUSH", b"tx", b"out"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LMOVE", b"tx", b"out", b"LEFT", b"RIGHT"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"two".to_vec()),
+            RespReply::BulkString(b"one".to_vec()),
+        ])
     );
 }
 

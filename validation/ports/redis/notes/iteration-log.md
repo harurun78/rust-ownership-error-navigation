@@ -569,3 +569,31 @@ A human intervention is any manual Rust design hint, code edit, or prompt instru
 - Upstream: Redis `7.2.4`, commit `d2c8a4b91e8c0e6aefd1f5bc0bf582cddbe046b7`
 - Initial scope: RESP command frame parser from `src/networking.c`
 - Reason for target change: cJSON remained too easy under an owned-tree Rust design; Redis adds streaming buffers, parser state, partial frames, and consumed-byte compaction.
+
+### iteration-026
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: Start Phase 27 list command completion; implement LLEN, LINDEX, LSET, LTRIM, LREM, RPOPLPUSH, LMOVE; defer blocking list commands; add tests; capture diagnostics and ownership reports.
+- Prompt summary: Add non-blocking list commands, metadata, central dispatch updates, and targeted tests for negative indexes/ranges, missing keys, wrong type/arity, expiration clearing, WATCH invalidation, transactions, and same-key moves. Capture cargo diagnostics and ownership reports into iteration-026.
+- Human ownership hints before attempt: none
+- Command:
+  - `mkdir -p ../reports/iteration-026`
+  - `cd validation/ports/redis/rust-port && cargo check --message-format=json > ../reports/iteration-026/cargo-check.jsonl`
+  - `cd validation/ports/redis/rust-port && cargo test`
+  - `cd validation/ports/redis/rust-port && node ../../../../dist/cli/main.js --input ../reports/iteration-026/cargo-check.jsonl --json-out ../reports/iteration-026/ownership-report.json --html-out ../reports/iteration-026/ownership-report.html`
+- Result: compile success; test success, 107 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-026/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-026/ownership-report.json`
+- Ownership report HTML: `reports/iteration-026/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none observed; implementation used in-place Vec manipulations and moves without Rc/Arc/unsafe
+- `clone` / shared mutability / `unsafe` pressure: none observed; implementation used in-place Vec manipulations and moves without Rc/Arc/unsafe
+- Total compiler diagnostics: 0 warnings (unused_assignments cleaned from src/executor.rs)
+- Cleanup performed by: GPT-5 mini (copilot)
+- Did the ownership report change the next fix: N/A (no ownership diagnostics)
+- Next action: iterate on blocking list commands (BLPOP/BRPOP/BLMOVE) when client session blocking primitives exist
