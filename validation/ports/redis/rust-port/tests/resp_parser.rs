@@ -60,6 +60,49 @@ fn parses_binary_safe_bulk_string() {
 }
 
 #[test]
+fn parses_ping_inline() {
+    let command = parse_complete(b"PING\r\n");
+    assert_eq!(command.args, vec![b"PING".to_vec()]);
+}
+
+#[test]
+fn parses_set_key_value_inline() {
+    let command = parse_complete(b"SET key value\r\n");
+    assert_eq!(
+        command.args,
+        vec![b"SET".to_vec(), b"key".to_vec(), b"value".to_vec()]
+    );
+}
+
+#[test]
+fn parses_double_quoted_inline_value() {
+    let command = parse_complete(b"SET key \"hello world\"\r\n");
+    assert_eq!(
+        command.args,
+        vec![b"SET".to_vec(), b"key".to_vec(), b"hello world".to_vec()]
+    );
+}
+
+#[test]
+fn parses_single_quoted_inline_value() {
+    let command = parse_complete(b"SET key 'hello world'\r\n");
+    assert_eq!(
+        command.args,
+        vec![b"SET".to_vec(), b"key".to_vec(), b"hello world".to_vec()]
+    );
+}
+
+#[test]
+fn rejects_unbalanced_double_quote_inline_value() {
+    assert_parse_error(b"SET key \"hello world\r\n", RespError::UnbalancedQuote);
+}
+
+#[test]
+fn rejects_unbalanced_single_quote_inline_value() {
+    assert_parse_error(b"SET key 'hello world\r\n", RespError::UnbalancedQuote);
+}
+
+#[test]
 fn waits_for_command_split_across_appends() {
     let mut parser = RespCommandParser::new();
 

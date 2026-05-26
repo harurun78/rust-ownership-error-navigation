@@ -58,10 +58,10 @@
 
 ## Phase 7: Inline Command Parsing
 
-- [ ] R039 Add tests for inline `PING`, `SET key value`, and quoted values.
-- [ ] R040 Add tests for unbalanced inline quotes.
-- [ ] R041 Implement representative `sdssplitargs`-style inline parsing.
-- [ ] R042 Save and report diagnostics for iteration-005.
+- [x] R039 Add tests for inline `PING`, `SET key value`, and quoted values.
+- [x] R040 Add tests for unbalanced inline quotes.
+- [x] R041 Implement representative `sdssplitargs`-style inline parsing.
+- [x] R042 Save and report diagnostics for iteration-005.
 
 ## Phase 8: Ownership Pressure Slice
 

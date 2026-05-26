@@ -6,4 +6,5 @@ pub enum RespError {
     InvalidBulkLength,
     InvalidBulkTerminator,
     LineTooLong,
+    UnbalancedQuote,
 }

@@ -40,7 +40,7 @@ impl RespCommandParser {
     }
 
     pub fn parse_available(&mut self) -> Result<ParseOutcome, RespError> {
-        let (command, consumed) = match parse_multibulk(&self.buffer, self.max_line_length)? {
+        let (command, consumed) = match parse_request(&self.buffer, self.max_line_length)? {
             ParsedFrame::Complete { command, consumed } => (command, consumed),
             ParsedFrame::Incomplete => return Ok(ParseOutcome::Incomplete),
         };
@@ -53,6 +53,31 @@ impl RespCommandParser {
 enum ParsedFrame {
     Complete { command: Command, consumed: usize },
     Incomplete,
+}
+
+fn parse_request(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame, RespError> {
+    if buffer.first() == Some(&b'*') {
+        parse_multibulk(buffer, max_line_length)
+    } else {
+        parse_inline(buffer, max_line_length)
+    }
+}
+
+fn parse_inline(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame, RespError> {
+    if buffer.is_empty() {
+        return Ok(ParsedFrame::Incomplete);
+    }
+
+    let line_end = match find_crlf_or_line_too_long(buffer, 0, max_line_length)? {
+        Some(index) => index,
+        None => return Ok(ParsedFrame::Incomplete),
+    };
+
+    let args = split_inline_args(&buffer[..line_end])?;
+    Ok(ParsedFrame::Complete {
+        command: Command::new(args),
+        consumed: line_end + 2,
+    })
 }
 
 fn parse_multibulk(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame, RespError> {
@@ -115,6 +140,66 @@ fn parse_multibulk(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame,
         command: Command::new(args),
         consumed: cursor,
     })
+}
+
+fn split_inline_args(line: &[u8]) -> Result<Vec<Vec<u8>>, RespError> {
+    let mut args = Vec::new();
+    let mut current = Vec::new();
+    let mut index = 0;
+    let mut quote = None;
+    let mut token_started = false;
+
+    while index < line.len() {
+        let byte = line[index];
+
+        if let Some(quote_byte) = quote {
+            if byte == quote_byte {
+                quote = None;
+            } else if quote_byte == b'"' && byte == b'\\' {
+                index += 1;
+                if index >= line.len() {
+                    return Err(RespError::UnbalancedQuote);
+                }
+                current.push(unescape_inline_byte(line[index]));
+            } else {
+                current.push(byte);
+            }
+        } else if byte == b' ' || byte == b'\t' {
+            if token_started {
+                args.push(current);
+                current = Vec::new();
+                token_started = false;
+            }
+        } else if byte == b'"' || byte == b'\'' {
+            quote = Some(byte);
+            token_started = true;
+        } else {
+            current.push(byte);
+            token_started = true;
+        }
+
+        index += 1;
+    }
+
+    if quote.is_some() {
+        return Err(RespError::UnbalancedQuote);
+    }
+    if token_started {
+        args.push(current);
+    }
+
+    Ok(args)
+}
+
+fn unescape_inline_byte(byte: u8) -> u8 {
+    match byte {
+        b'n' => b'\n',
+        b'r' => b'\r',
+        b't' => b'\t',
+        b'b' => 8,
+        b'a' => 7,
+        other => other,
+    }
 }
 
 fn find_crlf_or_line_too_long(
