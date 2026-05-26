@@ -1,1 +1,7 @@
-export {};
+export * from './cli/main.js';
+export * from './parser/cargo-message-parser.js';
+export * from './diagnostics/rustc-diagnostic.js';
+export * from './diagnostics/diagnostic-span.js';
+export * from './mapper/ownership-event.js';
+export * from './reporter/json-reporter.js';
+export * from './reporter/html-reporter.js';

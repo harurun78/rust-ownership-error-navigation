@@ -20,11 +20,11 @@
 
 **Purpose**: Prepare the CLI/library project shape and test dependencies for implementation.
 
-- [ ] T001 Create source module entry files in src/cli/main.ts, src/parser/cargo-message-parser.ts, src/diagnostics/rustc-diagnostic.ts, src/diagnostics/diagnostic-span.ts, src/mapper/ownership-event.ts, src/reporter/json-reporter.ts, and src/reporter/html-reporter.ts
-- [ ] T002 Add direct JSON schema validation dependency and npm scripts for CLI verification in package.json
-- [ ] T003 [P] Configure TypeScript build output and declaration settings for CLI/library modules in tsconfig.json
-- [ ] T004 [P] Configure Vitest coverage and snapshot behavior for reporter tests in vitest.config.ts
-- [ ] T005 [P] Export public parser, diagnostic, mapper, and reporter modules from src/index.ts
+- [x] T001 Create source module entry files in src/cli/main.ts, src/parser/cargo-message-parser.ts, src/diagnostics/rustc-diagnostic.ts, src/diagnostics/diagnostic-span.ts, src/mapper/ownership-event.ts, src/reporter/json-reporter.ts, and src/reporter/html-reporter.ts
+- [x] T002 Add direct JSON schema validation dependency and npm scripts for CLI verification in package.json
+- [x] T003 [P] Configure TypeScript build output and declaration settings for CLI/library modules in tsconfig.json
+- [x] T004 [P] Configure Vitest coverage and snapshot behavior for reporter tests in vitest.config.ts
+- [x] T005 [P] Export public parser, diagnostic, mapper, and reporter modules from src/index.ts
 
 ---
 
@@ -34,12 +34,12 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T006 [P] Define CargoMessage, RustcDiagnostic, RustcChildDiagnostic, and RustcSpan raw payload types in src/diagnostics/rustc-diagnostic.ts
-- [ ] T007 [P] Define DiagnosticSpan, Evidence, Confidence, and DiagnosticSpanRole types in src/diagnostics/diagnostic-span.ts
-- [ ] T008 [P] Define OwnershipEvent, DiagnosticRecord, DiagnosticReport, and supported event kind types in src/mapper/ownership-event.ts
-- [ ] T009 [P] Add fixture loading helpers for JSONL diagnostics in test/helpers/diagnostic-fixtures.ts
-- [ ] T010 [P] Add parser unit tests for compiler-message extraction and non-compiler-message skipping in test/parser/cargo-message-parser.test.ts
-- [ ] T011 Implement JSONL parser with malformed-line errors that include line numbers in src/parser/cargo-message-parser.ts
+- [x] T006 [P] Define CargoMessage, RustcDiagnostic, RustcChildDiagnostic, and RustcSpan raw payload types in src/diagnostics/rustc-diagnostic.ts
+- [x] T007 [P] Define DiagnosticSpan, Evidence, Confidence, and DiagnosticSpanRole types in src/diagnostics/diagnostic-span.ts
+- [x] T008 [P] Define OwnershipEvent, DiagnosticRecord, DiagnosticReport, and supported event kind types in src/mapper/ownership-event.ts
+- [x] T009 [P] Add fixture loading helpers for JSONL diagnostics in test/helpers/diagnostic-fixtures.ts
+- [x] T010 [P] Add parser unit tests for compiler-message extraction and non-compiler-message skipping in test/parser/cargo-message-parser.test.ts
+- [x] T011 Implement JSONL parser with malformed-line errors that include line numbers in src/parser/cargo-message-parser.ts
 - [ ] T012 [P] Add diagnostic normalization tests for code, level, message, spans, children, rendered, and 1-based locations in test/diagnostics/normalizer.test.ts
 - [ ] T013 Implement rustc diagnostic and span normalization in src/diagnostics/normalizer.ts
 - [ ] T014 Implement mapper registry for E0382, E0499, E0502, and unsupported fallback dispatch in src/mapper/index.ts
