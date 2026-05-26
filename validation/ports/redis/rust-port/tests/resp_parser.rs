@@ -1,8 +1,11 @@
 use rust_port::{
-    Command, CommandCategory, CommandMetadata, ParseOutcome, RedisMiniDb, RedisMiniSession,
-    RespCommandParser, RespError, RespProtocolVersion, RespReply, command_metadata,
-    normalize_command_name,
+    Command, CommandCategory, CommandMetadata, ParseOutcome, RedisMiniDb, RedisMiniServer,
+    RedisMiniSession, RespCommandParser, RespError, RespProtocolVersion, RespReply,
+    command_metadata, normalize_command_name,
 };
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream};
+use std::thread;
 
 fn assert_incomplete(parser: &mut RespCommandParser) {
     assert_eq!(
@@ -49,6 +52,68 @@ fn command(args: &[&[u8]]) -> Command {
 
 fn execute(db: &mut RedisMiniDb, args: &[&[u8]]) -> RespReply {
     db.execute(command(args))
+}
+
+fn tcp_exchange(input: &[u8]) -> Vec<u8> {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+    let addr = listener.local_addr().expect("test listener address");
+    let server = thread::spawn(move || RedisMiniServer::serve_listener(listener, 1));
+
+    let mut stream = TcpStream::connect(addr).expect("connect to test server");
+    stream.write_all(input).expect("write request");
+    stream
+        .shutdown(Shutdown::Write)
+        .expect("close request side");
+
+    let mut output = Vec::new();
+    stream.read_to_end(&mut output).expect("read response");
+    server
+        .join()
+        .expect("server thread finished")
+        .expect("server ok");
+    output
+}
+
+fn hello3_response() -> Vec<u8> {
+    b"*4\r\n$6\r\nserver\r\n$10\r\nredis-mini\r\n$5\r\nproto\r\n:3\r\n".to_vec()
+}
+
+#[test]
+fn tcp_server_replies_to_ping() {
+    assert_eq!(
+        tcp_exchange(&multibulk_frame(&[b"PING"])),
+        b"+PONG\r\n".to_vec()
+    );
+}
+
+#[test]
+fn tcp_server_keeps_session_state_for_set_and_get() {
+    let mut input = multibulk_frame(&[b"SET", b"key", b"value"]);
+    input.extend(multibulk_frame(&[b"GET", b"key"]));
+
+    assert_eq!(tcp_exchange(&input), b"+OK\r\n$5\r\nvalue\r\n".to_vec());
+}
+
+#[test]
+fn tcp_server_handles_pipelined_commands() {
+    let mut input = multibulk_frame(&[b"PING"]);
+    input.extend(multibulk_frame(&[b"PING", b"hello"]));
+    input.extend(multibulk_frame(&[b"GET", b"missing"]));
+
+    assert_eq!(
+        tcp_exchange(&input),
+        b"+PONG\r\n$5\r\nhello\r\n$-1\r\n".to_vec()
+    );
+}
+
+#[test]
+fn tcp_server_negotiates_resp3_nulls_per_connection() {
+    let mut input = multibulk_frame(&[b"HELLO", b"3"]);
+    input.extend(multibulk_frame(&[b"GET", b"missing"]));
+
+    let mut expected = hello3_response();
+    expected.extend(b"_\r\n");
+    assert_eq!(tcp_exchange(&input), expected);
 }
 
 #[test]

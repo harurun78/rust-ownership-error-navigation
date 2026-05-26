@@ -9,6 +9,7 @@ mod command;
 mod error;
 mod executor;
 mod parser;
+mod server;
 
 pub use command::Command;
 pub use error::RespError;
@@ -17,3 +18,4 @@ pub use executor::{
     RespReply, command_metadata, normalize_command_name,
 };
 pub use parser::{ParseOutcome, RespCommandParser};
+pub use server::{RedisMiniClientSession, RedisMiniServer};

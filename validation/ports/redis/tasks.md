@@ -283,10 +283,10 @@ The validation target is now expanded from a parser/executor experiment into a s
 
 ## Phase 25: Client Session And TCP Server MVP
 
-- [ ] R204 Add a client session abstraction that combines parser, selected DB, protocol version, and transaction state.
-- [ ] R205 Add a blocking TCP server binary that accepts one or more clients and handles pipelined commands.
-- [ ] R206 Add integration tests using localhost TCP sockets.
-- [ ] R207 Save diagnostics and reports for iteration-023.
+- [x] R204 Add a client session abstraction that combines parser, selected DB, protocol version, and transaction state.
+- [x] R205 Add a blocking TCP server binary that accepts one or more clients and handles pipelined commands.
+- [x] R206 Add integration tests using localhost TCP sockets.
+- [x] R207 Save diagnostics and reports for iteration-023.
 
 ## Phase 26: String Command Completion
 
