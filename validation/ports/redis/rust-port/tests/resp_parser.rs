@@ -342,6 +342,23 @@ fn exposes_command_category_metadata_for_implemented_commands() {
         "hash"
     );
     assert_eq!(command_metadata(b"sadd").unwrap().category.as_str(), "set");
+    assert_eq!(command_metadata(b"scard").unwrap().category.as_str(), "set");
+    assert_eq!(command_metadata(b"spop").unwrap().category.as_str(), "set");
+    assert_eq!(
+        command_metadata(b"srandmember").unwrap().category.as_str(),
+        "set"
+    );
+    assert_eq!(command_metadata(b"smove").unwrap().category.as_str(), "set");
+    assert_eq!(command_metadata(b"sdiff").unwrap().category.as_str(), "set");
+    assert_eq!(
+        command_metadata(b"sinter").unwrap().category.as_str(),
+        "set"
+    );
+    assert_eq!(
+        command_metadata(b"sunion").unwrap().category.as_str(),
+        "set"
+    );
+    assert_eq!(command_metadata(b"sscan").unwrap().category.as_str(), "set");
     assert_eq!(
         command_metadata(b"zrange").unwrap().category.as_str(),
         "sorted-set"
@@ -2318,6 +2335,317 @@ fn set_store_commands_reject_wrong_type_sources_without_overwriting_destination(
     assert_eq!(
         execute(&mut db, &[b"SMEMBERS", b"dest"]),
         RespReply::Array(vec![RespReply::BulkString(b"old".to_vec())])
+    );
+}
+
+#[test]
+fn set_completion_cardinality_and_deterministic_random_commands() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SCARD", b"missing"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SPOP", b"missing"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SPOP", b"missing", b"2"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SRANDMEMBER", b"missing"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SRANDMEMBER", b"missing", b"2"]),
+        RespReply::Array(Vec::new())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"b", b"a\0x", b"a"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(execute(&mut db, &[b"SCARD", b"set"]), RespReply::Integer(3));
+    assert_eq!(
+        execute(&mut db, &[b"SRANDMEMBER", b"set"]),
+        RespReply::BulkString(b"a".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SRANDMEMBER", b"set", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"a\0x".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SRANDMEMBER", b"set", b"-4"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"a\0x".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+            RespReply::BulkString(b"a".to_vec()),
+        ])
+    );
+    assert_eq!(execute(&mut db, &[b"SCARD", b"set"]), RespReply::Integer(3));
+
+    assert_eq!(
+        execute(&mut db, &[b"SPOP", b"set"]),
+        RespReply::BulkString(b"a".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SPOP", b"set", b"5"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a\0x".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXISTS", b"set"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn set_completion_smove_handles_same_key_expiration_and_watches() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"src", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"dest", b"b"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"src", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"src"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMOVE", b"src", b"src", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"src"]), RespReply::Integer(10));
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"src"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert!(matches!(execute(&mut db, &[b"EXEC"]), RespReply::Array(_)));
+
+    assert_eq!(
+        execute(&mut db, &[b"SMOVE", b"src", b"dest", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"src"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"SMEMBERS", b"dest"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"src"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMOVE", b"src", b"dest", b"b"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"src"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+    assert_eq!(
+        execute(&mut db, &[b"SMOVE", b"missing", b"dest", b"x"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn set_completion_read_algebra_returns_deterministic_arrays() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"a", b"one", b"two", b"three"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"b", b"two", b"three", b"four"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SUNION", b"a", b"missing", b"b"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"four".to_vec()),
+            RespReply::BulkString(b"one".to_vec()),
+            RespReply::BulkString(b"three".to_vec()),
+            RespReply::BulkString(b"two".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTER", b"a", b"b"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"three".to_vec()),
+            RespReply::BulkString(b"two".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SINTER", b"a", b"missing", b"b"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SDIFF", b"a", b"b"]),
+        RespReply::Array(vec![RespReply::BulkString(b"one".to_vec())])
+    );
+}
+
+#[test]
+fn sscan_uses_existing_deterministic_cursor_style() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"missing", b"7"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(Vec::new()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"b", b"a", b"c"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"set", b"0", b"COUNT", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"2".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"a".to_vec()),
+                RespReply::BulkString(b"b".to_vec()),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"set", b"2", b"count", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![RespReply::BulkString(b"c".to_vec())]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"set", b"bad"]),
+        RespReply::Error("ERR invalid cursor".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"set", b"4"]),
+        RespReply::Error("ERR invalid cursor".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"set", b"0", b"MATCH", b"*"]),
+        RespReply::Error("ERR unsupported SSCAN option".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"set", b"0", b"COUNT", b"0"]),
+        RespReply::Error("ERR invalid COUNT".to_string())
+    );
+}
+
+#[test]
+fn set_completion_rejects_wrong_arity_counts_options_and_wrong_types() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"SCARD", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SPOP", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SRANDMEMBER", b"string"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"SMOVE", b"string", b"dest", b"x"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"SDIFF", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SINTER", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SUNION", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SSCAN", b"string", b"0"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"SCARD"]),
+        RespReply::Error("ERR wrong number of arguments for 'scard' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SPOP", b"set", b"-1"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SPOP", b"set", b"bad"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SRANDMEMBER", b"set", b"bad"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SMOVE", b"src", b"dest"]),
+        RespReply::Error("ERR wrong number of arguments for 'smove' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SUNION"]),
+        RespReply::Error("ERR wrong number of arguments for 'sunion' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SSCAN", b"set", b"0", b"COUNT", b"bad"]),
+        RespReply::Error("ERR invalid COUNT".to_string())
+    );
+}
+
+#[test]
+fn set_completion_commands_queue_and_execute_through_tcp() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"queued", b"b", b"a"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCARD", b"queued"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SPOP", b"queued", b"1"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::Integer(2),
+            RespReply::Integer(2),
+            RespReply::Array(vec![RespReply::BulkString(b"a".to_vec())]),
+        ])
+    );
+
+    let mut input = multibulk_frame(&[b"SADD", b"tcp-set", b"b", b"a"]);
+    input.extend(multibulk_frame(&[b"SCARD", b"tcp-set"]));
+    input.extend(multibulk_frame(&[
+        b"SSCAN", b"tcp-set", b"0", b"COUNT", b"1",
+    ]));
+    assert_eq!(
+        tcp_exchange(&input),
+        b":2\r\n:2\r\n*2\r\n$1\r\n1\r\n*1\r\n$1\r\na\r\n".to_vec()
     );
 }
 

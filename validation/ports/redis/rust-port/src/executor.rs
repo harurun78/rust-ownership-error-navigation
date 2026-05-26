@@ -307,6 +307,14 @@ impl RedisMiniDb {
             CommandKind::SRem => self.execute_srem(args),
             CommandKind::SIsMember => self.execute_sismember(args),
             CommandKind::SMembers => self.execute_smembers(args),
+            CommandKind::SCard => self.execute_scard(args),
+            CommandKind::SPop => self.execute_spop(args),
+            CommandKind::SRandMember => self.execute_srandmember(args),
+            CommandKind::SMove => self.execute_smove(args),
+            CommandKind::SDiff => self.execute_set_read(args, SetReadOp::Difference),
+            CommandKind::SInter => self.execute_set_read(args, SetReadOp::Intersection),
+            CommandKind::SUnion => self.execute_set_read(args, SetReadOp::Union),
+            CommandKind::SScan => self.execute_sscan(args),
             CommandKind::SUnionStore => self.execute_set_store(args, SetStoreOp::Union),
             CommandKind::SInterStore => self.execute_set_store(args, SetStoreOp::Intersection),
             CommandKind::SDiffStore => self.execute_set_store(args, SetStoreOp::Difference),
@@ -837,7 +845,11 @@ impl RedisMiniDb {
 
         match self.expires_at.get(&args[0]) {
             Some(deadline) => {
-                let ttl = deadline.saturating_duration_since(Instant::now()).as_secs() as i64;
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                let mut ttl = remaining.as_secs() as i64;
+                if remaining.subsec_nanos() > 0 {
+                    ttl = ttl.saturating_add(1);
+                }
                 RespReply::Integer(ttl)
             }
             None => RespReply::Integer(-1),
@@ -1814,6 +1826,290 @@ impl RedisMiniDb {
         }
     }
 
+    fn execute_scard(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("scard");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Set(set)) => RespReply::Integer(set.len() as i64),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_spop(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 && args.len() != 2 {
+            return wrong_arity("spop");
+        }
+
+        let count = if args.len() == 2 {
+            match parse_scan_index(&args[1]) {
+                Some(count) => Some(count),
+                None => return integer_error(),
+            }
+        } else {
+            None
+        };
+
+        let key = &args[0];
+        self.remove_if_expired(key);
+        let mut remove_key = false;
+        let popped = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            Some(RedisValue::Set(set)) => match count {
+                Some(count) => {
+                    let mut values = Vec::new();
+                    for _ in 0..count {
+                        let Some(member) = set.pop_first() else {
+                            break;
+                        };
+                        values.push(member);
+                    }
+                    remove_key = set.is_empty();
+                    Some(values)
+                }
+                None => match set.pop_first() {
+                    Some(member) => {
+                        remove_key = set.is_empty();
+                        Some(vec![member])
+                    }
+                    None => Some(Vec::new()),
+                },
+            },
+            None => None,
+        };
+
+        match (count, popped) {
+            (Some(_), None) => RespReply::Array(Vec::new()),
+            (None, None) => RespReply::NullBulkString,
+            (Some(_), Some(values)) => {
+                if !values.is_empty() {
+                    if remove_key {
+                        self.values.remove(key);
+                    }
+                    self.expires_at.remove(key);
+                    self.bump_key_version(key);
+                }
+                RespReply::Array(values.into_iter().map(RespReply::BulkString).collect())
+            }
+            (None, Some(mut values)) => match values.pop() {
+                Some(member) => {
+                    if remove_key {
+                        self.values.remove(key);
+                    }
+                    self.expires_at.remove(key);
+                    self.bump_key_version(key);
+                    RespReply::BulkString(member)
+                }
+                None => RespReply::NullBulkString,
+            },
+        }
+    }
+
+    fn execute_srandmember(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 && args.len() != 2 {
+            return wrong_arity("srandmember");
+        }
+
+        let count = if args.len() == 2 {
+            match parse_integer(&args[1]) {
+                Some(count) => Some(count),
+                None => return integer_error(),
+            }
+        } else {
+            None
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Set(set)) => match count {
+                Some(count) if count >= 0 => RespReply::Array(
+                    set.iter()
+                        .take(count as usize)
+                        .map(|member| RespReply::BulkString(member.to_vec()))
+                        .collect(),
+                ),
+                Some(count) => {
+                    let count = count.unsigned_abs() as usize;
+                    let values = if set.is_empty() {
+                        Vec::new()
+                    } else {
+                        set.iter()
+                            .cycle()
+                            .take(count)
+                            .map(|member| RespReply::BulkString(member.to_vec()))
+                            .collect()
+                    };
+                    RespReply::Array(values)
+                }
+                None => match set.first() {
+                    Some(member) => RespReply::BulkString(member.to_vec()),
+                    None => RespReply::NullBulkString,
+                },
+            },
+            None => match count {
+                Some(_) => RespReply::Array(Vec::new()),
+                None => RespReply::NullBulkString,
+            },
+        }
+    }
+
+    fn execute_smove(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("smove");
+        }
+
+        let mut args = args;
+        let source = args.remove(0);
+        let destination = args.remove(0);
+        let member = args.remove(0);
+        self.remove_if_expired(&source);
+        if source != destination {
+            self.remove_if_expired(&destination);
+        }
+
+        match self.values.get(&source) {
+            Some(RedisValue::Set(_)) | None => {}
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+        }
+        match self.values.get(&destination) {
+            Some(RedisValue::Set(_)) | None => {}
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+        }
+
+        if source == destination {
+            return match self.values.get(&source) {
+                Some(RedisValue::Set(set)) if set.contains(&member) => RespReply::Integer(1),
+                _ => RespReply::Integer(0),
+            };
+        }
+
+        let mut remove_source = false;
+        let moved = match self.values.get_mut(&source) {
+            Some(RedisValue::Set(set)) => {
+                if set.remove(&member) {
+                    remove_source = set.is_empty();
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+        if !moved {
+            return RespReply::Integer(0);
+        }
+
+        let destination_changed = match self.values.get_mut(&destination) {
+            Some(RedisValue::Set(set)) => set.insert(member),
+            None => {
+                let mut set = BTreeSet::new();
+                set.insert(member);
+                self.values
+                    .insert(destination.to_vec(), RedisValue::Set(set));
+                true
+            }
+            Some(_) => unreachable!("destination type checked before mutation"),
+        };
+
+        if remove_source {
+            self.values.remove(&source);
+        }
+        self.expires_at.remove(&source);
+        self.bump_key_version(&source);
+        if destination_changed {
+            self.expires_at.remove(&destination);
+            self.bump_key_version(&destination);
+        }
+        RespReply::Integer(1)
+    }
+
+    fn execute_set_read(&mut self, args: Vec<Vec<u8>>, operation: SetReadOp) -> RespReply {
+        if args.is_empty() {
+            return wrong_arity(operation.command_name());
+        }
+
+        for key in &args {
+            self.remove_if_expired(key);
+        }
+        for key in &args {
+            match self.values.get(key) {
+                Some(RedisValue::Set(_)) | None => {}
+                Some(RedisValue::String(_))
+                | Some(RedisValue::List(_))
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::ZSet(_))
+                | Some(RedisValue::Stream(_)) => return wrong_type(),
+            }
+        }
+
+        let result = match operation {
+            SetReadOp::Union => self.set_union(&args),
+            SetReadOp::Intersection => self.set_intersection(&args),
+            SetReadOp::Difference => self.set_difference(&args),
+        };
+        RespReply::Array(result.into_iter().map(RespReply::BulkString).collect())
+    }
+
+    fn execute_sscan(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 && args.len() != 4 {
+            return wrong_arity("sscan");
+        }
+
+        let cursor = match parse_scan_index(&args[1]) {
+            Some(cursor) => cursor,
+            None => return RespReply::Error("ERR invalid cursor".to_string()),
+        };
+        let count = if args.len() == 4 {
+            if !args[2].eq_ignore_ascii_case(b"COUNT") {
+                return RespReply::Error("ERR unsupported SSCAN option".to_string());
+            }
+            match parse_scan_index(&args[3]) {
+                Some(0) | None => return RespReply::Error("ERR invalid COUNT".to_string()),
+                Some(count) => Some(count),
+            }
+        } else {
+            None
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            Some(RedisValue::Set(set)) => scan_set_members(set, cursor, count),
+            None => RespReply::Array(vec![
+                RespReply::BulkString(b"0".to_vec()),
+                RespReply::Array(Vec::new()),
+            ]),
+        }
+    }
+
     fn execute_set_store(&mut self, args: Vec<Vec<u8>>, operation: SetStoreOp) -> RespReply {
         if args.len() < 2 {
             return wrong_arity(operation.command_name());
@@ -2430,6 +2726,14 @@ enum CommandKind {
     SRem,
     SIsMember,
     SMembers,
+    SCard,
+    SPop,
+    SRandMember,
+    SMove,
+    SDiff,
+    SInter,
+    SUnion,
+    SScan,
     SUnionStore,
     SInterStore,
     SDiffStore,
@@ -2519,6 +2823,18 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("SREM", CommandCategory::Set, CommandKind::SRem),
     command_spec("SISMEMBER", CommandCategory::Set, CommandKind::SIsMember),
     command_spec("SMEMBERS", CommandCategory::Set, CommandKind::SMembers),
+    command_spec("SCARD", CommandCategory::Set, CommandKind::SCard),
+    command_spec("SPOP", CommandCategory::Set, CommandKind::SPop),
+    command_spec(
+        "SRANDMEMBER",
+        CommandCategory::Set,
+        CommandKind::SRandMember,
+    ),
+    command_spec("SMOVE", CommandCategory::Set, CommandKind::SMove),
+    command_spec("SDIFF", CommandCategory::Set, CommandKind::SDiff),
+    command_spec("SINTER", CommandCategory::Set, CommandKind::SInter),
+    command_spec("SUNION", CommandCategory::Set, CommandKind::SUnion),
+    command_spec("SSCAN", CommandCategory::Set, CommandKind::SScan),
     command_spec(
         "SUNIONSTORE",
         CommandCategory::Set,
@@ -2602,6 +2918,23 @@ enum SetStoreOp {
     Union,
     Intersection,
     Difference,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum SetReadOp {
+    Union,
+    Intersection,
+    Difference,
+}
+
+impl SetReadOp {
+    fn command_name(self) -> &'static str {
+        match self {
+            Self::Union => "sunion",
+            Self::Intersection => "sinter",
+            Self::Difference => "sdiff",
+        }
+    }
 }
 
 impl SetStoreOp {
@@ -2835,6 +3168,29 @@ fn scan_hash_entries(
     RespReply::Array(vec![
         RespReply::BulkString(next_cursor.to_string().into_bytes()),
         RespReply::Array(field_values),
+    ])
+}
+
+fn scan_set_members(set: &BTreeSet<Vec<u8>>, cursor: usize, count: Option<usize>) -> RespReply {
+    if cursor > set.len() {
+        return RespReply::Error("ERR invalid cursor".to_string());
+    }
+
+    let end = match count {
+        Some(count) => cursor.saturating_add(count).min(set.len()),
+        None => set.len(),
+    };
+    let next_cursor = if end < set.len() { end } else { 0 };
+    let members = set
+        .iter()
+        .skip(cursor)
+        .take(end - cursor)
+        .map(|member| RespReply::BulkString(member.to_vec()))
+        .collect();
+
+    RespReply::Array(vec![
+        RespReply::BulkString(next_cursor.to_string().into_bytes()),
+        RespReply::Array(members),
     ])
 }
 

@@ -258,6 +258,28 @@ Use this log to separate ownership-report effects from human guidance.
 
 ### iteration-012
 
+### iteration-029
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: Phase 28 set commands (SCARD, SPOP, SRANDMEMBER, SMOVE, SDIFF, SINTER, SUNION, SSCAN) with deterministic selection behavior and minimal tests
+- Prompt summary: Implement set read/write commands, deterministic SRANDMEMBER/SSCAN behavior, SMOVE semantics (including same-key no-op), SPOP/SPop count behavior, and add targeted tests covering binary-safe members, determinism, missing keys, count edge cases, wrong arity/options, wrong type, expiration clearing/removal, WATCH invalidation, transactions, same-key SMOVE, and metadata registration.
+- Human ownership hints before attempt: none
+- Command: `cargo check --message-format=json > ../reports/iteration-029/cargo-check.jsonl`; cleanup rerun used `cargo fmt && cargo check --message-format=json > ../reports/iteration-029/cargo-check.jsonl && cargo test`; report generation used `node ../../../../dist/cli/main.js --input ../reports/iteration-029/cargo-check.jsonl --json-out ../reports/iteration-029/ownership-report.json --html-out ../reports/iteration-029/ownership-report.html`
+- Result: compile success; test success, 122 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-029/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-029/ownership-report.json`
+- Ownership report HTML: `reports/iteration-029/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no new `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or `unsafe` introduced. Existing iterator cloning in set algebra helpers and reply `to_vec()` copies remain narrow and intentional.
+- Observed compile error: initial `E0596` pattern-guard mutable borrow in `SMOVE` was fixed by moving removal into the match arm body; refreshed cargo JSONL has zero diagnostics.
+- Did the ownership report change the next fix: no; the report had no E0382/E0499/E0502 ownership diagnostics.
+- Next action: Continue Phase 28 with sorted set command completion (R216), preserving transaction, expiration, and WATCH semantics.
+
 ### iteration-028
 
 - Date: 2026-05-26
