@@ -1,19 +1,38 @@
 use crate::{Command, RespError};
 
+const DEFAULT_MAX_LINE_LENGTH: usize = 1024 * 1024;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ParseOutcome {
     Complete(Command),
     Incomplete,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RespCommandParser {
     buffer: Vec<u8>,
+    max_line_length: usize,
+}
+
+impl Default for RespCommandParser {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RespCommandParser {
     pub fn new() -> Self {
-        Self { buffer: Vec::new() }
+        Self {
+            buffer: Vec::new(),
+            max_line_length: DEFAULT_MAX_LINE_LENGTH,
+        }
+    }
+
+    pub fn with_max_line_length(max_line_length: usize) -> Self {
+        Self {
+            buffer: Vec::new(),
+            max_line_length,
+        }
     }
 
     pub fn append(&mut self, bytes: &[u8]) {
@@ -21,7 +40,7 @@ impl RespCommandParser {
     }
 
     pub fn parse_available(&mut self) -> Result<ParseOutcome, RespError> {
-        let (command, consumed) = match parse_multibulk(&self.buffer)? {
+        let (command, consumed) = match parse_multibulk(&self.buffer, self.max_line_length)? {
             ParsedFrame::Complete { command, consumed } => (command, consumed),
             ParsedFrame::Incomplete => return Ok(ParseOutcome::Incomplete),
         };
@@ -36,23 +55,24 @@ enum ParsedFrame {
     Incomplete,
 }
 
-fn parse_multibulk(buffer: &[u8]) -> Result<ParsedFrame, RespError> {
+fn parse_multibulk(buffer: &[u8], max_line_length: usize) -> Result<ParsedFrame, RespError> {
     if buffer.is_empty() {
         return Ok(ParsedFrame::Incomplete);
     }
+
+    let header_end = match find_crlf_or_line_too_long(buffer, 0, max_line_length)? {
+        Some(index) => index,
+        None => return Ok(ParsedFrame::Incomplete),
+    };
 
     if buffer[0] != b'*' {
         return Err(RespError::ExpectedArray);
     }
 
-    let header_end = match find_crlf(buffer, 1) {
-        Some(index) => index,
-        None => return Ok(ParsedFrame::Incomplete),
-    };
-    let arg_count =
-        parse_positive_usize(&buffer[1..header_end]).map_err(|_| RespError::InvalidArrayLength)?;
+    let arg_count = parse_positive_usize(&buffer[1..header_end])
+        .map_err(|_| RespError::InvalidMultibulkLength)?;
     if arg_count == 0 {
-        return Err(RespError::InvalidArrayLength);
+        return Err(RespError::InvalidMultibulkLength);
     }
 
     let mut cursor = header_end + 2;
@@ -66,15 +86,19 @@ fn parse_multibulk(buffer: &[u8]) -> Result<ParsedFrame, RespError> {
             return Err(RespError::ExpectedBulkString);
         }
 
-        let length_end = match find_crlf(buffer, cursor + 1) {
+        let length_end = match find_crlf_or_line_too_long(buffer, cursor, max_line_length)? {
             Some(index) => index,
             None => return Ok(ParsedFrame::Incomplete),
         };
         let bulk_len = parse_usize(&buffer[cursor + 1..length_end])
             .map_err(|_| RespError::InvalidBulkLength)?;
         let data_start = length_end + 2;
-        let data_end = data_start + bulk_len;
-        let frame_end = data_end + 2;
+        let data_end = data_start
+            .checked_add(bulk_len)
+            .ok_or(RespError::InvalidBulkLength)?;
+        let frame_end = data_end
+            .checked_add(2)
+            .ok_or(RespError::InvalidBulkLength)?;
 
         if frame_end > buffer.len() {
             return Ok(ParsedFrame::Incomplete);
@@ -91,6 +115,24 @@ fn parse_multibulk(buffer: &[u8]) -> Result<ParsedFrame, RespError> {
         command: Command::new(args),
         consumed: cursor,
     })
+}
+
+fn find_crlf_or_line_too_long(
+    buffer: &[u8],
+    start: usize,
+    max_line_length: usize,
+) -> Result<Option<usize>, RespError> {
+    let line_end = find_crlf(buffer, start);
+    let available_line_len = match line_end {
+        Some(index) => index.saturating_sub(start),
+        None => buffer.len().saturating_sub(start),
+    };
+
+    if available_line_len > max_line_length {
+        return Err(RespError::LineTooLong);
+    }
+
+    Ok(line_end)
 }
 
 fn find_crlf(buffer: &[u8], start: usize) -> Option<usize> {

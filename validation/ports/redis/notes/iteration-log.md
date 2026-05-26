@@ -88,6 +88,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: iteration-004 should add protocol error tests and stable error variants.
 
+### iteration-004
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R033-R038 protocol error tests, stable malformed RESP2 multibulk error variants, diagnostic capture, ownership reports, and ledger updates.
+- Prompt summary: Add tests for invalid multibulk length, invalid bulk length, missing `$` bulk marker, overlarge inline and multibulk header strings, implement stable protocol error variants, preserve prior parser behavior, capture cargo diagnostics, generate reports, and update notes/tasks without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-004/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-004/cargo-check.jsonl --json-out ../reports/iteration-004/ownership-report.json --html-out ../reports/iteration-004/ownership-report.html`
+- Result: compile success; test success, 17 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-004/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-004/ownership-report.json`
+- Ownership report HTML: `reports/iteration-004/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none; existing owned argument extraction still uses per-bulk `to_vec()` at the API boundary, with no broad clone shortcuts, shared mutability, or unsafe introduced
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: iteration-005 should add inline command parsing tests and representative inline parsing behavior.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.

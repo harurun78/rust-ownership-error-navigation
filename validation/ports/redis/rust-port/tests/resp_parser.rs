@@ -1,4 +1,4 @@
-use rust_port::{Command, ParseOutcome, RespCommandParser};
+use rust_port::{Command, ParseOutcome, RespCommandParser, RespError};
 
 fn assert_incomplete(parser: &mut RespCommandParser) {
     assert_eq!(
@@ -21,6 +21,12 @@ fn parse_next_complete(parser: &mut RespCommandParser) -> Command {
         ParseOutcome::Complete(command) => command,
         ParseOutcome::Incomplete => panic!("expected complete command"),
     }
+}
+
+fn assert_parse_error(frame: &[u8], expected: RespError) {
+    let mut parser = RespCommandParser::new();
+    parser.append(frame);
+    assert_eq!(parser.parse_available(), Err(expected));
 }
 
 #[test]
@@ -149,4 +155,46 @@ fn keeps_incomplete_trailing_command_after_complete_command() {
 
     assert_eq!(second.args, vec![b"GET".to_vec(), b"key".to_vec()]);
     assert_incomplete(&mut parser);
+}
+
+#[test]
+fn rejects_invalid_multibulk_length_non_digits() {
+    assert_parse_error(b"*abc\r\n", RespError::InvalidMultibulkLength);
+}
+
+#[test]
+fn rejects_zero_and_negative_multibulk_length() {
+    assert_parse_error(b"*0\r\n", RespError::InvalidMultibulkLength);
+    assert_parse_error(b"*-1\r\n", RespError::InvalidMultibulkLength);
+}
+
+#[test]
+fn rejects_invalid_bulk_length_non_digits() {
+    assert_parse_error(b"*1\r\n$abc\r\n", RespError::InvalidBulkLength);
+}
+
+#[test]
+fn rejects_negative_bulk_length() {
+    assert_parse_error(b"*1\r\n$-1\r\n", RespError::InvalidBulkLength);
+}
+
+#[test]
+fn rejects_missing_bulk_string_marker() {
+    assert_parse_error(b"*1\r\n+4\r\nPING\r\n", RespError::ExpectedBulkString);
+}
+
+#[test]
+fn rejects_overlarge_inline_header() {
+    let mut parser = RespCommandParser::with_max_line_length(4);
+    parser.append(b"PINGX");
+
+    assert_eq!(parser.parse_available(), Err(RespError::LineTooLong));
+}
+
+#[test]
+fn rejects_overlarge_multibulk_header() {
+    let mut parser = RespCommandParser::with_max_line_length(2);
+    parser.append(b"*123");
+
+    assert_eq!(parser.parse_available(), Err(RespError::LineTooLong));
 }

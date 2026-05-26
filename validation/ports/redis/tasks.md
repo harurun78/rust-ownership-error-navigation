@@ -49,12 +49,12 @@
 
 ## Phase 6: Protocol Errors
 
-- [ ] R033 Add tests for invalid multibulk length.
-- [ ] R034 Add tests for invalid bulk length.
-- [ ] R035 Add tests for expected `$` but got another byte.
-- [ ] R036 Add tests for overlarge inline or multibulk header strings.
-- [ ] R037 Implement stable protocol error variants.
-- [ ] R038 Save and report diagnostics for iteration-004.
+- [x] R033 Add tests for invalid multibulk length.
+- [x] R034 Add tests for invalid bulk length.
+- [x] R035 Add tests for expected `$` but got another byte.
+- [x] R036 Add tests for overlarge inline or multibulk header strings.
+- [x] R037 Implement stable protocol error variants.
+- [x] R038 Save and report diagnostics for iteration-004.
 
 ## Phase 7: Inline Command Parsing
 
