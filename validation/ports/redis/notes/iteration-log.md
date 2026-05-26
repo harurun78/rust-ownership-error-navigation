@@ -340,6 +340,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: if validation continues, consider additional Redis transaction semantics such as queued command error handling, `WATCH`, or abort behavior beyond this minimal slice.
 
+### iteration-016
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R143-R153 minimal sorted set commands, diagnostics capture, ownership reports, and ledger updates.
+- Prompt summary: Add minimal sorted set `ZADD`, `ZREM`, `ZSCORE`, and `ZRANGE` (integer scores) with binary-safe members, ensure wrong-type handling, expire/transaction semantics, add tests, run cargo check/test, and generate ownership reports.
+- Human ownership hints before attempt: none
+- Command: `cargo check --message-format=json > ../reports/iteration-016/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-016/cargo-check.jsonl --json-out ../reports/iteration-016/ownership-report.json --html-out ../reports/iteration-016/ownership-report.html`
+- Result: compile success; test success, 71 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-016/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-016/ownership-report.json`
+- Ownership report HTML: `reports/iteration-016/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none; changes used `BTreeMap` for zset mapping and copied members into replies with `to_vec()` when needed.
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: proceed to additional sorted-set features or other Redis commands as needed.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.

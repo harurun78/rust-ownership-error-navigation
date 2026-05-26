@@ -32,6 +32,7 @@ enum RedisValue {
     List(Vec<Vec<u8>>),
     Hash(BTreeMap<Vec<u8>, Vec<u8>>),
     Set(BTreeSet<Vec<u8>>),
+    ZSet(BTreeMap<Vec<u8>, i64>),
 }
 
 #[derive(Debug, Default)]
@@ -128,6 +129,14 @@ impl RedisMiniDb {
             self.execute_set_store(args, SetStoreOp::Intersection)
         } else if command_name.eq_ignore_ascii_case(b"SDIFFSTORE") {
             self.execute_set_store(args, SetStoreOp::Difference)
+        } else if command_name.eq_ignore_ascii_case(b"ZADD") {
+            self.execute_zadd(args)
+        } else if command_name.eq_ignore_ascii_case(b"ZREM") {
+            self.execute_zrem(args)
+        } else if command_name.eq_ignore_ascii_case(b"ZSCORE") {
+            self.execute_zscore(args)
+        } else if command_name.eq_ignore_ascii_case(b"ZRANGE") {
+            self.execute_zrange(args)
         } else if command_name.eq_ignore_ascii_case(b"TYPE") {
             self.execute_type(args)
         } else if command_name.eq_ignore_ascii_case(b"RENAME") {
@@ -206,7 +215,10 @@ impl RedisMiniDb {
         self.remove_if_expired(&key);
         if matches!(
             self.values.get(&key),
-            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_))
+            Some(RedisValue::List(_))
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::Set(_))
+                | Some(RedisValue::ZSet(_))
         ) {
             return wrong_type();
         }
@@ -224,9 +236,10 @@ impl RedisMiniDb {
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
             Some(RedisValue::String(value)) => RespReply::BulkString(value.to_vec()),
-            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             None => RespReply::NullBulkString,
         }
     }
@@ -361,9 +374,10 @@ impl RedisMiniDb {
                 Some(value) => value,
                 None => return integer_error(),
             },
-            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
-                return wrong_type();
-            }
+            Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
             None => 0,
         };
 
@@ -387,9 +401,10 @@ impl RedisMiniDb {
         let key = args.remove(0);
         self.remove_if_expired(&key);
         match self.values.get_mut(&key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::List(list)) => {
                 for value in args {
                     match side {
@@ -422,9 +437,10 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get_mut(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match side {
                 ListSide::Left => {
                     if list.is_empty() {
@@ -458,9 +474,10 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) | Some(RedisValue::Set(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match normalize_range(list.len(), start, stop) {
                 Some((start, stop)) => RespReply::Array(
                     list[start..=stop]
@@ -483,9 +500,10 @@ impl RedisMiniDb {
         let key = args.remove(0);
         self.remove_if_expired(&key);
         match self.values.get_mut(&key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => {
                 let mut added = 0i64;
                 while !args.is_empty() {
@@ -523,9 +541,10 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => match hash.get(&args[1]) {
                 Some(value) => RespReply::BulkString(value.to_vec()),
                 None => RespReply::NullBulkString,
@@ -543,9 +562,10 @@ impl RedisMiniDb {
         self.remove_if_expired(key);
         let mut remove_key = false;
         let removed = match self.values.get_mut(key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
-                return wrong_type();
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
             Some(RedisValue::Hash(hash)) => {
                 let mut removed = 0i64;
                 for field in &args[1..] {
@@ -574,9 +594,10 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Set(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => {
                 let mut values = Vec::with_capacity(hash.len() * 2);
                 for (field, value) in hash {
@@ -598,9 +619,10 @@ impl RedisMiniDb {
         let key = args.remove(0);
         self.remove_if_expired(&key);
         match self.values.get_mut(&key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Set(set)) => {
                 let mut added = 0i64;
                 for member in args {
@@ -634,9 +656,10 @@ impl RedisMiniDb {
         self.remove_if_expired(key);
         let mut remove_key = false;
         let removed = match self.values.get_mut(key) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
-                return wrong_type();
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_)) => return wrong_type(),
             Some(RedisValue::Set(set)) => {
                 let mut removed = 0i64;
                 for member in &args[1..] {
@@ -667,9 +690,10 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Set(set)) => RespReply::Integer(i64::from(set.contains(&args[1]))),
             None => RespReply::Integer(0),
         }
@@ -682,9 +706,10 @@ impl RedisMiniDb {
 
         self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => {
-                wrong_type()
-            }
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
             Some(RedisValue::Set(set)) => RespReply::Array(
                 set.iter()
                     .map(|member| RespReply::BulkString(member.to_vec()))
@@ -711,7 +736,8 @@ impl RedisMiniDb {
                 Some(RedisValue::Set(_)) | None => {}
                 Some(RedisValue::String(_))
                 | Some(RedisValue::List(_))
-                | Some(RedisValue::Hash(_)) => return wrong_type(),
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::ZSet(_)) => return wrong_type(),
             }
         }
 
@@ -791,6 +817,151 @@ impl RedisMiniDb {
             result.insert(member.to_vec());
         }
         result
+    }
+
+    fn execute_zadd(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 3 || args.len() % 2 == 0 {
+            return wrong_arity("zadd");
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        let mut pairs = Vec::new();
+        while !args.is_empty() {
+            let score = match parse_integer(&args[0]) {
+                Some(score) => score,
+                None => return integer_error(),
+            };
+            args.remove(0);
+            let member = args.remove(0);
+            pairs.push((member, score));
+        }
+
+        self.remove_if_expired(&key);
+        match self.values.get_mut(&key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_)) => wrong_type(),
+            Some(RedisValue::ZSet(zset)) => {
+                let mut added = 0i64;
+                for (member, score) in pairs {
+                    if !zset.contains_key(&member) {
+                        added += 1;
+                    }
+                    zset.insert(member, score);
+                }
+                self.expires_at.remove(&key);
+                RespReply::Integer(added)
+            }
+            None => {
+                let mut zset = BTreeMap::new();
+                let mut added = 0i64;
+                for (member, score) in pairs {
+                    if zset.insert(member, score).is_none() {
+                        added += 1;
+                    }
+                }
+                self.values.insert(key, RedisValue::ZSet(zset));
+                RespReply::Integer(added)
+            }
+        }
+    }
+
+    fn execute_zrem(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("zrem");
+        }
+
+        let key = &args[0];
+        self.remove_if_expired(key);
+        let mut remove_key = false;
+        let removed = match self.values.get_mut(key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_)) => return wrong_type(),
+            Some(RedisValue::ZSet(zset)) => {
+                let mut removed = 0i64;
+                for member in &args[1..] {
+                    if zset.remove(member).is_some() {
+                        removed += 1;
+                    }
+                }
+                remove_key = zset.is_empty();
+                removed
+            }
+            None => 0,
+        };
+
+        if remove_key {
+            self.values.remove(key);
+            self.expires_at.remove(key);
+        } else if removed > 0 {
+            self.expires_at.remove(key);
+        }
+
+        RespReply::Integer(removed)
+    }
+
+    fn execute_zscore(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("zscore");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_)) => wrong_type(),
+            Some(RedisValue::ZSet(zset)) => match zset.get(&args[1]) {
+                Some(score) => RespReply::BulkString(score.to_string().into_bytes()),
+                None => RespReply::NullBulkString,
+            },
+            None => RespReply::NullBulkString,
+        }
+    }
+
+    fn execute_zrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("zrange");
+        }
+
+        let start = match parse_integer(&args[1]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+        let stop = match parse_integer(&args[2]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_)) => wrong_type(),
+            Some(RedisValue::ZSet(zset)) => match normalize_range(zset.len(), start, stop) {
+                Some((start, stop)) => {
+                    let mut entries: Vec<(&Vec<u8>, &i64)> = zset.iter().collect();
+                    entries.sort_by(|(left_member, left_score), (right_member, right_score)| {
+                        left_score
+                            .cmp(right_score)
+                            .then_with(|| left_member.cmp(right_member))
+                    });
+                    RespReply::Array(
+                        entries[start..=stop]
+                            .iter()
+                            .map(|(member, _score)| RespReply::BulkString(member.to_vec()))
+                            .collect(),
+                    )
+                }
+                None => RespReply::Array(Vec::new()),
+            },
+            None => RespReply::Array(Vec::new()),
+        }
     }
 
     fn execute_type(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -922,6 +1093,7 @@ impl RedisValue {
             Self::List(_) => "list",
             Self::Hash(_) => "hash",
             Self::Set(_) => "set",
+            Self::ZSet(_) => "zset",
         }
     }
 }

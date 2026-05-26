@@ -192,3 +192,17 @@
 - [x] R140 Generate `reports/iteration-015/ownership-report.json`.
 - [x] R141 Generate `reports/iteration-015/ownership-report.html`.
 - [x] R142 Record iteration-015 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 18: Minimal Sorted Set Commands
+
+- [x] R143 Add tests for `ZADD`, `ZREM`, and `ZSCORE` on missing and existing sorted set keys.
+- [x] R144 Add tests for `ZRANGE` with score/member deterministic ordering and negative indexes.
+- [x] R145 Add tests for binary-safe sorted set members and integer score parsing errors.
+- [x] R146 Add tests for wrong-type errors between sorted sets and existing value types.
+- [x] R147 Refactor the DB value model to support sorted set values without regressing existing value types.
+- [x] R148 Implement minimal `ZADD`, `ZREM`, `ZSCORE`, and `ZRANGE` behavior using integer scores.
+- [x] R149 Preserve existing expiration and transaction behavior for sorted set commands.
+- [x] R150 Save `cargo check --message-format=json` output to `reports/iteration-016/cargo-check.jsonl`.
+- [x] R151 Generate `reports/iteration-016/ownership-report.json`.
+- [x] R152 Generate `reports/iteration-016/ownership-report.html`.
+- [x] R153 Record iteration-016 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.

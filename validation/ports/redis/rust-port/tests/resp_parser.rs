@@ -850,6 +850,162 @@ fn set_store_commands_reject_wrong_type_sources_without_overwriting_destination(
 }
 
 #[test]
+fn executes_zadd_zrem_and_zscore_on_missing_and_existing_zsets() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"ZSCORE", b"missing", b"member"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"2", b"b", b"1", b"a"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"3", b"b", b"4", b"c"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZSCORE", b"z", b"b"]),
+        RespReply::BulkString(b"3".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZSCORE", b"z", b"missing"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZREM", b"z", b"missing", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZSCORE", b"z", b"a"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn executes_zrange_with_score_member_ordering_and_negative_indexes() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"missing", b"0", b"-1"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"ZADD", b"z", b"2", b"c", b"1", b"b", b"1", b"a", b"3", b"d"
+            ]
+        ),
+        RespReply::Integer(4)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z", b"0", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z", b"-2", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"c".to_vec()),
+            RespReply::BulkString(b"d".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z", b"3", b"1"]),
+        RespReply::Array(Vec::new())
+    );
+}
+
+#[test]
+fn sorted_sets_keep_binary_members_and_reject_invalid_scores() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"ZADD", b"z", b"-5", b"a\0member", b"0", b"a member"]
+        ),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a\0member".to_vec()),
+            RespReply::BulkString(b"a member".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"not-int", b"bad"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z", b"0", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a\0member".to_vec()),
+            RespReply::BulkString(b"a member".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z", b"nope", b"-1"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+}
+
+#[test]
+fn sorted_set_writes_clear_expiration_and_remove_empty_keys() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"1", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"z", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"2", b"b"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"z"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"ZREM", b"z", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(execute(&mut db, &[b"EXISTS", b"z"]), RespReply::Integer(0));
+}
+
+#[test]
+fn queued_sorted_set_commands_execute_in_order() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"2", b"b", b"1", b"a"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z", b"0", b"-1"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::Integer(2),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"a".to_vec()),
+                RespReply::BulkString(b"b".to_vec()),
+            ]),
+        ])
+    );
+}
+
+#[test]
 fn executes_type_across_supported_value_kinds() {
     let mut db = RedisMiniDb::new();
 
@@ -873,6 +1029,10 @@ fn executes_type_across_supported_value_kinds() {
         execute(&mut db, &[b"SADD", b"set", b"member"]),
         RespReply::Integer(1)
     );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"zset", b"1", b"member"]),
+        RespReply::Integer(1)
+    );
 
     assert_eq!(
         execute(&mut db, &[b"TYPE", b"string"]),
@@ -889,6 +1049,10 @@ fn executes_type_across_supported_value_kinds() {
     assert_eq!(
         execute(&mut db, &[b"TYPE", b"set"]),
         RespReply::SimpleString("set")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TYPE", b"zset"]),
+        RespReply::SimpleString("zset")
     );
 }
 
@@ -952,6 +1116,22 @@ fn rename_moves_values_across_supported_value_kinds() {
     );
     assert_eq!(
         execute(&mut db, &[b"SMEMBERS", b"set2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"b".to_vec())
+        ])
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"1", b"a", b"2", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"z", b"z2"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"z2", b"0", b"-1"]),
         RespReply::Array(vec![
             RespReply::BulkString(b"a".to_vec()),
             RespReply::BulkString(b"b".to_vec())
@@ -1105,6 +1285,10 @@ fn keys_star_returns_deterministic_current_key_names() {
         RespReply::Integer(1)
     );
     assert_eq!(
+        execute(&mut db, &[b"ZADD", b"zset", b"1", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
         execute(&mut db, &[b"SET", b"gone", b"value"]),
         RespReply::SimpleString("OK")
     );
@@ -1120,6 +1304,7 @@ fn keys_star_returns_deterministic_current_key_names() {
             RespReply::BulkString(b"list".to_vec()),
             RespReply::BulkString(b"set".to_vec()),
             RespReply::BulkString(b"z".to_vec()),
+            RespReply::BulkString(b"zset".to_vec()),
         ])
     );
 }
@@ -1330,6 +1515,65 @@ fn rejects_wrong_type_access_between_sets_strings_lists_and_hashes() {
     assert_eq!(execute(&mut db, &[b"HSET", b"set", b"f", b"v"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"HDEL", b"set", b"f"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"HGETALL", b"set"]), wrong_type);
+}
+
+#[test]
+fn rejects_wrong_type_access_between_zsets_and_other_value_kinds() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"string", b"1", b"x"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"ZREM", b"string", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"ZSCORE", b"string", b"x"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"ZRANGE", b"string", b"0", b"-1"]),
+        wrong_type
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"list", b"1", b"x"]),
+        wrong_type
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"f", b"v"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"ZREM", b"hash", b"x"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"x"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"ZSCORE", b"set", b"x"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"z", b"1", b"x"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"GET", b"z"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SET", b"z", b"value"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"INCR", b"z"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"LPUSH", b"z", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HGET", b"z", b"f"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SADD", b"z", b"x"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"out", b"z"]),
+        wrong_type
+    );
 }
 
 #[test]
