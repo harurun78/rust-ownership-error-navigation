@@ -154,13 +154,13 @@
 
 ## Phase 14: JSON Minify Utility
 
-- [ ] C114 Add tests for removing insignificant whitespace.
-- [ ] C115 Add tests for preserving whitespace inside strings.
-- [ ] C116 Add tests for removing C-style block and line comments like cJSON minify.
-- [ ] C117 Add tests for malformed comments and unterminated strings.
-- [ ] C118 Implement JSON minify utility.
-- [ ] C119 Save `cargo check --message-format=json` output to `reports/iteration-008/cargo-check.jsonl`.
-- [ ] C120 Generate `reports/iteration-008/ownership-report.json`.
-- [ ] C121 Generate `reports/iteration-008/ownership-report.html`.
-- [ ] C122 Record iteration-008 results and diagnostic counts in `notes/iteration-log.md`.
-- [ ] C123 Run final `cargo test` in `rust-port/`.
+- [x] C114 Add tests for removing insignificant whitespace.
+- [x] C115 Add tests for preserving whitespace inside strings.
+- [x] C116 Add tests for removing C-style block and line comments like cJSON minify.
+- [x] C117 Add tests for malformed comments and unterminated strings.
+- [x] C118 Implement JSON minify utility.
+- [x] C119 Save `cargo check --message-format=json` output to `reports/iteration-008/cargo-check.jsonl`.
+- [x] C120 Generate `reports/iteration-008/ownership-report.json`.
+- [x] C121 Generate `reports/iteration-008/ownership-report.html`.
+- [x] C122 Record iteration-008 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C123 Run final `cargo test` in `rust-port/`.

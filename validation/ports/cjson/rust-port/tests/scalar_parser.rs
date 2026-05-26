@@ -1,4 +1,6 @@
-use cjson_rust_port::{parse_scalar, JsonEditError, JsonPathSegment, JsonValue};
+use cjson_rust_port::{
+    minify_json, parse_scalar, JsonEditError, JsonPathSegment, JsonValue, MinifyError,
+};
 
 use JsonPathSegment::{Index, Key};
 
@@ -604,5 +606,45 @@ fn mutates_values_through_typed_accessors() {
     assert_eq!(
         value,
         parse_scalar(r#"{"items":[true,2],"name":"cjson-rust"}"#).unwrap()
+    );
+}
+
+#[test]
+fn minifies_insignificant_whitespace() {
+    assert_eq!(
+        minify_json(" { \n  \"items\" : [ true, null, 3 ] \t } "),
+        Ok(String::from(r#"{"items":[true,null,3]}"#))
+    );
+}
+
+#[test]
+fn minify_preserves_whitespace_and_escapes_inside_strings() {
+    assert_eq!(
+        minify_json(r#"{ "text" : " a \n spaced \" string // not comment " }"#),
+        Ok(String::from(
+            r#"{"text":" a \n spaced \" string // not comment "}"#
+        ))
+    );
+}
+
+#[test]
+fn minify_removes_line_and_block_comments() {
+    let input = "{ // line comment\n \"a\": 1, /* block comment */ \"b\": [true] }";
+
+    assert_eq!(
+        minify_json(input),
+        Ok(String::from(r#"{"a":1,"b":[true]}"#))
+    );
+}
+
+#[test]
+fn minify_reports_malformed_comments_and_strings() {
+    assert_eq!(
+        minify_json(r#"{"unterminated":"value"#),
+        Err(MinifyError::UnterminatedString { pos: 16 })
+    );
+    assert_eq!(
+        minify_json(r#"{"a":1 /* open"#),
+        Err(MinifyError::UnterminatedBlockComment { pos: 7 })
     );
 }
