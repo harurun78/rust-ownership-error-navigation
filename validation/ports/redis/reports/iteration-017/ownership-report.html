@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Rust Ownership Diagnostic Report</title>
+	<style>
+		body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
+		table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }
+		th, td { border: 1px solid #d0d7de; padding: 0.5rem; text-align: left; vertical-align: top; }
+		th { background: #f6f8fa; }
+		code, pre { background: #f6f8fa; padding: 0.125rem 0.25rem; }
+		pre { overflow-x: auto; padding: 0.75rem; }
+	</style>
+</head>
+<body>
+	<h1>Rust Ownership Diagnostic Report</h1>
+	<section id="summary">
+	<h2>Summary</h2>
+	<table>
+		<tbody>
+			<tr><th>Input</th><td>/workspaces/rust-ownership-error-navigation/validation/ports/redis/reports/iteration-017/cargo-check.jsonl</td></tr>
+			<tr><th>Total Diagnostics</th><td>2</td></tr>
+			<tr><th>Supported Diagnostics</th><td>1</td></tr>
+			<tr><th>Unsupported Diagnostics</th><td>1</td></tr>
+		</tbody>
+	</table>
+</section>
+	<section id="diagnostics">
+	<h2>Diagnostics</h2>
+	<table>
+		<thead><tr><th>ID</th><th>Code</th><th>Message</th><th>Status</th></tr></thead>
+		<tbody><tr><td>diagnostic-1</td><td>E0382</td><td>borrow of moved value: `destination`</td><td>supported</td></tr>
+<tr><td>diagnostic-2</td><td>unknown</td><td>For more information about this error, try `rustc --explain E0382`.</td><td>unsupported</td></tr></tbody>
+	</table>
+</section>
+	<section id="causality-timeline">
+	<h2>Causality Timeline</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Role</th><th>Kind</th><th>Message</th><th>Span</th></tr></thead>
+		<tbody><tr id="event-55a032b935f2"><td>E0382</td><td>cause</td><td>move</td><td>value moved here</td><td>diagnostic-1-span-1</td></tr>
+<tr id="event-4d0962976b38"><td>E0382</td><td>conflict</td><td>use</td><td>value borrowed here after move</td><td>diagnostic-1-span-2</td></tr>
+<tr id="event-735c2c8d92ce"><td>E0382</td><td>context</td><td>context</td><td>move occurs because `destination` has type `Vec&lt;u8&gt;`, which does not implement the `Copy` trait</td><td>diagnostic-1-span-3</td></tr>
+<tr id="event-028a055ef1e3"><td>E0382</td><td>possible_fix</td><td>possible_fix</td><td>consider cloning the value if the performance cost is acceptable</td><td>diagnostic-1-child-3-span-1</td></tr></tbody>
+	</table>
+</section>
+	<section id="source-spans">
+	<h2>Source Spans</h2>
+	<table>
+		<thead><tr><th>Diagnostic</th><th>Role</th><th>Location</th><th>Label</th><th>Snippet</th></tr></thead>
+		<tbody><tr><td>diagnostic-1</td><td>cause</td><td>src/executor.rs:827:32</td><td>value moved here</td><td><pre>            self.values.insert(destination, RedisValue::Set(result));</pre></td></tr>
+<tr><td>diagnostic-1</td><td>conflict</td><td>src/executor.rs:829:31</td><td>value borrowed here after move</td><td><pre>        self.bump_key_version(&amp;destination);</pre></td></tr>
+<tr><td>diagnostic-1</td><td>context</td><td>src/executor.rs:800:13</td><td>move occurs because `destination` has type `Vec&lt;u8&gt;`, which does not implement the `Copy` trait</td><td><pre>        let destination = args.remove(0);</pre></td></tr></tbody>
+	</table>
+</section>
+	<section id="evidence">
+	<h2>Evidence</h2>
+	<table>
+		<thead><tr><th>Event</th><th>Source</th><th>Field</th><th>Value</th></tr></thead>
+		<tbody><tr><td>move</td><td>diagnostic_code</td><td>code</td><td>E0382</td></tr>
+<tr><td>move</td><td>rustc_span_label</td><td>label</td><td>value moved here</td></tr>
+<tr><td>move</td><td>rustc_span_text</td><td>text</td><td>            self.values.insert(destination, RedisValue::Set(result));</td></tr>
+<tr><td>use</td><td>diagnostic_code</td><td>code</td><td>E0382</td></tr>
+<tr><td>use</td><td>rustc_primary_span</td><td>is_primary</td><td>true</td></tr>
+<tr><td>use</td><td>rustc_span_label</td><td>label</td><td>value borrowed here after move</td></tr>
+<tr><td>use</td><td>rustc_span_text</td><td>text</td><td>        self.bump_key_version(&amp;destination);</td></tr>
+<tr><td>context</td><td>diagnostic_code</td><td>code</td><td>E0382</td></tr>
+<tr><td>context</td><td>rustc_span_label</td><td>label</td><td>move occurs because `destination` has type `Vec&lt;u8&gt;`, which does not implement the `Copy` trait</td></tr>
+<tr><td>context</td><td>rustc_span_text</td><td>text</td><td>        let destination = args.remove(0);</td></tr>
+<tr><td>possible_fix</td><td>diagnostic_code</td><td>code</td><td>E0382</td></tr>
+<tr><td>possible_fix</td><td>rustc_child_diagnostic</td><td>message</td><td>consider cloning the value if the performance cost is acceptable</td></tr>
+<tr><td>possible_fix</td><td>rustc_primary_span</td><td>is_primary</td><td>true</td></tr>
+<tr><td>possible_fix</td><td>rustc_suggestion</td><td>suggested_replacement</td><td>.clone()</td></tr>
+<tr><td>possible_fix</td><td>rustc_span_text</td><td>text</td><td>            self.values.insert(destination, RedisValue::Set(result));</td></tr></tbody>
+	</table>
+</section>
+	<section id="borrow-sheet">
+	<h2>Borrow Sheet</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Role</th><th>Place</th><th>Message</th><th>Span</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td>E0382</td><td>move</td><td>cause</td><td>destination</td><td>value moved here</td><td>diagnostic-1-span-1</td><td>high</td></tr>
+<tr><td>E0382</td><td>use</td><td>conflict</td><td>destination</td><td>value borrowed here after move</td><td>diagnostic-1-span-2</td><td>high</td></tr>
+<tr><td>E0382</td><td>context</td><td>context</td><td>destination</td><td>move occurs because `destination` has type `Vec&lt;u8&gt;`, which does not implement the `Copy` trait</td><td>diagnostic-1-span-3</td><td>high</td></tr>
+<tr><td>E0382</td><td>possible_fix</td><td>possible_fix</td><td>destination</td><td>consider cloning the value if the performance cost is acceptable</td><td>diagnostic-1-child-3-span-1</td><td>high</td></tr></tbody>
+	</table>
+</section>
+	<section id="unsupported-diagnostics">
+	<h2>Unsupported Diagnostics</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Message</th><th>Reason</th><th>Rendered</th></tr></thead>
+		<tbody><tr><td>unknown</td><td>For more information about this error, try `rustc --explain E0382`.</td><td>Diagnostic does not include a rustc error code.</td><td><pre>For more information about this error, try `rustc --explain E0382`.
+</pre></td></tr></tbody>
+	</table>
+</section>
+</body>
+</html>

@@ -8,6 +8,7 @@ pub enum RespReply {
     SimpleString(&'static str),
     BulkString(Vec<u8>),
     NullBulkString,
+    NullArray,
     Integer(i64),
     Array(Vec<RespReply>),
     Error(String),
@@ -19,6 +20,7 @@ impl RespReply {
             Self::SimpleString(value) => encode_prefixed_string(b'+', value.as_bytes()),
             Self::BulkString(value) => encode_bulk_string(value),
             Self::NullBulkString => b"$-1\r\n".to_vec(),
+            Self::NullArray => b"*-1\r\n".to_vec(),
             Self::Integer(value) => format!(":{value}\r\n").into_bytes(),
             Self::Array(values) => encode_array(values),
             Self::Error(message) => encode_error(message),
@@ -39,6 +41,8 @@ enum RedisValue {
 pub struct RedisMiniDb {
     values: HashMap<Vec<u8>, RedisValue>,
     expires_at: HashMap<Vec<u8>, Instant>,
+    key_versions: HashMap<Vec<u8>, u64>,
+    watched_keys: HashMap<Vec<u8>, u64>,
     transaction_queue: Option<Vec<Command>>,
 }
 
@@ -60,6 +64,12 @@ impl RedisMiniDb {
         }
         if command.args[0].eq_ignore_ascii_case(b"DISCARD") {
             return self.execute_discard(command.args);
+        }
+        if command.args[0].eq_ignore_ascii_case(b"WATCH") {
+            return self.execute_watch(command.args);
+        }
+        if command.args[0].eq_ignore_ascii_case(b"UNWATCH") {
+            return self.execute_unwatch(command.args);
         }
 
         if let Some(queue) = self.transaction_queue.as_mut() {
@@ -174,12 +184,19 @@ impl RedisMiniDb {
             return RespReply::Error("ERR EXEC without MULTI".to_string());
         };
 
-        RespReply::Array(
+        if self.watched_key_changed() {
+            self.watched_keys.clear();
+            return RespReply::NullArray;
+        }
+
+        let reply = RespReply::Array(
             queue
                 .into_iter()
                 .map(|command| self.execute(command))
                 .collect(),
-        )
+        );
+        self.watched_keys.clear();
+        reply
     }
 
     fn execute_discard(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -190,6 +207,35 @@ impl RedisMiniDb {
             return RespReply::Error("ERR DISCARD without MULTI".to_string());
         }
 
+        self.watched_keys.clear();
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_watch(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("watch");
+        }
+        if self.transaction_queue.is_some() {
+            return RespReply::Error("ERR WATCH inside MULTI is not allowed".to_string());
+        }
+
+        for key in &args[1..] {
+            self.remove_if_expired(key);
+        }
+        for key in args.into_iter().skip(1) {
+            let version = self.current_key_version(&key);
+            self.watched_keys.insert(key, version);
+        }
+
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_unwatch(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("unwatch");
+        }
+
+        self.watched_keys.clear();
         RespReply::SimpleString("OK")
     }
 
@@ -224,6 +270,7 @@ impl RedisMiniDb {
         }
 
         self.expires_at.remove(&key);
+        self.bump_key_version(&key);
         self.values.insert(key, RedisValue::String(value));
         RespReply::SimpleString("OK")
     }
@@ -254,6 +301,7 @@ impl RedisMiniDb {
             self.remove_if_expired(&key);
             if self.values.remove(&key).is_some() {
                 deleted += 1;
+                self.bump_key_version(&key);
             }
             self.expires_at.remove(&key);
         }
@@ -294,6 +342,7 @@ impl RedisMiniDb {
         if seconds <= 0 {
             self.values.remove(&key);
             self.expires_at.remove(&key);
+            self.bump_key_version(&key);
             return RespReply::Integer(1);
         }
 
@@ -384,6 +433,7 @@ impl RedisMiniDb {
         match current.checked_add(delta) {
             Some(next) => {
                 self.expires_at.remove(&key);
+                self.bump_key_version(&key);
                 self.values
                     .insert(key, RedisValue::String(next.to_string().into_bytes()));
                 RespReply::Integer(next)
@@ -413,7 +463,9 @@ impl RedisMiniDb {
                     }
                 }
                 self.expires_at.remove(&key);
-                RespReply::Integer(list.len() as i64)
+                let len = list.len() as i64;
+                self.bump_key_version(&key);
+                RespReply::Integer(len)
             }
             None => {
                 let mut list = Vec::new();
@@ -424,6 +476,7 @@ impl RedisMiniDb {
                     }
                 }
                 let len = list.len() as i64;
+                self.bump_key_version(&key);
                 self.values.insert(key, RedisValue::List(list));
                 RespReply::Integer(len)
             }
@@ -436,7 +489,8 @@ impl RedisMiniDb {
         }
 
         self.remove_if_expired(&args[0]);
-        match self.values.get_mut(&args[0]) {
+        let key = &args[0];
+        let reply = match self.values.get_mut(key) {
             Some(RedisValue::String(_))
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
@@ -455,7 +509,11 @@ impl RedisMiniDb {
                 },
             },
             None => RespReply::NullBulkString,
+        };
+        if matches!(reply, RespReply::BulkString(_)) {
+            self.bump_key_version(key);
         }
+        reply
     }
 
     fn execute_lrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -515,6 +573,7 @@ impl RedisMiniDb {
                     hash.insert(field, value);
                 }
                 self.expires_at.remove(&key);
+                self.bump_key_version(&key);
                 RespReply::Integer(added)
             }
             None => {
@@ -528,6 +587,7 @@ impl RedisMiniDb {
                     }
                     hash.insert(field, value);
                 }
+                self.bump_key_version(&key);
                 self.values.insert(key, RedisValue::Hash(hash));
                 RespReply::Integer(added)
             }
@@ -583,6 +643,9 @@ impl RedisMiniDb {
             self.values.remove(key);
             self.expires_at.remove(key);
         }
+        if removed > 0 {
+            self.bump_key_version(key);
+        }
 
         RespReply::Integer(removed)
     }
@@ -631,6 +694,9 @@ impl RedisMiniDb {
                     }
                 }
                 self.expires_at.remove(&key);
+                if added > 0 {
+                    self.bump_key_version(&key);
+                }
                 RespReply::Integer(added)
             }
             None => {
@@ -640,6 +706,9 @@ impl RedisMiniDb {
                     if set.insert(member) {
                         added += 1;
                     }
+                }
+                if added > 0 {
+                    self.bump_key_version(&key);
                 }
                 self.values.insert(key, RedisValue::Set(set));
                 RespReply::Integer(added)
@@ -678,6 +747,9 @@ impl RedisMiniDb {
             self.expires_at.remove(key);
         } else if removed > 0 {
             self.expires_at.remove(key);
+        }
+        if removed > 0 {
+            self.bump_key_version(key);
         }
 
         RespReply::Integer(removed)
@@ -749,6 +821,7 @@ impl RedisMiniDb {
         let len = result.len() as i64;
 
         self.expires_at.remove(&destination);
+        self.bump_key_version(&destination);
         if result.is_empty() {
             self.values.remove(&destination);
         } else {
@@ -852,6 +925,7 @@ impl RedisMiniDb {
                     zset.insert(member, score);
                 }
                 self.expires_at.remove(&key);
+                self.bump_key_version(&key);
                 RespReply::Integer(added)
             }
             None => {
@@ -862,6 +936,7 @@ impl RedisMiniDb {
                         added += 1;
                     }
                 }
+                self.bump_key_version(&key);
                 self.values.insert(key, RedisValue::ZSet(zset));
                 RespReply::Integer(added)
             }
@@ -899,6 +974,9 @@ impl RedisMiniDb {
             self.expires_at.remove(key);
         } else if removed > 0 {
             self.expires_at.remove(key);
+        }
+        if removed > 0 {
+            self.bump_key_version(key);
         }
 
         RespReply::Integer(removed)
@@ -1027,6 +1105,8 @@ impl RedisMiniDb {
         if let Some(deadline) = deadline {
             self.expires_at.insert(destination.to_vec(), deadline);
         }
+        self.bump_key_version(&source);
+        self.bump_key_version(&destination);
         self.values.insert(destination, value);
 
         if only_if_absent {
@@ -1071,6 +1151,7 @@ impl RedisMiniDb {
         for key in expired {
             self.values.remove(&key);
             self.expires_at.remove(&key);
+            self.bump_key_version(&key);
         }
     }
 
@@ -1082,7 +1163,23 @@ impl RedisMiniDb {
         {
             self.values.remove(key);
             self.expires_at.remove(key);
+            self.bump_key_version(key);
         }
+    }
+
+    fn current_key_version(&self, key: &[u8]) -> u64 {
+        self.key_versions.get(key).copied().unwrap_or(0)
+    }
+
+    fn bump_key_version(&mut self, key: &[u8]) {
+        let version = self.key_versions.entry(key.to_vec()).or_insert(0);
+        *version = version.saturating_add(1);
+    }
+
+    fn watched_key_changed(&self) -> bool {
+        self.watched_keys
+            .iter()
+            .any(|(key, watched_version)| self.current_key_version(key) != *watched_version)
     }
 }
 

@@ -206,3 +206,19 @@
 - [x] R151 Generate `reports/iteration-016/ownership-report.json`.
 - [x] R152 Generate `reports/iteration-016/ownership-report.html`.
 - [x] R153 Record iteration-016 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 19: Minimal Watch Commands
+
+- [x] R154 Add tests for `WATCH` and `UNWATCH` tracking one or more keys.
+- [x] R155 Add tests that `EXEC` returns null array when watched keys changed before transaction execution.
+- [x] R156 Add tests that `DISCARD` and successful `EXEC` clear watched state.
+- [x] R157 Add tests that writes through string, list, hash, set, sorted set, keyspace, and set-store commands update watched key versions.
+- [x] R158 Add minimal key version tracking and watched-version state to the DB.
+- [x] R159 Implement minimal `WATCH` and `UNWATCH` behavior without regressing existing transaction commands.
+- [x] R160 Preserve existing expiration and all command family behavior.
+- [x] R161 Save `cargo check --message-format=json` output to `reports/iteration-017/cargo-check.jsonl`.
+- [x] R162 Generate `reports/iteration-017/ownership-report.json`.
+- [x] R163 Generate `reports/iteration-017/ownership-report.html`.
+- [x] R164 Record iteration-017 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+NOTE: R154-R160 were implemented as a minimal attempt in iteration-017. The initial `cargo check` failed with E0382 and artifacts were saved under `reports/iteration-017/`; the post-navigation continuation used the generated ownership report, fixed the move/borrow issue without cloning, passed `cargo check` and `cargo test`, and generated after-navigation report artifacts.

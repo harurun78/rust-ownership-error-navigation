@@ -55,6 +55,7 @@ fn encodes_resp_replies() {
         b"$11\r\nhello\0world\r\n".to_vec()
     );
     assert_eq!(RespReply::NullBulkString.encode(), b"$-1\r\n".to_vec());
+    assert_eq!(RespReply::NullArray.encode(), b"*-1\r\n".to_vec());
     assert_eq!(RespReply::Integer(42).encode(), b":42\r\n".to_vec());
     assert_eq!(
         RespReply::Array(vec![
@@ -1713,6 +1714,212 @@ fn queued_commands_preserve_binary_arguments_and_execute_expiration_lazily() {
             RespReply::SimpleString("OK"),
             RespReply::BulkString(b"hello \0 world".to_vec()),
         ])
+    );
+}
+
+#[test]
+fn watch_unwatch_and_transaction_state_are_tracked() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"a", b"b"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"UNWATCH"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"a"]),
+        RespReply::Error("ERR WATCH inside MULTI is not allowed".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DISCARD"]),
+        RespReply::SimpleString("OK")
+    );
+}
+
+#[test]
+fn changed_watched_key_aborts_exec_and_drops_queued_writes() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"watched"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"changed"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"queued", b"value"]),
+        RespReply::SimpleString("QUEUED")
+    );
+
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"watched"]),
+        RespReply::BulkString(b"changed".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"queued"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn unchanged_watched_keys_allow_exec_and_clear_watches() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"watched"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"new"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"watched"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::SimpleString("OK"),
+            RespReply::BulkString(b"new".to_vec()),
+        ])
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"watched"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"DISCARD"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"after-discard"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::Array(Vec::new()));
+}
+
+#[test]
+fn writes_across_command_families_invalidate_watched_keys() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"0"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"zset", b"1", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"source", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"source-name", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"rename-dest", b"old"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"expire-now", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"WATCH",
+                b"string",
+                b"list",
+                b"hash",
+                b"set",
+                b"zset",
+                b"store-dest",
+                b"source-name",
+                b"rename-dest",
+                b"expire-now",
+            ]
+        ),
+        RespReply::SimpleString("OK")
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"INCR", b"string"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPOP", b"list"]),
+        RespReply::BulkString(b"a".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HDEL", b"hash", b"field"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SREM", b"set", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZREM", b"zset", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SUNIONSTORE", b"store-dest", b"source"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RENAME", b"source-name", b"rename-dest"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"expire-now", b"0"]),
+        RespReply::Integer(1)
+    );
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"queued", b"value"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"queued"]),
+        RespReply::NullBulkString
     );
 }
 

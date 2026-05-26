@@ -361,6 +361,36 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: proceed to additional sorted-set features or other Redis commands as needed.
 
+### iteration-017
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R154-R164 minimal WATCH/UNWATCH transaction invalidation and diagnostic capture
+- Prompt summary: Add minimal `WATCH`/`UNWATCH` semantics with key-version tracking, abort `EXEC` when watched keys change, clear watched state on successful `EXEC`/`DISCARD`, and add tests exercising abort and success cases; capture cargo diagnostics and generate ownership reports.
+- Human ownership hints before attempt: none
+- Command: `cd validation/ports/redis/rust-port && mkdir -p ../reports/iteration-017 && cargo check --message-format=json > ../reports/iteration-017/cargo-check.jsonl`
+- Result: initial compile failure (see diagnostics); post-navigation continuation compile success and test success, 75 passed
+- Diagnostics file: `reports/iteration-017/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-017/ownership-report.json`
+- Ownership report HTML: `reports/iteration-017/ownership-report.html`
+- E0382 count: 1
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none recorded
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: compiler suggested cloning `destination` to avoid borrow-after-move; no `unsafe`, `Rc`, or `Arc` were introduced
+- Did the ownership report change the next fix: yes; continuation used the generated ownership navigation report as the primary guide and fixed the reported E0382 without cloning by bumping the key version before the final move of `destination`
+- Continuation command: `cargo check --message-format=json > ../reports/iteration-017/cargo-check-after-navigation.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-017/cargo-check-after-navigation.jsonl --json-out ../reports/iteration-017/ownership-report-after-navigation.json --html-out ../reports/iteration-017/ownership-report-after-navigation.html`
+- Post-navigation diagnostics file: `reports/iteration-017/cargo-check-after-navigation.jsonl`
+- Post-navigation ownership report JSON: `reports/iteration-017/ownership-report-after-navigation.json`
+- Post-navigation ownership report HTML: `reports/iteration-017/ownership-report-after-navigation.html`
+- Post-navigation E0382 count: 0
+- Post-navigation E0499 count: 0
+- Post-navigation E0502 count: 0
+- Post-navigation unsupported diagnostics: 0
+- Continuation model identity: GPT-5 mini (copilot)
+- Next action: iteration-017 R154-R164 validation is complete; proceed only if additional Redis command slices are requested.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.

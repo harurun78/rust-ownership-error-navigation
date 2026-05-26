@@ -1,0 +1,354 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "/workspaces/rust-ownership-error-navigation/validation/ports/redis/reports/iteration-017/cargo-check.jsonl"
+  },
+  "summary": {
+    "totalDiagnostics": 2,
+    "supportedDiagnostics": 1,
+    "unsupportedDiagnostics": 1
+  },
+  "diagnostics": [
+    {
+      "id": "diagnostic-1",
+      "code": "E0382",
+      "supported": true,
+      "level": "error",
+      "message": "borrow of moved value: `destination`",
+      "spans": [
+        {
+          "id": "diagnostic-1-span-1",
+          "diagnosticId": "diagnostic-1",
+          "role": "cause",
+          "file": "src/executor.rs",
+          "lineStart": 827,
+          "lineEnd": 827,
+          "columnStart": 32,
+          "columnEnd": 43,
+          "byteStart": 28218,
+          "byteEnd": 28229,
+          "isPrimary": false,
+          "label": "value moved here",
+          "snippet": "            self.values.insert(destination, RedisValue::Set(result));",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value moved here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.values.insert(destination, RedisValue::Set(result));"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-2",
+          "diagnosticId": "diagnostic-1",
+          "role": "conflict",
+          "file": "src/executor.rs",
+          "lineStart": 829,
+          "lineEnd": 829,
+          "columnStart": 31,
+          "columnEnd": 43,
+          "byteStart": 28297,
+          "byteEnd": 28309,
+          "isPrimary": true,
+          "label": "value borrowed here after move",
+          "snippet": "        self.bump_key_version(&destination);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value borrowed here after move"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        self.bump_key_version(&destination);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-3",
+          "diagnosticId": "diagnostic-1",
+          "role": "context",
+          "file": "src/executor.rs",
+          "lineStart": 800,
+          "lineEnd": 800,
+          "columnStart": 13,
+          "columnEnd": 24,
+          "byteStart": 27242,
+          "byteEnd": 27253,
+          "isPrimary": false,
+          "label": "move occurs because `destination` has type `Vec<u8>`, which does not implement the `Copy` trait",
+          "snippet": "        let destination = args.remove(0);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "move occurs because `destination` has type `Vec<u8>`, which does not implement the `Copy` trait"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let destination = args.remove(0);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [
+        {
+          "code": null,
+          "level": "note",
+          "message": "borrow occurs due to deref coercion to `[u8]`",
+          "spans": [],
+          "children": [],
+          "rendered": null
+        },
+        {
+          "code": null,
+          "level": "note",
+          "message": "deref defined here",
+          "spans": [
+            {
+              "id": "diagnostic-1-child-2-span-1",
+              "diagnosticId": "diagnostic-1-child-2",
+              "role": "unknown",
+              "file": "/usr/local/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/alloc/src/vec/mod.rs",
+              "lineStart": 3725,
+              "lineEnd": 3725,
+              "columnStart": 5,
+              "columnEnd": 16,
+              "byteStart": 139230,
+              "byteEnd": 139241,
+              "isPrimary": true,
+              "label": null,
+              "snippet": "    type Target = [T];",
+              "suggestedReplacement": null,
+              "suggestionApplicability": null,
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "    type Target = [T];"
+                }
+              ],
+              "confidence": "medium"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        },
+        {
+          "code": null,
+          "level": "help",
+          "message": "consider cloning the value if the performance cost is acceptable",
+          "spans": [
+            {
+              "id": "diagnostic-1-child-3-span-1",
+              "diagnosticId": "diagnostic-1-child-3",
+              "role": "possible_fix",
+              "file": "src/executor.rs",
+              "lineStart": 827,
+              "lineEnd": 827,
+              "columnStart": 43,
+              "columnEnd": 43,
+              "byteStart": 28229,
+              "byteEnd": 28229,
+              "isPrimary": true,
+              "label": null,
+              "snippet": "            self.values.insert(destination, RedisValue::Set(result));",
+              "suggestedReplacement": ".clone()",
+              "suggestionApplicability": "MachineApplicable",
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_suggestion",
+                  "field": "suggested_replacement",
+                  "value": ".clone()"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "            self.values.insert(destination, RedisValue::Set(result));"
+                }
+              ],
+              "confidence": "high"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        }
+      ],
+      "rendered": "error[E0382]: borrow of moved value: `destination`\n    --> src/executor.rs:829:31\n     |\n 800 |         let destination = args.remove(0);\n     |             ----------- move occurs because `destination` has type `Vec<u8>`, which does not implement the `Copy` trait\n...\n 827 |             self.values.insert(destination, RedisValue::Set(result));\n     |                                ----------- value moved here\n 828 |         }\n 829 |         self.bump_key_version(&destination);\n     |                               ^^^^^^^^^^^^ value borrowed here after move\n     |\n     = note: borrow occurs due to deref coercion to `[u8]`\nnote: deref defined here\n    --> /usr/local/rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/alloc/src/vec/mod.rs:3725:5\n     |\n3725 |     type Target = [T];\n     |     ^^^^^^^^^^^\nhelp: consider cloning the value if the performance cost is acceptable\n     |\n 827 |             self.values.insert(destination.clone(), RedisValue::Set(result));\n     |                                           ++++++++\n\n",
+      "events": [
+        {
+          "id": "diagnostic-1-event-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "move",
+          "role": "cause",
+          "place": "destination",
+          "spanId": "diagnostic-1-span-1",
+          "message": "value moved here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value moved here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.values.insert(destination, RedisValue::Set(result));"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-2",
+          "diagnosticId": "diagnostic-1",
+          "kind": "use",
+          "role": "conflict",
+          "place": "destination",
+          "spanId": "diagnostic-1-span-2",
+          "message": "value borrowed here after move",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value borrowed here after move"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        self.bump_key_version(&destination);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-3",
+          "diagnosticId": "diagnostic-1",
+          "kind": "context",
+          "role": "context",
+          "place": "destination",
+          "spanId": "diagnostic-1-span-3",
+          "message": "move occurs because `destination` has type `Vec<u8>`, which does not implement the `Copy` trait",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "move occurs because `destination` has type `Vec<u8>`, which does not implement the `Copy` trait"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let destination = args.remove(0);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-4",
+          "diagnosticId": "diagnostic-1",
+          "kind": "possible_fix",
+          "role": "possible_fix",
+          "place": "destination",
+          "spanId": "diagnostic-1-child-3-span-1",
+          "message": "consider cloning the value if the performance cost is acceptable",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_child_diagnostic",
+              "field": "message",
+              "value": "consider cloning the value if the performance cost is acceptable"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_suggestion",
+              "field": "suggested_replacement",
+              "value": ".clone()"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.values.insert(destination, RedisValue::Set(result));"
+            }
+          ],
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "diagnostic-2",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "For more information about this error, try `rustc --explain E0382`.",
+      "spans": [],
+      "children": [],
+      "rendered": "For more information about this error, try `rustc --explain E0382`.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    }
+  ]
+}
