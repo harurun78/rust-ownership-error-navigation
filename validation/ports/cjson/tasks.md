@@ -56,3 +56,26 @@
 - [x] C037 Record human intervention count.
 - [x] C038 Record use of `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and `unsafe`.
 - [x] C039 Write scalar-phase conclusion in `notes/iteration-log.md`.
+
+## Phase 7: Array And Object Parser Tests
+
+- [x] C040 Add array parser tests for empty arrays.
+- [x] C041 Add array parser tests for mixed scalar arrays.
+- [x] C042 Add array parser tests for nested arrays.
+- [x] C043 Add array parser rejection tests for trailing commas and missing closing brackets.
+- [x] C044 Add object parser tests for empty objects.
+- [x] C045 Add object parser tests for string keys and scalar values.
+- [x] C046 Add object parser tests for nested arrays and objects.
+- [x] C047 Add object parser rejection tests for missing colon, trailing comma, and non-string keys.
+
+## Phase 8: Array And Object Parser Implementation
+
+- [x] C048 Implement array parsing with `Vec<JsonValue>`.
+- [x] C049 Implement object parsing with `Vec<(String, JsonValue)>`.
+- [x] C050 Preserve recursive depth limit behavior for arrays and objects.
+- [x] C051 Preserve Phase 1 scalar parser behavior.
+- [x] C052 Save `cargo check --message-format=json` output to `reports/iteration-002/cargo-check.jsonl`.
+- [x] C053 Generate `reports/iteration-002/ownership-report.json`.
+- [x] C054 Generate `reports/iteration-002/ownership-report.html`.
+- [x] C055 Record iteration-002 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C056 Run final `cargo test` in `rust-port/`.

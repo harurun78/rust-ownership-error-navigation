@@ -49,3 +49,24 @@ A human intervention is any manual Rust design hint, code edit, or prompt instru
 - `clone` / shared mutability / `unsafe` pressure: none introduced
 - Did the ownership report change the next fix: no repair loop was needed because the first attempt compiled successfully
 - Next action: use arrays and objects as the next slice to exercise recursive construction and mutation pressure
+
+### iteration-002
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: C040-C051; C052-C056 left ready for main-agent capture if cargo cannot be run by this tool session
+- Prompt summary: Add array/object parser tests, implement recursive array and object parsing while preserving parse_scalar compatibility and scalar behavior, and add a recursion depth guard.
+- Human ownership hints before attempt: none
+- Command: `cargo check --message-format=json > ../reports/iteration-002/cargo-check.jsonl`; `cargo test` after check success
+- Result: compile success; `cargo test` success, 15 tests passed
+- Diagnostics file: `reports/iteration-002/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-002/ownership-report.json`
+- Ownership report HTML: `reports/iteration-002/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none introduced
+- Did the ownership report change the next fix: no repair loop was needed because the attempt compiled successfully
+- Next action: use mutable tree editing, detach/delete operations, or borrowed/string-reference variants to create stronger ownership pressure

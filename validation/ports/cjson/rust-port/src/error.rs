@@ -8,5 +8,6 @@ pub enum ParseError {
     InvalidEscape { pos: usize },
     InvalidUnicodeEscape { pos: usize },
     TrailingCharacters { pos: usize },
+    RecursionLimit { pos: usize },
     Unsupported { feature: &'static str, pos: usize },
 }

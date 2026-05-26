@@ -1,4 +1,4 @@
-//! Scalar-only cJSON porting validation crate.
+//! cJSON porting validation crate for scalar, array, and object values.
 
 pub mod error;
 pub mod parser;

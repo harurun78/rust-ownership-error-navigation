@@ -1,4 +1,4 @@
-use cjson_rust_port::{parse_scalar, JsonValue, ParseError};
+use cjson_rust_port::{parse_scalar, JsonValue};
 
 #[test]
 fn parses_literals() {
@@ -87,19 +87,96 @@ fn rejects_invalid_scalar_inputs() {
 }
 
 #[test]
-fn rejects_arrays_and_objects_in_phase_one() {
+fn parses_empty_arrays() {
+    assert_eq!(parse_scalar("[]"), Ok(JsonValue::Array(Vec::new())));
+    assert_eq!(parse_scalar("[ \n\t ]"), Ok(JsonValue::Array(Vec::new())));
+}
+
+#[test]
+fn parses_mixed_scalar_arrays() {
     assert_eq!(
-        parse_scalar("[]"),
-        Err(ParseError::Unsupported {
-            feature: "array",
-            pos: 0,
-        })
+        parse_scalar(r#"[null, true, false, 42, "cat"]"#),
+        Ok(JsonValue::Array(vec![
+            JsonValue::Null,
+            JsonValue::Bool(true),
+            JsonValue::Bool(false),
+            JsonValue::Number(42.0),
+            JsonValue::String(String::from("cat")),
+        ]))
     );
+}
+
+#[test]
+fn parses_nested_arrays() {
     assert_eq!(
-        parse_scalar("{}"),
-        Err(ParseError::Unsupported {
-            feature: "object",
-            pos: 0,
-        })
+        parse_scalar("[1, [2, [3]]]"),
+        Ok(JsonValue::Array(vec![
+            JsonValue::Number(1.0),
+            JsonValue::Array(vec![
+                JsonValue::Number(2.0),
+                JsonValue::Array(vec![JsonValue::Number(3.0)]),
+            ]),
+        ]))
     );
+}
+
+#[test]
+fn rejects_malformed_arrays() {
+    assert!(parse_scalar("[1,]").is_err());
+    assert!(parse_scalar("[1, 2").is_err());
+}
+
+#[test]
+fn parses_empty_objects() {
+    assert_eq!(parse_scalar("{}"), Ok(JsonValue::Object(Vec::new())));
+    assert_eq!(parse_scalar("{ \n\t }"), Ok(JsonValue::Object(Vec::new())));
+}
+
+#[test]
+fn parses_object_scalar_values() {
+    assert_eq!(
+        parse_scalar(r#"{"name":"cjson","ok":true,"count":3}"#),
+        Ok(JsonValue::Object(vec![
+            (
+                String::from("name"),
+                JsonValue::String(String::from("cjson"))
+            ),
+            (String::from("ok"), JsonValue::Bool(true)),
+            (String::from("count"), JsonValue::Number(3.0)),
+        ]))
+    );
+}
+
+#[test]
+fn parses_nested_arrays_and_objects() {
+    assert_eq!(
+        parse_scalar(r#"{"items":[{"id":1}, []], "meta":{"ready":false}}"#),
+        Ok(JsonValue::Object(vec![
+            (
+                String::from("items"),
+                JsonValue::Array(vec![
+                    JsonValue::Object(vec![(String::from("id"), JsonValue::Number(1.0))]),
+                    JsonValue::Array(Vec::new()),
+                ]),
+            ),
+            (
+                String::from("meta"),
+                JsonValue::Object(vec![(String::from("ready"), JsonValue::Bool(false))]),
+            ),
+        ]))
+    );
+}
+
+#[test]
+fn rejects_malformed_objects() {
+    assert!(parse_scalar(r#"{"key" true}"#).is_err());
+    assert!(parse_scalar(r#"{"key": true,}"#).is_err());
+    assert!(parse_scalar(r#"{key: true}"#).is_err());
+}
+
+#[test]
+fn rejects_excessive_recursion_depth() {
+    let input = format!("{}null{}", "[".repeat(130), "]".repeat(130));
+
+    assert!(parse_scalar(&input).is_err());
 }

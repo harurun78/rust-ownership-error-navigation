@@ -1,10 +1,12 @@
 use crate::error::ParseError;
 use crate::value::JsonValue;
 
+const MAX_RECURSION_DEPTH: usize = 128;
+
 pub fn parse_scalar(input: &str) -> Result<JsonValue, ParseError> {
     let mut parser = Parser::new(input);
     parser.skip_entry_whitespace();
-    let value = parser.parse_value()?;
+    let value = parser.parse_value(0)?;
     parser.skip_whitespace();
 
     if parser.is_eof() {
@@ -24,23 +26,96 @@ impl<'a> Parser<'a> {
         Self { input, pos: 0 }
     }
 
-    fn parse_value(&mut self) -> Result<JsonValue, ParseError> {
+    fn parse_value(&mut self, depth: usize) -> Result<JsonValue, ParseError> {
+        if depth > MAX_RECURSION_DEPTH {
+            return Err(ParseError::RecursionLimit { pos: self.pos });
+        }
+
         match self.peek_char() {
             Some('n') => self.parse_literal("null", JsonValue::Null),
             Some('t') => self.parse_literal("true", JsonValue::Bool(true)),
             Some('f') => self.parse_literal("false", JsonValue::Bool(false)),
             Some('"') => self.parse_string().map(JsonValue::String),
             Some('-') | Some('0'..='9') => self.parse_number().map(JsonValue::Number),
-            Some('[') => Err(ParseError::Unsupported {
-                feature: "array",
-                pos: self.pos,
-            }),
-            Some('{') => Err(ParseError::Unsupported {
-                feature: "object",
-                pos: self.pos,
-            }),
+            Some('[') => self.parse_array(depth),
+            Some('{') => self.parse_object(depth),
             Some(ch) => Err(ParseError::UnexpectedChar { ch, pos: self.pos }),
             None => Err(ParseError::UnexpectedEof),
+        }
+    }
+
+    fn parse_array(&mut self, depth: usize) -> Result<JsonValue, ParseError> {
+        self.consume_char();
+        self.skip_whitespace();
+
+        let mut values = Vec::new();
+        if self.peek_char() == Some(']') {
+            self.consume_char();
+            return Ok(JsonValue::Array(values));
+        }
+
+        loop {
+            values.push(self.parse_value(depth + 1)?);
+            self.skip_whitespace();
+
+            match self.peek_char() {
+                Some(',') => {
+                    self.consume_char();
+                    self.skip_whitespace();
+                }
+                Some(']') => {
+                    self.consume_char();
+                    return Ok(JsonValue::Array(values));
+                }
+                Some(ch) => return Err(ParseError::UnexpectedChar { ch, pos: self.pos }),
+                None => return Err(ParseError::UnexpectedEof),
+            }
+        }
+    }
+
+    fn parse_object(&mut self, depth: usize) -> Result<JsonValue, ParseError> {
+        self.consume_char();
+        self.skip_whitespace();
+
+        let mut entries = Vec::new();
+        if self.peek_char() == Some('}') {
+            self.consume_char();
+            return Ok(JsonValue::Object(entries));
+        }
+
+        loop {
+            let key = match self.peek_char() {
+                Some('"') => self.parse_string()?,
+                Some(ch) => return Err(ParseError::UnexpectedChar { ch, pos: self.pos }),
+                None => return Err(ParseError::UnexpectedEof),
+            };
+
+            self.skip_whitespace();
+            match self.peek_char() {
+                Some(':') => {
+                    self.consume_char();
+                    self.skip_whitespace();
+                }
+                Some(ch) => return Err(ParseError::UnexpectedChar { ch, pos: self.pos }),
+                None => return Err(ParseError::UnexpectedEof),
+            }
+
+            let value = self.parse_value(depth + 1)?;
+            entries.push((key, value));
+            self.skip_whitespace();
+
+            match self.peek_char() {
+                Some(',') => {
+                    self.consume_char();
+                    self.skip_whitespace();
+                }
+                Some('}') => {
+                    self.consume_char();
+                    return Ok(JsonValue::Object(entries));
+                }
+                Some(ch) => return Err(ParseError::UnexpectedChar { ch, pos: self.pos }),
+                None => return Err(ParseError::UnexpectedEof),
+            }
         }
     }
 

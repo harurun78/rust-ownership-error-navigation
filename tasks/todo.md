@@ -82,3 +82,10 @@
 - 追加: `validation/ports/cjson/rust-port/` に Rust library crate、owned `JsonValue`、`ParseError`、scalar parser、7件の parser tests を追加。
 - 保存: `reports/iteration-001/cargo-check.jsonl` を自作ナビゲーションツールへ入力し、`ownership-report.json` / `ownership-report.html` を保存。
 - 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 7 tests passed。所有権エラー修正ループは Phase 1 では発生せず。
+
+## 2026-05-26 cJSON low-cost iteration-002
+
+- 対応: `GPT-5 mini (copilot)` で cJSON array/object parser slice を実装。
+- 追加: empty/mixed/nested arrays、empty/scalar/nested objects、malformed containers、recursion depth guard tests を追加。
+- 保存: `reports/iteration-002/cargo-check.jsonl` を自作ナビゲーションツールへ入力し、`ownership-report.json` / `ownership-report.html` を保存。
+- 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 15 tests passed。owned `Vec` model ではまだ所有権エラー修正ループは発生せず。
