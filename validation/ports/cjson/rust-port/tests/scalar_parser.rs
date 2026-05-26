@@ -427,3 +427,130 @@ fn round_trips_parsed_values_through_compact_printing() {
         assert_eq!(parse_scalar(&printed), Ok(parsed));
     }
 }
+
+#[test]
+fn reports_value_type_predicates() {
+    let values = [
+        JsonValue::Null,
+        JsonValue::Bool(true),
+        JsonValue::Number(1.0),
+        JsonValue::String(String::from("text")),
+        JsonValue::Array(Vec::new()),
+        JsonValue::Object(Vec::new()),
+    ];
+
+    assert!(values[0].is_null());
+    assert!(values[1].is_bool());
+    assert!(values[2].is_number());
+    assert!(values[3].is_string());
+    assert!(values[4].is_array());
+    assert!(values[5].is_object());
+
+    assert!(!values[0].is_bool());
+    assert!(!values[1].is_number());
+    assert!(!values[2].is_string());
+    assert!(!values[3].is_array());
+    assert!(!values[4].is_object());
+    assert!(!values[5].is_null());
+}
+
+#[test]
+fn returns_typed_accessors_for_matching_values() {
+    let value = parse_scalar(r#"{"flag":true,"count":3,"name":"cjson","items":[null]}"#).unwrap();
+    let object = value.as_object().unwrap();
+
+    assert_eq!(object.len(), 4);
+    assert_eq!(
+        value.object_member("flag").and_then(JsonValue::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        value.object_member("count").and_then(JsonValue::as_number),
+        Some(3.0)
+    );
+    assert_eq!(
+        value.object_member("name").and_then(JsonValue::as_str),
+        Some("cjson")
+    );
+    assert_eq!(
+        value
+            .object_member("items")
+            .and_then(JsonValue::as_array)
+            .and_then(|items| items.first()),
+        Some(&JsonValue::Null)
+    );
+}
+
+#[test]
+fn returns_none_for_wrong_type_accessors() {
+    let value = JsonValue::String(String::from("not a bool"));
+
+    assert_eq!(value.as_bool(), None);
+    assert_eq!(value.as_number(), None);
+    assert_eq!(value.as_array(), None);
+    assert_eq!(value.as_object(), None);
+    assert_eq!(JsonValue::Bool(false).as_str(), None);
+}
+
+#[test]
+fn finds_object_members_and_array_items() {
+    let value = parse_scalar(r#"{"items":["first","second"],"enabled":false}"#).unwrap();
+
+    assert_eq!(
+        value
+            .object_member("items")
+            .and_then(|items| items.array_item(1)),
+        Some(&JsonValue::String(String::from("second")))
+    );
+    assert_eq!(
+        value.object_member("enabled"),
+        Some(&JsonValue::Bool(false))
+    );
+}
+
+#[test]
+fn reports_missing_members_indexes_and_non_containers() {
+    let value = parse_scalar(r#"{"items":[null]}"#).unwrap();
+
+    assert_eq!(value.object_member("missing"), None);
+    assert_eq!(
+        value
+            .object_member("items")
+            .and_then(|items| items.array_item(5)),
+        None
+    );
+    assert_eq!(JsonValue::Null.object_member("anything"), None);
+    assert_eq!(JsonValue::Null.array_item(0), None);
+}
+
+#[test]
+fn mutates_values_through_typed_accessors() {
+    let mut value = parse_scalar(r#"{"items":[false],"name":"cjson"}"#).unwrap();
+
+    if let Some(name) = value
+        .object_member_mut("name")
+        .and_then(JsonValue::as_string_mut)
+    {
+        name.push_str("-rust");
+    }
+
+    if let Some(flag) = value
+        .object_member_mut("items")
+        .and_then(|items| items.array_item_mut(0))
+        .and_then(JsonValue::as_bool_mut)
+    {
+        *flag = true;
+    }
+
+    if let Some(items) = value
+        .object_member_mut("items")
+        .and_then(JsonValue::as_array_mut)
+    {
+        items.push(JsonValue::Number(2.0));
+    }
+
+    assert_eq!(
+        value,
+        parse_scalar(r#"{"items":[true,2],"name":"cjson-rust"}"#).unwrap()
+    );
+}

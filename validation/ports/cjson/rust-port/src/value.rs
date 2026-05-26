@@ -21,6 +21,134 @@ pub enum JsonEditError {
 }
 
 impl JsonValue {
+    pub fn is_null(&self) -> bool {
+        matches!(self, JsonValue::Null)
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, JsonValue::Bool(_))
+    }
+
+    pub fn is_number(&self) -> bool {
+        matches!(self, JsonValue::Number(_))
+    }
+
+    pub fn is_string(&self) -> bool {
+        matches!(self, JsonValue::String(_))
+    }
+
+    pub fn is_array(&self) -> bool {
+        matches!(self, JsonValue::Array(_))
+    }
+
+    pub fn is_object(&self) -> bool {
+        matches!(self, JsonValue::Object(_))
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            JsonValue::Bool(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool_mut(&mut self) -> Option<&mut bool> {
+        match self {
+            JsonValue::Bool(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_number(&self) -> Option<f64> {
+        match self {
+            JsonValue::Number(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn as_number_mut(&mut self) -> Option<&mut f64> {
+        match self {
+            JsonValue::Number(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            JsonValue::String(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_string_mut(&mut self) -> Option<&mut String> {
+        match self {
+            JsonValue::String(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&[JsonValue]> {
+        match self {
+            JsonValue::Array(values) => Some(values),
+            _ => None,
+        }
+    }
+
+    pub fn as_array_mut(&mut self) -> Option<&mut Vec<JsonValue>> {
+        match self {
+            JsonValue::Array(values) => Some(values),
+            _ => None,
+        }
+    }
+
+    pub fn as_object(&self) -> Option<&[(String, JsonValue)]> {
+        match self {
+            JsonValue::Object(entries) => Some(entries),
+            _ => None,
+        }
+    }
+
+    pub fn as_object_mut(&mut self) -> Option<&mut Vec<(String, JsonValue)>> {
+        match self {
+            JsonValue::Object(entries) => Some(entries),
+            _ => None,
+        }
+    }
+
+    pub fn array_item(&self, index: usize) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Array(values) => values.get(index),
+            _ => None,
+        }
+    }
+
+    pub fn array_item_mut(&mut self, index: usize) -> Option<&mut JsonValue> {
+        match self {
+            JsonValue::Array(values) => values.get_mut(index),
+            _ => None,
+        }
+    }
+
+    pub fn object_member(&self, key: &str) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Object(entries) => entries
+                .iter()
+                .find(|(entry_key, _)| entry_key == key)
+                .map(|(_, value)| value),
+            _ => None,
+        }
+    }
+
+    pub fn object_member_mut(&mut self, key: &str) -> Option<&mut JsonValue> {
+        match self {
+            JsonValue::Object(entries) => entries
+                .iter_mut()
+                .find(|(entry_key, _)| entry_key == key)
+                .map(|(_, value)| value),
+            _ => None,
+        }
+    }
+
     pub fn to_compact_string(&self) -> String {
         let mut output = String::new();
         self.write_compact(&mut output);

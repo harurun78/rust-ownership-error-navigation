@@ -128,14 +128,14 @@
 
 ## Phase 12: Typed Accessors And Predicates
 
-- [ ] C094 Add tests for type predicates such as null, bool, number, string, array, and object.
-- [ ] C095 Add tests for typed value accessors.
-- [ ] C096 Add tests for object member and array item accessor helpers.
-- [ ] C097 Implement type predicates for `JsonValue`.
-- [ ] C098 Implement typed accessors for scalar and container values.
-- [ ] C099 Implement object member and array item accessor helpers.
-- [ ] C100 Save `cargo check --message-format=json` output to `reports/iteration-006/cargo-check.jsonl`.
-- [ ] C101 Generate `reports/iteration-006/ownership-report.json`.
-- [ ] C102 Generate `reports/iteration-006/ownership-report.html`.
-- [ ] C103 Record iteration-006 results and diagnostic counts in `notes/iteration-log.md`.
-- [ ] C104 Run final `cargo test` in `rust-port/`.
+- [x] C094 Add tests for type predicates such as null, bool, number, string, array, and object.
+- [x] C095 Add tests for typed value accessors.
+- [x] C096 Add tests for object member and array item accessor helpers.
+- [x] C097 Implement type predicates for `JsonValue`.
+- [x] C098 Implement typed accessors for scalar and container values.
+- [x] C099 Implement object member and array item accessor helpers.
+- [x] C100 Save `cargo check --message-format=json` output to `reports/iteration-006/cargo-check.jsonl`.
+- [x] C101 Generate `reports/iteration-006/ownership-report.json`.
+- [x] C102 Generate `reports/iteration-006/ownership-report.html`.
+- [x] C103 Record iteration-006 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C104 Run final `cargo test` in `rust-port/`.
