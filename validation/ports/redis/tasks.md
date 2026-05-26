@@ -111,3 +111,17 @@
 - [x] R077 Generate `reports/iteration-009/ownership-report.html`.
 - [x] R078 Record iteration-009 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] R079 Run final `cargo test` in `rust-port/`.
+
+## Phase 12: Minimal Hash Commands
+
+- [x] R080 Add tests for `HSET`, `HGET`, and `HDEL` on missing and existing hash keys.
+- [x] R081 Add tests for `HGETALL` RESP array replies and binary-safe field/value pairs.
+- [x] R082 Add tests for wrong-type errors between hashes, strings, and lists.
+- [x] R083 Refactor the DB value model to support hash values without regressing strings or lists.
+- [x] R084 Implement minimal `HSET`, `HGET`, `HDEL`, and `HGETALL` behavior.
+- [x] R085 Preserve existing string, integer, list, parser, and reply encoding behavior.
+- [x] R086 Save `cargo check --message-format=json` output to `reports/iteration-010/cargo-check.jsonl`.
+- [x] R087 Generate `reports/iteration-010/ownership-report.json`.
+- [x] R088 Generate `reports/iteration-010/ownership-report.html`.
+- [x] R089 Record iteration-010 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] R090 Run final `cargo test` in `rust-port/`.

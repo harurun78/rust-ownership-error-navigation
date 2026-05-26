@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::Command;
 
@@ -29,6 +29,7 @@ impl RespReply {
 enum RedisValue {
     String(Vec<u8>),
     List(Vec<Vec<u8>>),
+    Hash(BTreeMap<Vec<u8>, Vec<u8>>),
 }
 
 #[derive(Debug, Default)]
@@ -77,6 +78,14 @@ impl RedisMiniDb {
             self.execute_pop(args, ListSide::Right)
         } else if command_name.eq_ignore_ascii_case(b"LRANGE") {
             self.execute_lrange(args)
+        } else if command_name.eq_ignore_ascii_case(b"HSET") {
+            self.execute_hset(args)
+        } else if command_name.eq_ignore_ascii_case(b"HGET") {
+            self.execute_hget(args)
+        } else if command_name.eq_ignore_ascii_case(b"HDEL") {
+            self.execute_hdel(args)
+        } else if command_name.eq_ignore_ascii_case(b"HGETALL") {
+            self.execute_hgetall(args)
         } else {
             RespReply::Error(format!(
                 "ERR unknown command '{}'",
@@ -104,7 +113,10 @@ impl RedisMiniDb {
         let mut args = args;
         let key = args.remove(0);
         let value = args.remove(0);
-        if matches!(self.values.get(&key), Some(RedisValue::List(_))) {
+        if matches!(
+            self.values.get(&key),
+            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_))
+        ) {
             return wrong_type();
         }
 
@@ -119,7 +131,7 @@ impl RedisMiniDb {
 
         match self.values.get(&args[0]) {
             Some(RedisValue::String(value)) => RespReply::BulkString(value.to_vec()),
-            Some(RedisValue::List(_)) => wrong_type(),
+            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
             None => RespReply::NullBulkString,
         }
     }
@@ -183,7 +195,7 @@ impl RedisMiniDb {
                 Some(value) => value,
                 None => return integer_error(),
             },
-            Some(RedisValue::List(_)) => return wrong_type(),
+            Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => return wrong_type(),
             None => 0,
         };
 
@@ -210,7 +222,7 @@ impl RedisMiniDb {
             .or_insert_with(|| RedisValue::List(Vec::new()));
 
         match entry {
-            RedisValue::String(_) => wrong_type(),
+            RedisValue::String(_) | RedisValue::Hash(_) => wrong_type(),
             RedisValue::List(list) => {
                 for value in args {
                     match side {
@@ -229,7 +241,7 @@ impl RedisMiniDb {
         }
 
         match self.values.get_mut(&args[0]) {
-            Some(RedisValue::String(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match side {
                 ListSide::Left => {
                     if list.is_empty() {
@@ -262,7 +274,7 @@ impl RedisMiniDb {
         };
 
         match self.values.get(&args[0]) {
-            Some(RedisValue::String(_)) => wrong_type(),
+            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match normalize_range(list.len(), start, stop) {
                 Some((start, stop)) => RespReply::Array(
                     list[start..=stop]
@@ -272,6 +284,98 @@ impl RedisMiniDb {
                 ),
                 None => RespReply::Array(Vec::new()),
             },
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_hset(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 3 || args.len() % 2 == 0 {
+            return wrong_arity("hset");
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        let entry = self
+            .values
+            .entry(key)
+            .or_insert_with(|| RedisValue::Hash(BTreeMap::new()));
+
+        match entry {
+            RedisValue::String(_) | RedisValue::List(_) => wrong_type(),
+            RedisValue::Hash(hash) => {
+                let mut added = 0i64;
+                while !args.is_empty() {
+                    let field = args.remove(0);
+                    let value = args.remove(0);
+                    if !hash.contains_key(&field) {
+                        added += 1;
+                    }
+                    hash.insert(field, value);
+                }
+                RespReply::Integer(added)
+            }
+        }
+    }
+
+    fn execute_hget(&self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("hget");
+        }
+
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => match hash.get(&args[1]) {
+                Some(value) => RespReply::BulkString(value.to_vec()),
+                None => RespReply::NullBulkString,
+            },
+            None => RespReply::NullBulkString,
+        }
+    }
+
+    fn execute_hdel(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("hdel");
+        }
+
+        let key = &args[0];
+        let mut remove_key = false;
+        let removed = match self.values.get_mut(key) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => return wrong_type(),
+            Some(RedisValue::Hash(hash)) => {
+                let mut removed = 0i64;
+                for field in &args[1..] {
+                    if hash.remove(field).is_some() {
+                        removed += 1;
+                    }
+                }
+                remove_key = hash.is_empty();
+                removed
+            }
+            None => 0,
+        };
+
+        if remove_key {
+            self.values.remove(key);
+        }
+
+        RespReply::Integer(removed)
+    }
+
+    fn execute_hgetall(&self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("hgetall");
+        }
+
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => {
+                let mut values = Vec::with_capacity(hash.len() * 2);
+                for (field, value) in hash {
+                    values.push(RespReply::BulkString(field.to_vec()));
+                    values.push(RespReply::BulkString(value.to_vec()));
+                }
+                RespReply::Array(values)
+            }
             None => RespReply::Array(Vec::new()),
         }
     }

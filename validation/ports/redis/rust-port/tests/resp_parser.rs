@@ -342,6 +342,80 @@ fn executes_lrange_with_positive_and_negative_indexes() {
 }
 
 #[test]
+fn executes_hset_hget_and_hdel_on_missing_and_existing_hashes() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"missing", b"field"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"hash", b"field"]),
+        RespReply::BulkString(b"value".to_vec())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"HSET", b"hash", b"field", b"new", b"other", b"value2"]
+        ),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"hash", b"field"]),
+        RespReply::BulkString(b"new".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HDEL", b"hash", b"missing", b"other"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"hash", b"other"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn executes_hgetall_with_binary_safe_fields_and_values() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"HGETALL", b"missing"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"HSET",
+                b"hash",
+                b"field\0two",
+                b"value\0two",
+                b"field one",
+                b"value one",
+            ]
+        ),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"hash", b"field\0two"]),
+        RespReply::BulkString(b"value\0two".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGETALL", b"hash"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"field\0two".to_vec()),
+            RespReply::BulkString(b"value\0two".to_vec()),
+            RespReply::BulkString(b"field one".to_vec()),
+            RespReply::BulkString(b"value one".to_vec()),
+        ])
+    );
+}
+
+#[test]
 fn rejects_wrong_type_access_between_strings_and_lists() {
     let mut db = RedisMiniDb::new();
     let wrong_type = RespReply::Error(
@@ -367,6 +441,54 @@ fn rejects_wrong_type_access_between_strings_and_lists() {
     assert_eq!(execute(&mut db, &[b"GET", b"list"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"INCR", b"list"]), wrong_type);
     assert_eq!(execute(&mut db, &[b"SET", b"list", b"value"]), wrong_type);
+}
+
+#[test]
+fn rejects_wrong_type_access_between_hashes_strings_and_lists() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"HGET", b"string", b"f"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"string", b"f", b"v"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"HDEL", b"string", b"f"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HGETALL", b"string"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"HGET", b"list", b"f"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"list", b"f", b"v"]),
+        wrong_type
+    );
+    assert_eq!(execute(&mut db, &[b"HDEL", b"list", b"f"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"HGETALL", b"list"]), wrong_type);
+
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"f", b"v"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"GET", b"hash"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SET", b"hash", b"value"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"INCR", b"hash"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"LPUSH", b"hash", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"RPUSH", b"hash", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"LPOP", b"hash"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"RPOP", b"hash"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"hash", b"0", b"-1"]),
+        wrong_type
+    );
 }
 
 #[test]
