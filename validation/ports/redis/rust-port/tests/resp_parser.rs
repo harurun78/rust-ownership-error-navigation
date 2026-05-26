@@ -416,6 +416,176 @@ fn executes_hgetall_with_binary_safe_fields_and_values() {
 }
 
 #[test]
+fn executes_expire_ttl_and_persist() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"TTL", b"missing"]),
+        RespReply::Integer(-2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"missing", b"10"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"PERSIST", b"missing"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"key"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"key", b"10"]),
+        RespReply::Integer(1)
+    );
+    match execute(&mut db, &[b"TTL", b"key"]) {
+        RespReply::Integer(ttl) => assert!((0..=10).contains(&ttl)),
+        reply => panic!("expected integer ttl, got {reply:?}"),
+    }
+    assert_eq!(
+        execute(&mut db, &[b"PERSIST", b"key"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"key"]), RespReply::Integer(-1));
+    assert_eq!(
+        execute(&mut db, &[b"PERSIST", b"key"]),
+        RespReply::Integer(0)
+    );
+}
+
+#[test]
+fn immediate_expiration_removes_string_list_and_hash_values() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"string", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"string"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TTL", b"string"]),
+        RespReply::Integer(-2)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"list", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"list", b"0", b"-1"]),
+        RespReply::Array(Vec::new())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"hash", b"-1"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HGET", b"hash", b"field"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn writes_clear_existing_expiration() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"1"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"string", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCR", b"string"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TTL", b"string"]),
+        RespReply::Integer(-1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"string", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"new"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TTL", b"string"]),
+        RespReply::Integer(-1)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"list", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPUSH", b"list", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"list"]), RespReply::Integer(-1));
+
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"hash", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"new"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"hash"]), RespReply::Integer(-1));
+}
+
+#[test]
+fn del_clears_expiration_metadata() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"key", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"key", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"DEL", b"key"]), RespReply::Integer(1));
+    assert_eq!(
+        execute(&mut db, &[b"PERSIST", b"key"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(execute(&mut db, &[b"TTL", b"key"]), RespReply::Integer(-2));
+}
+
+#[test]
 fn rejects_wrong_type_access_between_strings_and_lists() {
     let mut db = RedisMiniDb::new();
     let wrong_type = RespReply::Error(

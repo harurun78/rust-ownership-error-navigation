@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::time::{Duration, Instant};
 
 use crate::Command;
 
@@ -35,6 +36,7 @@ enum RedisValue {
 #[derive(Debug, Default)]
 pub struct RedisMiniDb {
     values: HashMap<Vec<u8>, RedisValue>,
+    expires_at: HashMap<Vec<u8>, Instant>,
 }
 
 impl RedisMiniDb {
@@ -62,6 +64,12 @@ impl RedisMiniDb {
             self.execute_del(args)
         } else if command_name.eq_ignore_ascii_case(b"EXISTS") {
             self.execute_exists(args)
+        } else if command_name.eq_ignore_ascii_case(b"EXPIRE") {
+            self.execute_expire(args)
+        } else if command_name.eq_ignore_ascii_case(b"TTL") {
+            self.execute_ttl(args)
+        } else if command_name.eq_ignore_ascii_case(b"PERSIST") {
+            self.execute_persist(args)
         } else if command_name.eq_ignore_ascii_case(b"INCR") {
             self.execute_incr_by(args, 1, "incr")
         } else if command_name.eq_ignore_ascii_case(b"DECR") {
@@ -113,6 +121,7 @@ impl RedisMiniDb {
         let mut args = args;
         let key = args.remove(0);
         let value = args.remove(0);
+        self.remove_if_expired(&key);
         if matches!(
             self.values.get(&key),
             Some(RedisValue::List(_)) | Some(RedisValue::Hash(_))
@@ -120,15 +129,17 @@ impl RedisMiniDb {
             return wrong_type();
         }
 
+        self.expires_at.remove(&key);
         self.values.insert(key, RedisValue::String(value));
         RespReply::SimpleString("OK")
     }
 
-    fn execute_get(&self, args: Vec<Vec<u8>>) -> RespReply {
+    fn execute_get(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.len() != 1 {
             return wrong_arity("get");
         }
 
+        self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
             Some(RedisValue::String(value)) => RespReply::BulkString(value.to_vec()),
             Some(RedisValue::List(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
@@ -143,25 +154,95 @@ impl RedisMiniDb {
 
         let mut deleted = 0i64;
         for key in args {
+            self.remove_if_expired(&key);
             if self.values.remove(&key).is_some() {
                 deleted += 1;
             }
+            self.expires_at.remove(&key);
         }
         RespReply::Integer(deleted)
     }
 
-    fn execute_exists(&self, args: Vec<Vec<u8>>) -> RespReply {
+    fn execute_exists(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.is_empty() {
             return wrong_arity("exists");
         }
 
         let mut count = 0i64;
         for key in args {
+            self.remove_if_expired(&key);
             if self.values.contains_key(&key) {
                 count += 1;
             }
         }
         RespReply::Integer(count)
+    }
+
+    fn execute_expire(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 {
+            return wrong_arity("expire");
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        self.remove_if_expired(&key);
+        if !self.values.contains_key(&key) {
+            return RespReply::Integer(0);
+        }
+
+        let seconds = match parse_integer(&args[0]) {
+            Some(seconds) => seconds,
+            None => return integer_error(),
+        };
+        if seconds <= 0 {
+            self.values.remove(&key);
+            self.expires_at.remove(&key);
+            return RespReply::Integer(1);
+        }
+
+        match Instant::now().checked_add(Duration::from_secs(seconds as u64)) {
+            Some(deadline) => {
+                self.expires_at.insert(key, deadline);
+                RespReply::Integer(1)
+            }
+            None => RespReply::Error("ERR invalid expire time".to_string()),
+        }
+    }
+
+    fn execute_ttl(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("ttl");
+        }
+
+        self.remove_if_expired(&args[0]);
+        if !self.values.contains_key(&args[0]) {
+            return RespReply::Integer(-2);
+        }
+
+        match self.expires_at.get(&args[0]) {
+            Some(deadline) => {
+                let ttl = deadline.saturating_duration_since(Instant::now()).as_secs() as i64;
+                RespReply::Integer(ttl)
+            }
+            None => RespReply::Integer(-1),
+        }
+    }
+
+    fn execute_persist(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("persist");
+        }
+
+        self.remove_if_expired(&args[0]);
+        if !self.values.contains_key(&args[0]) {
+            return RespReply::Integer(0);
+        }
+
+        if self.expires_at.remove(&args[0]).is_some() {
+            RespReply::Integer(1)
+        } else {
+            RespReply::Integer(0)
+        }
     }
 
     fn execute_incrby(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -190,6 +271,7 @@ impl RedisMiniDb {
     }
 
     fn increment_key(&mut self, key: Vec<u8>, delta: i64) -> RespReply {
+        self.remove_if_expired(&key);
         let current = match self.values.get(&key) {
             Some(RedisValue::String(value)) => match parse_integer(value) {
                 Some(value) => value,
@@ -201,6 +283,7 @@ impl RedisMiniDb {
 
         match current.checked_add(delta) {
             Some(next) => {
+                self.expires_at.remove(&key);
                 self.values
                     .insert(key, RedisValue::String(next.to_string().into_bytes()));
                 RespReply::Integer(next)
@@ -216,21 +299,30 @@ impl RedisMiniDb {
 
         let mut args = args;
         let key = args.remove(0);
-        let entry = self
-            .values
-            .entry(key)
-            .or_insert_with(|| RedisValue::List(Vec::new()));
-
-        match entry {
-            RedisValue::String(_) | RedisValue::Hash(_) => wrong_type(),
-            RedisValue::List(list) => {
+        self.remove_if_expired(&key);
+        match self.values.get_mut(&key) {
+            Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
+            Some(RedisValue::List(list)) => {
                 for value in args {
                     match side {
                         ListSide::Left => list.insert(0, value),
                         ListSide::Right => list.push(value),
                     }
                 }
+                self.expires_at.remove(&key);
                 RespReply::Integer(list.len() as i64)
+            }
+            None => {
+                let mut list = Vec::new();
+                for value in args {
+                    match side {
+                        ListSide::Left => list.insert(0, value),
+                        ListSide::Right => list.push(value),
+                    }
+                }
+                let len = list.len() as i64;
+                self.values.insert(key, RedisValue::List(list));
+                RespReply::Integer(len)
             }
         }
     }
@@ -240,6 +332,7 @@ impl RedisMiniDb {
             return wrong_arity(side.pop_command_name());
         }
 
+        self.remove_if_expired(&args[0]);
         match self.values.get_mut(&args[0]) {
             Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match side {
@@ -259,7 +352,7 @@ impl RedisMiniDb {
         }
     }
 
-    fn execute_lrange(&self, args: Vec<Vec<u8>>) -> RespReply {
+    fn execute_lrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.len() != 3 {
             return wrong_arity("lrange");
         }
@@ -273,6 +366,7 @@ impl RedisMiniDb {
             None => return integer_error(),
         };
 
+        self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
             Some(RedisValue::String(_)) | Some(RedisValue::Hash(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match normalize_range(list.len(), start, stop) {
@@ -295,14 +389,10 @@ impl RedisMiniDb {
 
         let mut args = args;
         let key = args.remove(0);
-        let entry = self
-            .values
-            .entry(key)
-            .or_insert_with(|| RedisValue::Hash(BTreeMap::new()));
-
-        match entry {
-            RedisValue::String(_) | RedisValue::List(_) => wrong_type(),
-            RedisValue::Hash(hash) => {
+        self.remove_if_expired(&key);
+        match self.values.get_mut(&key) {
+            Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
+            Some(RedisValue::Hash(hash)) => {
                 let mut added = 0i64;
                 while !args.is_empty() {
                     let field = args.remove(0);
@@ -312,16 +402,32 @@ impl RedisMiniDb {
                     }
                     hash.insert(field, value);
                 }
+                self.expires_at.remove(&key);
+                RespReply::Integer(added)
+            }
+            None => {
+                let mut hash = BTreeMap::new();
+                let mut added = 0i64;
+                while !args.is_empty() {
+                    let field = args.remove(0);
+                    let value = args.remove(0);
+                    if !hash.contains_key(&field) {
+                        added += 1;
+                    }
+                    hash.insert(field, value);
+                }
+                self.values.insert(key, RedisValue::Hash(hash));
                 RespReply::Integer(added)
             }
         }
     }
 
-    fn execute_hget(&self, args: Vec<Vec<u8>>) -> RespReply {
+    fn execute_hget(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.len() != 2 {
             return wrong_arity("hget");
         }
 
+        self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
             Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => match hash.get(&args[1]) {
@@ -338,6 +444,7 @@ impl RedisMiniDb {
         }
 
         let key = &args[0];
+        self.remove_if_expired(key);
         let mut remove_key = false;
         let removed = match self.values.get_mut(key) {
             Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => return wrong_type(),
@@ -356,16 +463,18 @@ impl RedisMiniDb {
 
         if remove_key {
             self.values.remove(key);
+            self.expires_at.remove(key);
         }
 
         RespReply::Integer(removed)
     }
 
-    fn execute_hgetall(&self, args: Vec<Vec<u8>>) -> RespReply {
+    fn execute_hgetall(&mut self, args: Vec<Vec<u8>>) -> RespReply {
         if args.len() != 1 {
             return wrong_arity("hgetall");
         }
 
+        self.remove_if_expired(&args[0]);
         match self.values.get(&args[0]) {
             Some(RedisValue::String(_)) | Some(RedisValue::List(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => {
@@ -377,6 +486,17 @@ impl RedisMiniDb {
                 RespReply::Array(values)
             }
             None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn remove_if_expired(&mut self, key: &[u8]) {
+        if self
+            .expires_at
+            .get(key)
+            .is_some_and(|deadline| *deadline <= Instant::now())
+        {
+            self.values.remove(key);
+            self.expires_at.remove(key);
         }
     }
 }

@@ -125,3 +125,17 @@
 - [x] R088 Generate `reports/iteration-010/ownership-report.html`.
 - [x] R089 Record iteration-010 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] R090 Run final `cargo test` in `rust-port/`.
+
+## Phase 13: Minimal Expiration Commands
+
+- [x] R091 Add tests for `EXPIRE`, `TTL`, and `PERSIST` on missing and existing keys.
+- [x] R092 Add tests for immediate expiration (`EXPIRE key 0`) removing string, list, and hash values.
+- [x] R093 Add tests that writes clear any existing expiration for the key.
+- [x] R094 Add tests that `DEL` also removes expiration metadata.
+- [x] R095 Add expiration metadata to the DB without regressing value typing.
+- [x] R096 Implement minimal `EXPIRE`, `TTL`, and `PERSIST` behavior with lazy expiration checks.
+- [x] R097 Preserve existing string, integer, list, hash, parser, and reply encoding behavior.
+- [x] R098 Save `cargo check --message-format=json` output to `reports/iteration-011/cargo-check.jsonl`.
+- [x] R099 Generate `reports/iteration-011/ownership-report.json`.
+- [x] R100 Generate `reports/iteration-011/ownership-report.html`.
+- [x] R101 Record iteration-011 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.

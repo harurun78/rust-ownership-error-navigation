@@ -235,6 +235,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: if validation continues, consider hash command arity coverage or additional Redis-compatible hash edge cases.
 
+### iteration-011
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R091-R101 minimal expiration commands, expiration metadata, diagnostic capture, ownership reports, and ledger updates.
+- Prompt summary: Add expiration metadata to the minimal Redis DB without regressing strings, integers, lists, hashes, parser behavior, or RESP replies; implement `EXPIRE`, `TTL`, and `PERSIST`; add lazy expiration checks; clear expiration metadata on successful writes and `DEL`; add tests for immediate expiration across value types and metadata clearing; capture cargo diagnostics, generate ownership reports, and update notes/tasks without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-011/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-011/cargo-check.jsonl --json-out ../reports/iteration-011/ownership-report.json --html-out ../reports/iteration-011/ownership-report.html`
+- Result: compile success; test success, 45 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-011/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-011/ownership-report.json`
+- Ownership report HTML: `reports/iteration-011/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or `unsafe` introduced. Retained DB bytes are copied only for RESP replies that must leave stored values intact.
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: if validation continues, consider Redis-compatible expiration edge cases such as millisecond precision, clock injection for deterministic TTL tests, or command options beyond this minimal slice.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.
