@@ -70,3 +70,45 @@ A human intervention is any manual Rust design hint, code edit, or prompt instru
 - `clone` / shared mutability / `unsafe` pressure: none introduced
 - Did the ownership report change the next fix: no repair loop was needed because the attempt compiled successfully
 - Next action: use mutable tree editing, detach/delete operations, or borrowed/string-reference variants to create stronger ownership pressure
+
+### iteration-003
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: C057-C069 implemented and captured
+- Prompt summary: Add mutable JsonValue helper APIs for array append, object insert/replace, array detach by index, and object detach by key, with tests for success and non-container/missing item behavior.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt`; `cargo check --message-format=json > ../reports/iteration-003/cargo-check.jsonl`; `cargo test`
+- Result: compile success; `cargo test` success, 23 tests passed
+- Diagnostics file: `reports/iteration-003/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-003/ownership-report.json`
+- Ownership report HTML: `reports/iteration-003/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none introduced
+- Did the ownership report change the next fix: no repair loop was needed because the attempt compiled successfully
+- Next action: continue with path-based lookup and mutation tasks
+
+### iteration-004
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: C070-C082 implemented and captured
+- Prompt summary: Add path segment model, immutable nested lookup, mutable nested lookup, nested replacement returning the old owned value, and tests for found, missing, mutable, replacement, and non-container paths.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt`; `cargo check --message-format=json > ../reports/iteration-004/cargo-check.jsonl`; `cargo test`; `node dist/cli/main.js --input validation/ports/cjson/reports/iteration-004/cargo-check.jsonl --json-out validation/ports/cjson/reports/iteration-004/ownership-report.json --html-out validation/ports/cjson/reports/iteration-004/ownership-report.html`
+- Result: compile success; `cargo test` success, 28 tests passed
+- Diagnostics file: `reports/iteration-004/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-004/ownership-report.json`
+- Ownership report HTML: `reports/iteration-004/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no broad clone shortcuts, shared mutability, or unsafe; `JsonPathSegment` derives `Clone`/`Copy` only because borrowed path segments are trivially copyable
+- Did the ownership report change the next fix: no repair loop was needed because the attempt compiled successfully
+- Next action: continue to the next validation slice or close out cjson path mutation evaluation

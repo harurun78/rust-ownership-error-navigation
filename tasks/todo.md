@@ -89,3 +89,10 @@
 - 追加: empty/mixed/nested arrays、empty/scalar/nested objects、malformed containers、recursion depth guard tests を追加。
 - 保存: `reports/iteration-002/cargo-check.jsonl` を自作ナビゲーションツールへ入力し、`ownership-report.json` / `ownership-report.html` を保存。
 - 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 15 tests passed。owned `Vec` model ではまだ所有権エラー修正ループは発生せず。
+
+## 2026-05-26 cJSON low-cost iteration-003/004
+
+- iteration-003: mutable tree editing / detach operations を `GPT-5 mini (copilot)` で実装。`cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 23 tests passed。
+- iteration-004: path-based immutable/mutable lookup と nested replacement を `GPT-5 mini (copilot)` で実装。`cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 28 tests passed。
+- 保存: `reports/iteration-003/` と `reports/iteration-004/` に cargo JSONL、ownership JSON/HTML、notes を保存。
+- 所見: `unsafe` / shared mutability / broad clone は不要。現状の owned tree model では軽量モデルが所有権エラーなしで進められているため、次にツール効用を強く見るなら borrowed/reference variants や cJSON-like linked node model が候補。

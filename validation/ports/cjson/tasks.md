@@ -79,3 +79,35 @@
 - [x] C054 Generate `reports/iteration-002/ownership-report.html`.
 - [x] C055 Record iteration-002 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] C056 Run final `cargo test` in `rust-port/`.
+
+## Phase 9: Mutable Tree Editing And Detach Operations
+
+- [x] C057 Add tests for appending values to arrays.
+- [x] C058 Add tests for inserting and replacing object members.
+- [x] C059 Add tests for detaching array items by index and returning owned values.
+- [x] C060 Add tests for detaching object members by key and returning owned values.
+- [x] C061 Implement mutable array append helpers.
+- [x] C062 Implement object insert/replace helpers.
+- [x] C063 Implement array detach helpers that transfer ownership out of the tree.
+- [x] C064 Implement object detach helpers that transfer ownership out of the tree.
+- [x] C065 Save `cargo check --message-format=json` output to `reports/iteration-003/cargo-check.jsonl`.
+- [x] C066 Generate `reports/iteration-003/ownership-report.json`.
+- [x] C067 Generate `reports/iteration-003/ownership-report.html`.
+- [x] C068 Record iteration-003 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C069 Run final `cargo test` in `rust-port/`.
+
+## Phase 10: Path-Based Lookup And Mutation
+
+- [x] C070 Add tests for immutable path lookup through arrays and objects.
+- [x] C071 Add tests for mutable path lookup through arrays and objects.
+- [x] C072 Add tests for replacing a value at a nested path and returning the old owned value.
+- [x] C073 Add tests for missing path behavior.
+- [x] C074 Implement path segment model for object keys and array indexes.
+- [x] C075 Implement immutable path lookup.
+- [x] C076 Implement mutable path lookup without broad shared mutability.
+- [x] C077 Implement nested value replacement that transfers ownership of the replaced value.
+- [x] C078 Save `cargo check --message-format=json` output to `reports/iteration-004/cargo-check.jsonl`.
+- [x] C079 Generate `reports/iteration-004/ownership-report.json`.
+- [x] C080 Generate `reports/iteration-004/ownership-report.html`.
+- [x] C081 Record iteration-004 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C082 Run final `cargo test` in `rust-port/`.

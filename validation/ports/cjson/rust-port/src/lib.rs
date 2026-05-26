@@ -6,4 +6,4 @@ pub mod value;
 
 pub use error::ParseError;
 pub use parser::parse_scalar;
-pub use value::JsonValue;
+pub use value::{JsonEditError, JsonPathSegment, JsonValue};

@@ -1,4 +1,6 @@
-use cjson_rust_port::{parse_scalar, JsonValue};
+use cjson_rust_port::{parse_scalar, JsonEditError, JsonPathSegment, JsonValue};
+
+use JsonPathSegment::{Index, Key};
 
 #[test]
 fn parses_literals() {
@@ -179,4 +181,190 @@ fn rejects_excessive_recursion_depth() {
     let input = format!("{}null{}", "[".repeat(130), "]".repeat(130));
 
     assert!(parse_scalar(&input).is_err());
+}
+
+#[test]
+fn appends_values_to_arrays() {
+    let mut value = JsonValue::Array(vec![JsonValue::Null]);
+
+    assert_eq!(value.append_array(JsonValue::Bool(true)), Ok(()));
+    assert_eq!(
+        value,
+        JsonValue::Array(vec![JsonValue::Null, JsonValue::Bool(true)])
+    );
+}
+
+#[test]
+fn rejects_array_append_on_non_arrays() {
+    let mut value = JsonValue::Null;
+
+    assert_eq!(
+        value.append_array(JsonValue::Bool(true)),
+        Err(JsonEditError::NotArray)
+    );
+    assert_eq!(value, JsonValue::Null);
+}
+
+#[test]
+fn inserts_and_replaces_object_members() {
+    let mut value = JsonValue::Object(vec![(String::from("name"), JsonValue::Null)]);
+
+    assert_eq!(
+        value.insert_object_member(String::from("enabled"), JsonValue::Bool(true)),
+        Ok(None)
+    );
+    assert_eq!(
+        value.insert_object_member(
+            String::from("name"),
+            JsonValue::String(String::from("cjson"))
+        ),
+        Ok(Some(JsonValue::Null))
+    );
+    assert_eq!(
+        value,
+        JsonValue::Object(vec![
+            (
+                String::from("name"),
+                JsonValue::String(String::from("cjson"))
+            ),
+            (String::from("enabled"), JsonValue::Bool(true)),
+        ])
+    );
+}
+
+#[test]
+fn rejects_object_insert_on_non_objects() {
+    let mut value = JsonValue::Array(Vec::new());
+
+    assert_eq!(
+        value.insert_object_member(String::from("key"), JsonValue::Null),
+        Err(JsonEditError::NotObject)
+    );
+    assert_eq!(value, JsonValue::Array(Vec::new()));
+}
+
+#[test]
+fn detaches_array_items_by_index() {
+    let mut value = JsonValue::Array(vec![
+        JsonValue::String(String::from("first")),
+        JsonValue::String(String::from("second")),
+    ]);
+
+    assert_eq!(
+        value.detach_array_item(0),
+        Ok(Some(JsonValue::String(String::from("first"))))
+    );
+    assert_eq!(
+        value,
+        JsonValue::Array(vec![JsonValue::String(String::from("second"))])
+    );
+}
+
+#[test]
+fn reports_missing_array_items_and_non_arrays() {
+    let mut array = JsonValue::Array(Vec::new());
+    let mut scalar = JsonValue::Bool(false);
+
+    assert_eq!(array.detach_array_item(4), Ok(None));
+    assert_eq!(scalar.detach_array_item(0), Err(JsonEditError::NotArray));
+}
+
+#[test]
+fn detaches_object_members_by_key() {
+    let mut value = JsonValue::Object(vec![
+        (String::from("keep"), JsonValue::Bool(true)),
+        (String::from("take"), JsonValue::Number(7.0)),
+    ]);
+
+    assert_eq!(
+        value.detach_object_member("take"),
+        Ok(Some(JsonValue::Number(7.0)))
+    );
+    assert_eq!(
+        value,
+        JsonValue::Object(vec![(String::from("keep"), JsonValue::Bool(true))])
+    );
+}
+
+#[test]
+fn reports_missing_object_members_and_non_objects() {
+    let mut object = JsonValue::Object(Vec::new());
+    let mut scalar = JsonValue::String(String::from("text"));
+
+    assert_eq!(object.detach_object_member("missing"), Ok(None));
+    assert_eq!(
+        scalar.detach_object_member("missing"),
+        Err(JsonEditError::NotObject)
+    );
+}
+
+#[test]
+fn finds_nested_values_by_path() {
+    let value = parse_scalar(r#"{"items":[{"name":"first"},{"name":"second"}]}"#).unwrap();
+
+    assert_eq!(
+        value.get_path(&[Key("items"), Index(1), Key("name")]),
+        Some(&JsonValue::String(String::from("second")))
+    );
+    assert_eq!(value.get_path(&[]), Some(&value));
+}
+
+#[test]
+fn reports_missing_paths() {
+    let value = parse_scalar(r#"{"items":[{"name":"first"}]}"#).unwrap();
+
+    assert_eq!(value.get_path(&[Key("items"), Index(4)]), None);
+    assert_eq!(value.get_path(&[Key("missing")]), None);
+}
+
+#[test]
+fn mutates_nested_values_by_path() {
+    let mut value = parse_scalar(r#"{"items":[{"done":false}]}"#).unwrap();
+
+    let target = value.get_path_mut(&[Key("items"), Index(0), Key("done")]);
+    assert_eq!(target, Some(&mut JsonValue::Bool(false)));
+
+    if let Some(slot) = value.get_path_mut(&[Key("items"), Index(0), Key("done")]) {
+        *slot = JsonValue::Bool(true);
+    }
+
+    assert_eq!(
+        value.get_path(&[Key("items"), Index(0), Key("done")]),
+        Some(&JsonValue::Bool(true))
+    );
+}
+
+#[test]
+fn replaces_nested_values_and_returns_old_value() {
+    let mut value = parse_scalar(r#"{"items":[{"count":1}]}"#).unwrap();
+
+    assert_eq!(
+        value.replace_at_path(
+            &[Key("items"), Index(0), Key("count")],
+            JsonValue::Number(2.0)
+        ),
+        Some(JsonValue::Number(1.0))
+    );
+    assert_eq!(
+        value.get_path(&[Key("items"), Index(0), Key("count")]),
+        Some(&JsonValue::Number(2.0))
+    );
+}
+
+#[test]
+fn reports_non_container_paths_without_mutating() {
+    let mut value = parse_scalar(r#"{"items":[true]}"#).unwrap();
+
+    assert_eq!(value.get_path(&[Key("items"), Index(0), Key("name")]), None);
+    assert_eq!(
+        value.replace_at_path(
+            &[Key("items"), Index(0), Key("name")],
+            JsonValue::String(String::from("ignored"))
+        ),
+        None
+    );
+    assert_eq!(
+        value.get_path(&[Key("items"), Index(0)]),
+        Some(&JsonValue::Bool(true))
+    );
 }

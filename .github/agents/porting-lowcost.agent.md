@@ -1,6 +1,6 @@
 ---
 description: "Use when running a low-cost or lightweight model C/C++ to Rust porting attempt under validation/ports. Implements only the requested slice, captures compile diagnostics, and avoids manual ownership guidance unless supplied by the caller."
-tools: [read, search, edit, terminal]
+tools: [read, search, edit, execute]
 ---
 
 # Low-Cost Porting Agent
