@@ -14,6 +14,147 @@ fn assert_incomplete(parser: &mut RespCommandParser) {
     );
 }
 
+#[test]
+fn executes_getrange_and_setrange_with_binary_safe_ranges() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"range", b"abcdef\0ghi"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETRANGE", b"range", b"1", b"-2"]),
+        RespReply::BulkString(b"bcdef\0gh".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETRANGE", b"range", b"20", b"30"]),
+        RespReply::BulkString(Vec::new())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETRANGE", b"missing", b"0", b"-1"]),
+        RespReply::BulkString(Vec::new())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SETRANGE", b"pad", b"3", b"A\0B"]),
+        RespReply::Integer(6)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"pad"]),
+        RespReply::BulkString(b"\0\0\0A\0B".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SETRANGE", b"pad", b"1", b"xy"]),
+        RespReply::Integer(6)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GETRANGE", b"pad", b"0", b"-1"]),
+        RespReply::BulkString(b"\0xyA\0B".to_vec())
+    );
+}
+
+#[test]
+fn executes_set_options_for_conditions_get_and_expiration() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"k", b"one", b"EX", b"10", b"GET"]),
+        RespReply::NullBulkString
+    );
+    match execute(&mut db, &[b"TTL", b"k"]) {
+        RespReply::Integer(ttl) => assert!((0..=10).contains(&ttl)),
+        reply => panic!("expected integer ttl, got {reply:?}"),
+    }
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"k", b"two", b"NX", b"GET"]),
+        RespReply::BulkString(b"one".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"k"]),
+        RespReply::BulkString(b"one".to_vec())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"SET", b"k", b"two", b"XX", b"GET", b"PX", b"10000"]
+        ),
+        RespReply::BulkString(b"one".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"k"]),
+        RespReply::BulkString(b"two".to_vec())
+    );
+    match execute(&mut db, &[b"TTL", b"k"]) {
+        RespReply::Integer(ttl) => assert!((0..=10).contains(&ttl)),
+        reply => panic!("expected integer ttl, got {reply:?}"),
+    }
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"missing", b"v", b"XX", b"GET"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"missing"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"new", b"v", b"NX"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"new", b"again", b"NX"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"new", b"again", b"XX"]),
+        RespReply::SimpleString("OK")
+    );
+}
+
+#[test]
+fn string_completion_commands_reject_invalid_range_and_set_options() {
+    let mut db = RedisMiniDb::new();
+    let syntax = RespReply::Error("ERR syntax error".to_string());
+
+    assert_eq!(
+        execute(&mut db, &[b"GETRANGE", b"key", b"start", b"0"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SETRANGE", b"key", b"-1", b"value"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(
+            &mut db,
+            &[b"SETRANGE", b"key", b"18446744073709551615", b"x"]
+        ),
+        RespReply::Error("ERR string exceeds maximum allowed size".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"k", b"v", b"NX", b"XX"]),
+        syntax
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"k", b"v", b"GET", b"GET"]),
+        syntax
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"k", b"v", b"EX", b"1", b"PX", b"1"]),
+        syntax
+    );
+    assert_eq!(execute(&mut db, &[b"SET", b"k", b"v", b"PX"]), syntax);
+    assert_eq!(execute(&mut db, &[b"SET", b"k", b"v", b"NOPE"]), syntax);
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"k", b"v", b"EX", b"0"]),
+        RespReply::Error("ERR invalid expire time".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"k", b"v", b"PX", b"not-int"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+}
+
 fn parse_complete(frame: &[u8]) -> Command {
     let mut parser = RespCommandParser::new();
     parser.append(frame);
@@ -152,6 +293,14 @@ fn exposes_command_category_metadata_for_implemented_commands() {
     );
     assert_eq!(
         command_metadata(b"strlen").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
+        command_metadata(b"getrange").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
+        command_metadata(b"setrange").unwrap().category.as_str(),
         "string"
     );
     assert_eq!(

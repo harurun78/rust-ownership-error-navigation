@@ -4,6 +4,21 @@ use std::time::{Duration, Instant};
 use crate::Command;
 
 const DATABASE_COUNT: usize = 16;
+const MAX_STRING_SIZE: usize = 512 * 1024 * 1024;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum SetCondition {
+    Always,
+    OnlyIfAbsent,
+    OnlyIfPresent,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct SetOptions {
+    condition: SetCondition,
+    get: bool,
+    expiration: Option<Duration>,
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum RespProtocolVersion {
@@ -252,6 +267,8 @@ impl RedisMiniDb {
             CommandKind::MSet => self.execute_mset(args),
             CommandKind::Append => self.execute_append(args),
             CommandKind::StrLen => self.execute_strlen(args),
+            CommandKind::GetRange => self.execute_getrange(args),
+            CommandKind::SetRange => self.execute_setrange(args),
             CommandKind::GetSet => self.execute_getset(args),
             CommandKind::Del => self.execute_del(args),
             CommandKind::Exists => self.execute_exists(args),
@@ -431,29 +448,72 @@ impl RedisMiniDb {
     }
 
     fn execute_set(&mut self, args: Vec<Vec<u8>>) -> RespReply {
-        if args.len() != 2 {
+        if args.len() < 2 {
             return wrong_arity("set");
         }
+
+        // parse options after key and value
+        let options = match parse_set_options(&args[2..]) {
+            Ok(options) => options,
+            Err(reply) => return reply,
+        };
+        let expiration_deadline = match options.expiration {
+            Some(duration) => match Instant::now().checked_add(duration) {
+                Some(deadline) => Some(deadline),
+                None => return invalid_expire_time(),
+            },
+            None => None,
+        };
 
         let mut args = args;
         let key = args.remove(0);
         let value = args.remove(0);
         self.remove_if_expired(&key);
-        if matches!(
-            self.values.get(&key),
+
+        let old_value = match self.values.get(&key) {
+            Some(RedisValue::String(existing)) => Some(existing.to_vec()),
             Some(RedisValue::List(_))
-                | Some(RedisValue::Hash(_))
-                | Some(RedisValue::Set(_))
-                | Some(RedisValue::ZSet(_))
-                | Some(RedisValue::Stream(_))
-        ) {
-            return wrong_type();
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            None => None,
+        };
+        let key_exists = old_value.is_some();
+        let should_write = match options.condition {
+            SetCondition::Always => true,
+            SetCondition::OnlyIfAbsent => !key_exists,
+            SetCondition::OnlyIfPresent => key_exists,
+        };
+
+        let get_reply = if options.get {
+            match old_value {
+                Some(value) => RespReply::BulkString(value),
+                None => RespReply::NullBulkString,
+            }
+        } else {
+            RespReply::NullBulkString
+        };
+
+        if !should_write {
+            return get_reply;
         }
 
-        self.expires_at.remove(&key);
+        match expiration_deadline {
+            Some(deadline) => {
+                self.expires_at.insert(key.to_vec(), deadline);
+            }
+            None => {
+                self.expires_at.remove(&key);
+            }
+        }
         self.bump_key_version(&key);
         self.values.insert(key, RedisValue::String(value));
-        RespReply::SimpleString("OK")
+        if options.get {
+            get_reply
+        } else {
+            RespReply::SimpleString("OK")
+        }
     }
 
     fn execute_get(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -572,6 +632,92 @@ impl RedisMiniDb {
             | Some(RedisValue::Stream(_)) => wrong_type(),
             None => RespReply::Integer(0),
         }
+    }
+
+    fn execute_getrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("getrange");
+        }
+
+        let start = match parse_integer(&args[1]) {
+            Some(start) => start,
+            None => return integer_error(),
+        };
+        let end = match parse_integer(&args[2]) {
+            Some(end) => end,
+            None => return integer_error(),
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(value)) => match normalize_range(value.len(), start, end) {
+                Some((start, end)) => RespReply::BulkString(value[start..=end].to_vec()),
+                None => RespReply::BulkString(Vec::new()),
+            },
+            Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
+            None => RespReply::BulkString(Vec::new()),
+        }
+    }
+
+    fn execute_setrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("setrange");
+        }
+
+        let offset = match parse_scan_index(&args[1]) {
+            Some(offset) => offset,
+            None => return integer_error(),
+        };
+        let value_len = args[2].len();
+        let target_len = match offset.checked_add(value_len) {
+            Some(target_len) if target_len <= MAX_STRING_SIZE => target_len,
+            _ => return RespReply::Error("ERR string exceeds maximum allowed size".to_string()),
+        };
+
+        let mut args = args;
+        let key = args.remove(0);
+        let _offset = args.remove(0);
+        let value = args.remove(0);
+        self.remove_if_expired(&key);
+        if value.is_empty() {
+            return match self.values.get(&key) {
+                Some(RedisValue::String(existing)) => RespReply::Integer(existing.len() as i64),
+                Some(RedisValue::List(_))
+                | Some(RedisValue::Hash(_))
+                | Some(RedisValue::Set(_))
+                | Some(RedisValue::ZSet(_))
+                | Some(RedisValue::Stream(_)) => wrong_type(),
+                None => RespReply::Integer(0),
+            };
+        }
+
+        let len = match self.values.get_mut(&key) {
+            Some(RedisValue::String(existing)) => {
+                if existing.len() < target_len {
+                    existing.resize(target_len, 0);
+                }
+                existing[offset..offset + value.len()].copy_from_slice(&value);
+                existing.len()
+            }
+            Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
+            None => {
+                let mut next = vec![0; target_len];
+                next[offset..offset + value.len()].copy_from_slice(&value);
+                self.values.insert(key.to_vec(), RedisValue::String(next));
+                target_len
+            }
+        };
+        self.expires_at.remove(&key);
+        self.bump_key_version(&key);
+        RespReply::Integer(len as i64)
     }
 
     fn execute_getset(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -1687,6 +1833,8 @@ enum CommandKind {
     MSet,
     Append,
     StrLen,
+    GetRange,
+    SetRange,
     GetSet,
     Del,
     Exists,
@@ -1758,6 +1906,8 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("MSET", CommandCategory::String, CommandKind::MSet),
     command_spec("APPEND", CommandCategory::String, CommandKind::Append),
     command_spec("STRLEN", CommandCategory::String, CommandKind::StrLen),
+    command_spec("GETRANGE", CommandCategory::String, CommandKind::GetRange),
+    command_spec("SETRANGE", CommandCategory::String, CommandKind::SetRange),
     command_spec("GETSET", CommandCategory::String, CommandKind::GetSet),
     command_spec("DEL", CommandCategory::Keyspace, CommandKind::Del),
     command_spec("EXISTS", CommandCategory::Keyspace, CommandKind::Exists),
@@ -1962,6 +2112,65 @@ fn parse_database_index(value: &[u8]) -> Option<usize> {
 
 fn integer_error() -> RespReply {
     RespReply::Error("ERR value is not an integer or out of range".to_string())
+}
+
+fn syntax_error() -> RespReply {
+    RespReply::Error("ERR syntax error".to_string())
+}
+
+fn invalid_expire_time() -> RespReply {
+    RespReply::Error("ERR invalid expire time".to_string())
+}
+
+fn parse_set_options(args: &[Vec<u8>]) -> Result<SetOptions, RespReply> {
+    let mut options = SetOptions {
+        condition: SetCondition::Always,
+        get: false,
+        expiration: None,
+    };
+    let mut index = 0;
+
+    while index < args.len() {
+        let option = &args[index];
+        if option.eq_ignore_ascii_case(b"NX") {
+            if options.condition != SetCondition::Always {
+                return Err(syntax_error());
+            }
+            options.condition = SetCondition::OnlyIfAbsent;
+            index += 1;
+        } else if option.eq_ignore_ascii_case(b"XX") {
+            if options.condition != SetCondition::Always {
+                return Err(syntax_error());
+            }
+            options.condition = SetCondition::OnlyIfPresent;
+            index += 1;
+        } else if option.eq_ignore_ascii_case(b"GET") {
+            if options.get {
+                return Err(syntax_error());
+            }
+            options.get = true;
+            index += 1;
+        } else if option.eq_ignore_ascii_case(b"EX") || option.eq_ignore_ascii_case(b"PX") {
+            if options.expiration.is_some() || index + 1 >= args.len() {
+                return Err(syntax_error());
+            }
+            let value = match parse_integer(&args[index + 1]) {
+                Some(value) if value > 0 => value as u64,
+                Some(_) => return Err(invalid_expire_time()),
+                None => return Err(integer_error()),
+            };
+            options.expiration = if option.eq_ignore_ascii_case(b"EX") {
+                Some(Duration::from_secs(value))
+            } else {
+                Some(Duration::from_millis(value))
+            };
+            index += 2;
+        } else {
+            return Err(syntax_error());
+        }
+    }
+
+    Ok(options)
 }
 
 fn parse_stream_id(value: &[u8]) -> Option<(u64, u64)> {

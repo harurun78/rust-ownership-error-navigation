@@ -290,11 +290,12 @@ The validation target is now expanded from a parser/executor experiment into a s
 
 ## Phase 26: String Command Completion
 
-- [ ] R208 Add string commands `MGET`, `MSET`, `APPEND`, `STRLEN`, `GETRANGE`, `SETRANGE`, `GETSET`, and `SET` options (`NX`, `XX`, `GET`, `EX`, `PX`).
-- [ ] R209 Add Redis-compatible edge-case tests for integer and binary-safe strings.
-- [ ] R210 Save diagnostics and reports for the string completion iterations.
+- [x] R208 Add string commands `MGET`, `MSET`, `APPEND`, `STRLEN`, `GETRANGE`, `SETRANGE`, `GETSET`, and `SET` options (`NX`, `XX`, `GET`, `EX`, `PX`).
+- [x] R209 Add Redis-compatible edge-case tests for integer and binary-safe strings.
+- [x] R210 Save diagnostics and reports for the string completion iterations.
 
-iteration-024 partial slice: implemented and tested `MGET`, `MSET`, `APPEND`, `STRLEN`, and `GETSET`; deferred `GETRANGE`, `SETRANGE`, and `SET` options to later string-completion iterations.
+iteration-024 partial slice: implemented and tested `MGET`, `MSET`, `APPEND`, `STRLEN`, and `GETSET`.
+iteration-025: implemented and tested `GETRANGE`, `SETRANGE`, and `SET` options (`NX`, `XX`, `GET`, `EX`, `PX`).
 
 ## Phase 27: List Command Completion And Blocking Lists
 
