@@ -84,3 +84,16 @@
 - [x] R056 Generate `reports/iteration-007/ownership-report.html`.
 - [x] R057 Record iteration-007 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] R058 Run final `cargo test` in `rust-port/`.
+
+## Phase 10: Integer String Commands
+
+- [x] R059 Add tests for `INCR`, `DECR`, and `INCRBY` on missing and existing keys.
+- [x] R060 Add tests for integer parse errors when the existing value or increment is not an integer.
+- [x] R061 Add tests for integer overflow errors.
+- [x] R062 Implement integer string command execution with binary-safe stored values.
+- [x] R063 Preserve existing parser and command executor behavior.
+- [x] R064 Save `cargo check --message-format=json` output to `reports/iteration-008/cargo-check.jsonl`.
+- [x] R065 Generate `reports/iteration-008/ownership-report.json`.
+- [x] R066 Generate `reports/iteration-008/ownership-report.html`.
+- [x] R067 Record iteration-008 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] R068 Run final `cargo test` in `rust-port/`.

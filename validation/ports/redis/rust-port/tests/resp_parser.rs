@@ -111,6 +111,128 @@ fn executes_set_get_del_and_exists() {
 }
 
 #[test]
+fn executes_incr_decr_and_incrby_on_missing_keys() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"INCR", b"counter"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"counter"]),
+        RespReply::BulkString(b"1".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DECR", b"debits"]),
+        RespReply::Integer(-1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"debits"]),
+        RespReply::BulkString(b"-1".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCRBY", b"steps", b"42"]),
+        RespReply::Integer(42)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"steps"]),
+        RespReply::BulkString(b"42".to_vec())
+    );
+}
+
+#[test]
+fn executes_incr_decr_and_incrby_on_existing_integer_values() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"counter", b"10"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCR", b"counter"]),
+        RespReply::Integer(11)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DECR", b"counter"]),
+        RespReply::Integer(10)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCRBY", b"counter", b"-3"]),
+        RespReply::Integer(7)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"counter"]),
+        RespReply::BulkString(b"7".to_vec())
+    );
+}
+
+#[test]
+fn rejects_non_integer_existing_values_and_increment_arguments() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"counter", b"not-an-int"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCR", b"counter"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"counter"]),
+        RespReply::BulkString(b"not-an-int".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCRBY", b"other", b"nope"]),
+        RespReply::Error("ERR value is not an integer or out of range".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"other"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn rejects_integer_overflow_and_preserves_stored_values() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"max", b"9223372036854775807"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCR", b"max"]),
+        RespReply::Error("ERR increment or decrement would overflow".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"max"]),
+        RespReply::BulkString(b"9223372036854775807".to_vec())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"min", b"-9223372036854775808"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"DECR", b"min"]),
+        RespReply::Error("ERR increment or decrement would overflow".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"min"]),
+        RespReply::BulkString(b"-9223372036854775808".to_vec())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"INCRBY", b"max", b"1"]),
+        RespReply::Error("ERR increment or decrement would overflow".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"GET", b"max"]),
+        RespReply::BulkString(b"9223372036854775807".to_vec())
+    );
+}
+
+#[test]
 fn returns_wrong_arity_and_unknown_command_errors() {
     let mut db = RedisMiniDb::new();
 
@@ -125,6 +247,14 @@ fn returns_wrong_arity_and_unknown_command_errors() {
     assert_eq!(
         execute(&mut db, &[b"SET", b"key"]),
         RespReply::Error("ERR wrong number of arguments for 'set' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCR"]),
+        RespReply::Error("ERR wrong number of arguments for 'incr' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"INCRBY", b"key"]),
+        RespReply::Error("ERR wrong number of arguments for 'incrby' command".to_string())
     );
     assert_eq!(
         execute(&mut db, &[b"NOPE"]),
