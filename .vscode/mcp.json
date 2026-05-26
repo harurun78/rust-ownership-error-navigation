@@ -7,6 +7,10 @@
         "-lc",
         "export PATH=\"$HOME/.local/bin:$PATH\" && serena start-mcp-server --context=vscode --project \"${workspaceFolder}\""
       ]
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
     }
   }
 }
