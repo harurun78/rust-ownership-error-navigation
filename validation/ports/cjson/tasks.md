@@ -111,3 +111,31 @@
 - [x] C080 Generate `reports/iteration-004/ownership-report.html`.
 - [x] C081 Record iteration-004 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] C082 Run final `cargo test` in `rust-port/`.
+
+## Phase 11: Compact JSON Printing
+
+- [x] C083 Add tests for printing scalar values.
+- [x] C084 Add tests for string escaping during printing.
+- [x] C085 Add tests for printing arrays and objects.
+- [x] C086 Add tests for round-tripping parsed values through compact printing.
+- [x] C087 Implement compact JSON printing for `JsonValue`.
+- [x] C088 Implement string escaping for compact printing.
+- [x] C089 Save `cargo check --message-format=json` output to `reports/iteration-005/cargo-check.jsonl`.
+- [x] C090 Generate `reports/iteration-005/ownership-report.json`.
+- [x] C091 Generate `reports/iteration-005/ownership-report.html`.
+- [x] C092 Record iteration-005 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C093 Run final `cargo test` in `rust-port/`.
+
+## Phase 12: Typed Accessors And Predicates
+
+- [ ] C094 Add tests for type predicates such as null, bool, number, string, array, and object.
+- [ ] C095 Add tests for typed value accessors.
+- [ ] C096 Add tests for object member and array item accessor helpers.
+- [ ] C097 Implement type predicates for `JsonValue`.
+- [ ] C098 Implement typed accessors for scalar and container values.
+- [ ] C099 Implement object member and array item accessor helpers.
+- [ ] C100 Save `cargo check --message-format=json` output to `reports/iteration-006/cargo-check.jsonl`.
+- [ ] C101 Generate `reports/iteration-006/ownership-report.json`.
+- [ ] C102 Generate `reports/iteration-006/ownership-report.html`.
+- [ ] C103 Record iteration-006 results and diagnostic counts in `notes/iteration-log.md`.
+- [ ] C104 Run final `cargo test` in `rust-port/`.

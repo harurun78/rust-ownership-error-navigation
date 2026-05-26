@@ -96,3 +96,10 @@
 - iteration-004: path-based immutable/mutable lookup と nested replacement を `GPT-5 mini (copilot)` で実装。`cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 28 tests passed。
 - 保存: `reports/iteration-003/` と `reports/iteration-004/` に cargo JSONL、ownership JSON/HTML、notes を保存。
 - 所見: `unsafe` / shared mutability / broad clone は不要。現状の owned tree model では軽量モデルが所有権エラーなしで進められているため、次にツール効用を強く見るなら borrowed/reference variants や cJSON-like linked node model が候補。
+
+## 2026-05-26 cJSON low-cost iteration-005
+
+- 対応: compact JSON printing を `GPT-5 mini (copilot)` で実装。
+- 追加: scalar printing、string escaping、array/object printing、parse -> compact print round-trip tests を追加。
+- 保存: `reports/iteration-005/` に cargo JSONL、ownership JSON/HTML、notes を保存。
+- 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 32 tests passed。

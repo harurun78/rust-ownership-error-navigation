@@ -21,6 +21,43 @@ pub enum JsonEditError {
 }
 
 impl JsonValue {
+    pub fn to_compact_string(&self) -> String {
+        let mut output = String::new();
+        self.write_compact(&mut output);
+        output
+    }
+
+    fn write_compact(&self, output: &mut String) {
+        match self {
+            JsonValue::Null => output.push_str("null"),
+            JsonValue::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
+            JsonValue::Number(value) => output.push_str(&value.to_string()),
+            JsonValue::String(value) => write_escaped_string(value, output),
+            JsonValue::Array(values) => {
+                output.push('[');
+                for (index, value) in values.iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                    }
+                    value.write_compact(output);
+                }
+                output.push(']');
+            }
+            JsonValue::Object(entries) => {
+                output.push('{');
+                for (index, (key, value)) in entries.iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                    }
+                    write_escaped_string(key, output);
+                    output.push(':');
+                    value.write_compact(output);
+                }
+                output.push('}');
+            }
+        }
+    }
+
     pub fn append_array(&mut self, value: JsonValue) -> Result<(), JsonEditError> {
         match self {
             JsonValue::Array(values) => {
@@ -126,4 +163,22 @@ impl JsonValue {
         self.get_path_mut(path)
             .map(|target| std::mem::replace(target, value))
     }
+}
+
+fn write_escaped_string(value: &str, output: &mut String) {
+    output.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\u{0008}' => output.push_str("\\b"),
+            '\u{000c}' => output.push_str("\\f"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            ch if ch <= '\u{001f}' => output.push_str(&format!("\\u{:04x}", ch as u32)),
+            ch => output.push(ch),
+        }
+    }
+    output.push('"');
 }

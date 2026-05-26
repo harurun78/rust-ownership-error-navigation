@@ -368,3 +368,62 @@ fn reports_non_container_paths_without_mutating() {
         Some(&JsonValue::Bool(true))
     );
 }
+
+#[test]
+fn prints_scalar_values_compactly() {
+    assert_eq!(JsonValue::Null.to_compact_string(), "null");
+    assert_eq!(JsonValue::Bool(true).to_compact_string(), "true");
+    assert_eq!(JsonValue::Bool(false).to_compact_string(), "false");
+    assert_eq!(JsonValue::Number(42.5).to_compact_string(), "42.5");
+    assert_eq!(
+        JsonValue::String(String::from("cat")).to_compact_string(),
+        r#""cat""#
+    );
+}
+
+#[test]
+fn escapes_strings_for_compact_printing() {
+    let value = JsonValue::String(String::from(
+        "quote: \" slash: / backslash: \\ controls: \u{0008}\u{000c}\n\r\t\u{0001}",
+    ));
+
+    assert_eq!(
+        value.to_compact_string(),
+        r#""quote: \" slash: / backslash: \\ controls: \b\f\n\r\t\u0001""#
+    );
+}
+
+#[test]
+fn prints_arrays_and_objects_compactly() {
+    let value = JsonValue::Object(vec![
+        (
+            String::from("items"),
+            JsonValue::Array(vec![
+                JsonValue::Null,
+                JsonValue::Bool(true),
+                JsonValue::String(String::from("cat")),
+            ]),
+        ),
+        (String::from("count"), JsonValue::Number(3.0)),
+    ]);
+
+    assert_eq!(
+        value.to_compact_string(),
+        r#"{"items":[null,true,"cat"],"count":3}"#
+    );
+}
+
+#[test]
+fn round_trips_parsed_values_through_compact_printing() {
+    let inputs = [
+        r#"{"name":"cjson","items":[null,true,false,12.5],"nested":{"key":"value"}}"#,
+        r#"["escaped\ntext",{"unicode":"猫"}]"#,
+        r#"{"control":"\u0001\b\f\n\r\t"}"#,
+    ];
+
+    for input in inputs {
+        let parsed = parse_scalar(input).unwrap();
+        let printed = parsed.to_compact_string();
+        assert_eq!(parse_scalar(&printed), Ok(parsed));
+    }
+}
