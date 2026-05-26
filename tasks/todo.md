@@ -67,3 +67,10 @@
 - 対応: Spec Kit CI が `specify` 未導入時に skip せず fail するよう変更。
 - 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`, `npm run test:coverage -- --coverage.reporter=text`
 - 結果: すべて成功。coverage は All files statements/lines 92.4%、branches 80.33%、functions 98.46%。
+
+## 2026-05-26 Porting validation scaffold
+
+- 対応: C/C++ から Rust へのポーティング検証用に `validation/ports/` を追加。
+- 対応: 最初の検証ターゲットとして `validation/ports/cjson/` を作成。
+- 目的: ownership-error navigation が低コスト AI モデルの Rust 移植で有効かを、cJSON の tree ownership / cleanup / string ownership を題材に検証する。
+- 追加: cJSON upstream `v1.7.19` (`c859b25da02955fef659d658b8f324b5cde87be3`) をローカル取得し、Git には source snapshot を含めず取得手順と porting spec を記録。

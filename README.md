@@ -59,3 +59,4 @@ npm run build
 - [docs/quickstart.md](docs/quickstart.md)
 - [specs/001-ownership-report-mvp/spec.md](specs/001-ownership-report-mvp/spec.md)
 - [docs/specification-discussion-log.md](docs/specification-discussion-log.md)
+- [validation/](validation/)

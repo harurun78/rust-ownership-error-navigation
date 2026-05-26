@@ -7,6 +7,11 @@ build/
 coverage/
 *.tsbuildinfo
 
+# Local validation upstream checkouts
+validation/ports/*/upstream/*/
+!validation/ports/*/upstream/.gitkeep
+!validation/ports/*/upstream/*.md
+
 # Logs
 logs/
 *.log
