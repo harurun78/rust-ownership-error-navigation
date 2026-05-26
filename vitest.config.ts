@@ -3,7 +3,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts', 'test/**/*.integration.test.ts'],
-    passWithNoTests: true,
     snapshotFormat: {
       escapeString: false,
       printBasicPrototype: false
@@ -11,7 +10,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      reportsDirectory: 'coverage'
+      reportsDirectory: 'coverage',
+      thresholds: {
+        branches: 70,
+        functions: 70,
+        lines: 70,
+        statements: 70
+      }
     }
   }
 });

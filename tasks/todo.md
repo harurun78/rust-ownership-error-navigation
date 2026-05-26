@@ -58,3 +58,12 @@
 - 実行: `npm ci`, `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`, `npm run cli:verify`
 - 結果: すべて成功。unit/integration は 20 files / 34 tests passed、integration 専用は 4 files / 7 tests passed。
 - 補足: malformed JSONL の CLI test は期待通り stderr に parser error を出し、exit code 1 を返す。
+
+## 2026-05-26 Project review response
+
+- 対応: spec quickstart の unsupported count / schema validation 手順を実装済み docs と整合。
+- 対応: `passWithNoTests` を test scripts / Vitest config から削除。
+- 対応: coverage threshold 70% を Vitest config に追加。
+- 対応: Spec Kit CI が `specify` 未導入時に skip せず fail するよう変更。
+- 実行: `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, `npm run test:integration`, `npm run build`, `npm run test:coverage -- --coverage.reporter=text`
+- 結果: すべて成功。coverage は All files statements/lines 92.4%、branches 80.33%、functions 98.46%。
