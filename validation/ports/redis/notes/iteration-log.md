@@ -67,6 +67,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: iteration-003 should add multiple-command extraction and buffer compaction tests.
 
+### iteration-003
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R029-R032 multiple complete RESP2 commands in one input buffer, incomplete trailing command retention, consumed-byte compaction validation, diagnostic capture, ownership reports, and ledger updates.
+- Prompt summary: Add tests for two or more complete multibulk commands appended in one input buffer, verify repeated parse calls return command 1 then command 2 then incomplete, verify incomplete trailing bytes remain buffered after extracting a complete command, preserve iteration-001 and iteration-002 behavior, capture cargo diagnostics, generate reports, and update notes/tasks without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt -- --check && cargo check --message-format=json > ../reports/iteration-003/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-003/cargo-check.jsonl --json-out ../reports/iteration-003/ownership-report.json --html-out ../reports/iteration-003/ownership-report.html`
+- Result: compile success; test success, 10 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-003/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-003/ownership-report.json`
+- Ownership report HTML: `reports/iteration-003/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none; existing owned argument extraction still uses per-bulk `to_vec()` at the API boundary, with no broad clone shortcuts, shared mutability, or unsafe introduced
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: iteration-004 should add protocol error tests and stable error variants.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.

@@ -16,6 +16,13 @@ fn parse_complete(frame: &[u8]) -> Command {
     }
 }
 
+fn parse_next_complete(parser: &mut RespCommandParser) -> Command {
+    match parser.parse_available().expect("valid buffered frame") {
+        ParseOutcome::Complete(command) => command,
+        ParseOutcome::Incomplete => panic!("expected complete command"),
+    }
+}
+
 #[test]
 fn parses_ping_multibulk() {
     let command = parse_complete(b"*1\r\n$4\r\nPING\r\n");
@@ -111,4 +118,35 @@ fn retains_incomplete_bulk_payload_state() {
     };
 
     assert_eq!(command.args, vec![b"PING".to_vec()]);
+}
+
+#[test]
+fn parses_multiple_complete_commands_from_one_buffer() {
+    let mut parser = RespCommandParser::new();
+
+    parser.append(b"*1\r\n$4\r\nPING\r\n*2\r\n$3\r\nGET\r\n$3\r\nkey\r\n");
+
+    let first = parse_next_complete(&mut parser);
+    let second = parse_next_complete(&mut parser);
+
+    assert_eq!(first.args, vec![b"PING".to_vec()]);
+    assert_eq!(second.args, vec![b"GET".to_vec(), b"key".to_vec()]);
+    assert_incomplete(&mut parser);
+}
+
+#[test]
+fn keeps_incomplete_trailing_command_after_complete_command() {
+    let mut parser = RespCommandParser::new();
+
+    parser.append(b"*1\r\n$4\r\nPING\r\n*2\r\n$3\r\nGET\r\n$3\r\n");
+
+    let first = parse_next_complete(&mut parser);
+    assert_eq!(first.args, vec![b"PING".to_vec()]);
+    assert_incomplete(&mut parser);
+
+    parser.append(b"key\r\n");
+    let second = parse_next_complete(&mut parser);
+
+    assert_eq!(second.args, vec![b"GET".to_vec(), b"key".to_vec()]);
+    assert_incomplete(&mut parser);
 }

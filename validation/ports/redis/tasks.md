@@ -42,10 +42,10 @@
 
 ## Phase 5: Multiple Commands And Buffer Compaction
 
-- [ ] R029 Add tests for two or more commands in one input buffer.
-- [ ] R030 Add tests that incomplete trailing bytes remain after complete commands are extracted.
-- [ ] R031 Implement consumed-byte compaction after successful parse.
-- [ ] R032 Save and report diagnostics for iteration-003.
+- [x] R029 Add tests for two or more commands in one input buffer.
+- [x] R030 Add tests that incomplete trailing bytes remain after complete commands are extracted.
+- [x] R031 Implement consumed-byte compaction after successful parse.
+- [x] R032 Save and report diagnostics for iteration-003.
 
 ## Phase 6: Protocol Errors
 
