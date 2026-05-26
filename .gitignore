@@ -11,6 +11,7 @@ coverage/
 validation/ports/*/upstream/*/
 !validation/ports/*/upstream/.gitkeep
 !validation/ports/*/upstream/*.md
+validation/ports/*/rust-port/target/
 
 # Logs
 logs/

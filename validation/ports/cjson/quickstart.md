@@ -30,6 +30,14 @@ cargo init --lib .
 
 ## 3. Run Rust Checks
 
+For repeatable validation runs, use the reusable prompt and agent definitions:
+
+- `.github/agents/porting-lowcost.agent.md`
+- `.github/prompts/porting.lowcost-iteration.prompt.md`
+- `.github/instructions/porting-validation.instructions.md`
+
+Each iteration should record model identity, prompt summary, saved rustc JSONL, generated report paths, and whether the navigation report changed the next fix.
+
 ```bash
 cargo check
 cargo test
