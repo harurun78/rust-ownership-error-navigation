@@ -9,6 +9,7 @@ mod command;
 mod error;
 mod executor;
 mod parser;
+mod persistence;
 mod server;
 
 pub use command::Command;
@@ -18,4 +19,5 @@ pub use executor::{
     RespProtocolVersion, RespReply, command_metadata, normalize_command_name,
 };
 pub use parser::{ParseOutcome, RespCommandParser};
+pub use persistence::{AofFsyncPolicy, PersistenceError};
 pub use server::{RedisMiniClientSession, RedisMiniServer};

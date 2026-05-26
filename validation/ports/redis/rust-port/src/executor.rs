@@ -5121,3 +5121,333 @@ fn encode_array(values: &[RespReply], protocol_version: RespProtocolVersion) -> 
 fn encode_error(message: &str) -> Vec<u8> {
     encode_prefixed_string(b'-', message.as_bytes())
 }
+
+const RDB_LIKE_HEADER: &[u8] = b"RDBLIKEv1\n";
+
+// Persistence: deterministic snapshot and simple AOF implementation for testing.
+impl RedisMiniDb {
+    pub fn save_snapshot(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<(), crate::persistence::PersistenceError> {
+        use std::io::Write;
+        let mut file = std::fs::File::create(path)?;
+        // Header
+        file.write_all(RDB_LIKE_HEADER)?;
+        let now = Instant::now();
+
+        for db_index in 0..DATABASE_COUNT {
+            // choose maps for this db
+            let (values_ref, expires_ref) = if db_index == self.selected_db {
+                (&self.values, &self.expires_at)
+            } else {
+                (
+                    &self.databases[db_index].values,
+                    &self.databases[db_index].expires_at,
+                )
+            };
+
+            // deterministic key order
+            let mut keys: Vec<&Vec<u8>> = values_ref.keys().collect();
+            keys.sort();
+            for key in keys {
+                // db index
+                file.write_all(&[db_index as u8])?;
+                write_u64_le(&mut file, key.len() as u64)?;
+                file.write_all(key)?;
+
+                match values_ref.get(key).expect("key exists") {
+                    RedisValue::String(v) => {
+                        file.write_all(&[0])?;
+                        write_u64_le(&mut file, v.len() as u64)?;
+                        file.write_all(v)?;
+                    }
+                    RedisValue::List(list) => {
+                        file.write_all(&[1])?;
+                        write_u64_le(&mut file, list.len() as u64)?;
+                        for item in list {
+                            write_u64_le(&mut file, item.len() as u64)?;
+                            file.write_all(item)?;
+                        }
+                    }
+                    RedisValue::Hash(hash) => {
+                        file.write_all(&[2])?;
+                        write_u64_le(&mut file, hash.len() as u64)?;
+                        for (field, val) in hash.iter() {
+                            write_u64_le(&mut file, field.len() as u64)?;
+                            file.write_all(field)?;
+                            write_u64_le(&mut file, val.len() as u64)?;
+                            file.write_all(val)?;
+                        }
+                    }
+                    RedisValue::Set(set) => {
+                        file.write_all(&[3])?;
+                        write_u64_le(&mut file, set.len() as u64)?;
+                        for member in set.iter() {
+                            write_u64_le(&mut file, member.len() as u64)?;
+                            file.write_all(member)?;
+                        }
+                    }
+                    RedisValue::ZSet(zset) => {
+                        file.write_all(&[4])?;
+                        write_u64_le(&mut file, zset.len() as u64)?;
+                        for (member, score) in zset.iter() {
+                            write_u64_le(&mut file, member.len() as u64)?;
+                            file.write_all(member)?;
+                            write_i64_le(&mut file, *score)?;
+                        }
+                    }
+                    RedisValue::Stream(stream) => {
+                        file.write_all(&[5])?;
+                        write_u64_le(&mut file, stream.entries.len() as u64)?;
+                        for (id, entry) in stream.entries.iter() {
+                            write_u64_le(&mut file, id.0)?;
+                            write_u64_le(&mut file, id.1)?;
+                            write_u64_le(&mut file, entry.id.len() as u64)?;
+                            file.write_all(&entry.id)?;
+                            write_u64_le(&mut file, entry.fields.len() as u64)?;
+                            for (f, v) in &entry.fields {
+                                write_u64_le(&mut file, f.len() as u64)?;
+                                file.write_all(f)?;
+                                write_u64_le(&mut file, v.len() as u64)?;
+                                file.write_all(v)?;
+                            }
+                        }
+                    }
+                }
+
+                // expiry: write remaining seconds as i64 LE, or -1 for none
+                if let Some(deadline) = expires_ref.get(key) {
+                    if *deadline <= now {
+                        write_i64_le(&mut file, -1)?;
+                    } else {
+                        let remaining = deadline.saturating_duration_since(now).as_secs() as i64;
+                        write_i64_le(&mut file, remaining)?;
+                    }
+                } else {
+                    write_i64_le(&mut file, -1)?;
+                }
+            }
+        }
+
+        // terminator
+        file.write_all(&[0xFF])?;
+        Ok(())
+    }
+
+    pub fn load_snapshot(
+        path: &std::path::Path,
+    ) -> Result<Self, crate::persistence::PersistenceError> {
+        use std::io::Read;
+        let mut file = std::fs::File::open(path)?;
+        let mut header = vec![0; RDB_LIKE_HEADER.len()];
+        file.read_exact(&mut header)?;
+        if header != RDB_LIKE_HEADER {
+            return Err(crate::persistence::PersistenceError::Corrupt(
+                "invalid header".to_string(),
+            ));
+        }
+        let mut db = RedisMiniDb::new();
+        loop {
+            let mut tag = [0u8; 1];
+            if file.read_exact(&mut tag).is_err() {
+                return Err(crate::persistence::PersistenceError::Corrupt(
+                    "unexpected eof".to_string(),
+                ));
+            }
+            if tag[0] == 0xFF {
+                break;
+            }
+            let db_index = tag[0] as usize;
+            if db_index >= DATABASE_COUNT {
+                return Err(crate::persistence::PersistenceError::Corrupt(
+                    "invalid database index".to_string(),
+                ));
+            }
+            let key_len = read_u64_le(&mut file)? as usize;
+            let mut key = vec![0u8; key_len];
+            file.read_exact(&mut key)?;
+            let mut vtype = [0u8; 1];
+            file.read_exact(&mut vtype)?;
+            let value = match vtype[0] {
+                0 => {
+                    let len = read_u64_le(&mut file)? as usize;
+                    let mut buf = vec![0u8; len];
+                    file.read_exact(&mut buf)?;
+                    RedisValue::String(buf)
+                }
+                1 => {
+                    let count = read_u64_le(&mut file)? as usize;
+                    let mut list = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        let l = read_u64_le(&mut file)? as usize;
+                        let mut b = vec![0u8; l];
+                        file.read_exact(&mut b)?;
+                        list.push(b);
+                    }
+                    RedisValue::List(list)
+                }
+                2 => {
+                    let count = read_u64_le(&mut file)? as usize;
+                    let mut map = BTreeMap::new();
+                    for _ in 0..count {
+                        let fl = read_u64_le(&mut file)? as usize;
+                        let mut fk = vec![0u8; fl];
+                        file.read_exact(&mut fk)?;
+                        let vl = read_u64_le(&mut file)? as usize;
+                        let mut vv = vec![0u8; vl];
+                        file.read_exact(&mut vv)?;
+                        map.insert(fk, vv);
+                    }
+                    RedisValue::Hash(map)
+                }
+                3 => {
+                    let count = read_u64_le(&mut file)? as usize;
+                    let mut set = BTreeSet::new();
+                    for _ in 0..count {
+                        let l = read_u64_le(&mut file)? as usize;
+                        let mut b = vec![0u8; l];
+                        file.read_exact(&mut b)?;
+                        set.insert(b);
+                    }
+                    RedisValue::Set(set)
+                }
+                4 => {
+                    let count = read_u64_le(&mut file)? as usize;
+                    let mut z = BTreeMap::new();
+                    for _ in 0..count {
+                        let l = read_u64_le(&mut file)? as usize;
+                        let mut b = vec![0u8; l];
+                        file.read_exact(&mut b)?;
+                        let score = read_i64_le(&mut file)?;
+                        z.insert(b, score);
+                    }
+                    RedisValue::ZSet(z)
+                }
+                5 => {
+                    let count = read_u64_le(&mut file)? as usize;
+                    let mut entries = BTreeMap::new();
+                    for _ in 0..count {
+                        let id0 = read_u64_le(&mut file)?;
+                        let id1 = read_u64_le(&mut file)?;
+                        let idblen = read_u64_le(&mut file)? as usize;
+                        let mut idb = vec![0u8; idblen];
+                        file.read_exact(&mut idb)?;
+                        let field_count = read_u64_le(&mut file)? as usize;
+                        let mut fields = Vec::with_capacity(field_count);
+                        for _ in 0..field_count {
+                            let fl = read_u64_le(&mut file)? as usize;
+                            let mut fk = vec![0u8; fl];
+                            file.read_exact(&mut fk)?;
+                            let vl = read_u64_le(&mut file)? as usize;
+                            let mut vv = vec![0u8; vl];
+                            file.read_exact(&mut vv)?;
+                            fields.push((fk, vv));
+                        }
+                        entries.insert((id0, id1), StreamEntry { id: idb, fields });
+                    }
+                    RedisValue::Stream(StreamData {
+                        entries,
+                        groups: BTreeMap::new(),
+                    })
+                }
+                _ => {
+                    return Err(crate::persistence::PersistenceError::Corrupt(
+                        "unknown type".to_string(),
+                    ));
+                }
+            };
+
+            let expiry = read_i64_le(&mut file)?;
+            if expiry >= 0 {
+                let deadline = Instant::now()
+                    .checked_add(std::time::Duration::from_secs(expiry as u64))
+                    .ok_or_else(|| {
+                        crate::persistence::PersistenceError::Corrupt("invalid expiry".to_string())
+                    })?;
+                if db_index == db.selected_db {
+                    db.expires_at.insert(key.to_vec(), deadline);
+                } else {
+                    db.databases[db_index]
+                        .expires_at
+                        .insert(key.to_vec(), deadline);
+                }
+            }
+
+            // insert value into appropriate database
+            if db_index == db.selected_db {
+                db.values.insert(key, value);
+            } else {
+                db.databases[db_index].values.insert(key, value);
+            }
+        }
+
+        Ok(db)
+    }
+
+    pub fn append_aof(
+        &self,
+        path: &std::path::Path,
+        command: &crate::Command,
+        _policy: crate::persistence::AofFsyncPolicy,
+    ) -> Result<(), crate::persistence::PersistenceError> {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        write_u64_le(&mut file, command.args.len() as u64)?;
+        for arg in &command.args {
+            write_u64_le(&mut file, arg.len() as u64)?;
+            file.write_all(arg)?;
+        }
+        // fsync policy placeholder: not implemented for tests
+        Ok(())
+    }
+
+    pub fn replay_aof(
+        &mut self,
+        path: &std::path::Path,
+    ) -> Result<(), crate::persistence::PersistenceError> {
+        use std::io::Read;
+        let mut file = std::fs::File::open(path)?;
+        loop {
+            let cnt = match read_u64_le(&mut file) {
+                Ok(v) => v as usize,
+                Err(_) => break,
+            };
+            let mut args = Vec::with_capacity(cnt);
+            for _ in 0..cnt {
+                let l = read_u64_le(&mut file)? as usize;
+                let mut b = vec![0u8; l];
+                file.read_exact(&mut b)?;
+                args.push(b);
+            }
+            let command = crate::Command::new(args);
+            self.execute(command);
+        }
+        Ok(())
+    }
+}
+
+fn write_u64_le<W: std::io::Write>(w: &mut W, v: u64) -> std::io::Result<()> {
+    w.write_all(&v.to_le_bytes())
+}
+
+fn read_u64_le<R: std::io::Read>(r: &mut R) -> Result<u64, crate::persistence::PersistenceError> {
+    let mut buf = [0u8; 8];
+    r.read_exact(&mut buf)
+        .map_err(crate::persistence::PersistenceError::Io)?;
+    Ok(u64::from_le_bytes(buf))
+}
+
+fn write_i64_le<W: std::io::Write>(w: &mut W, v: i64) -> std::io::Result<()> {
+    w.write_all(&v.to_le_bytes())
+}
+
+fn read_i64_le<R: std::io::Read>(r: &mut R) -> Result<i64, crate::persistence::PersistenceError> {
+    let mut buf = [0u8; 8];
+    r.read_exact(&mut buf)
+        .map_err(crate::persistence::PersistenceError::Io)?;
+    Ok(i64::from_le_bytes(buf))
+}

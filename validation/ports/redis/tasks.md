@@ -332,10 +332,10 @@ iteration-033: completed minimal compatible Pub/Sub with Redis-like subscription
 
 ## Phase 31: Persistence
 
-- [ ] R224 Add deterministic snapshot serialization and load tests as a stepping stone toward RDB.
-- [ ] R225 Add Redis RDB-compatible subset load/save for implemented value types.
-- [ ] R226 Add AOF append/replay with fsync policy placeholders.
-- [ ] R227 Save diagnostics and reports for persistence iterations.
+    - [x] R224 Add deterministic snapshot serialization and load tests as a stepping stone toward RDB.
+    - [x] R225 Add Redis RDB-compatible subset load/save for implemented value types.
+    - [x] R226 Add AOF append/replay with fsync policy placeholders.
+    - [x] R227 Save diagnostics and reports for persistence iterations.
 
 ## Phase 32: ACL, Auth, Config, And Introspection
 
