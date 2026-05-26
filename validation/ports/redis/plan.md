@@ -1,8 +1,8 @@
-# Redis RESP Parser Porting Plan
+# Redis Rust Porting Plan
 
 ## Strategy
 
-Start with a narrow RESP parser crate rather than the full Redis server. The implementation will mirror Redis request parsing behavior enough to test ownership navigation around mutable buffers and partial input.
+Start with a narrow RESP parser crate, then expand in measured slices toward a complete Rust Redis-compatible server. Every slice remains compile-checkable and records ownership diagnostics so the navigation tool can be evaluated against real porting pressure.
 
 ## Target Architecture
 
@@ -10,16 +10,20 @@ Start with a narrow RESP parser crate rather than the full Redis server. The imp
 - `rust-port/src/error.rs`: protocol and parser error variants.
 - `rust-port/src/command.rs`: command argument model.
 - `rust-port/src/parser.rs`: streaming parser with input buffer, cursor, and compaction.
+- `rust-port/src/executor.rs`: command dispatcher, in-memory DB, RESP replies, and command families.
+- Future modules: server/client sessions, persistence, pub/sub, replication, cluster, ACL/auth, config, and compatibility harnesses.
 - `rust-port/tests/resp_parser.rs`: tests derived from Redis request parser behavior.
 
 ## Iteration Plan
 
-1. Crate skeleton and RESP multibulk happy path.
-2. Partial multibulk input and parser state retention.
-3. Multiple commands in one buffer plus buffer compaction.
-4. Protocol error handling for invalid multibulk and bulk lengths.
-5. Inline command parsing and quoting behavior.
-6. Ownership-pressure slice: large bulk transfer and compaction without broad copying.
+1. Parser and command argument extraction.
+2. In-memory executor for core data structures.
+3. Transactions, WATCH/UNWATCH, scans, sorted sets, and streams.
+4. Command dispatch metadata and database/server separation.
+5. TCP server loop, clients, pipelining, and integration fixtures.
+6. Full command-family expansion by Redis data type.
+7. Persistence, pub/sub, blocking commands, ACL/auth, config, observability.
+8. Replication, cluster basics, compatibility harness, and final gap report.
 
 ## Diagnostic Loop
 
@@ -36,7 +40,7 @@ For every low-cost implementation attempt:
 - Keep each slice compile-checkable and testable.
 - Prefer owned `Vec<u8>` command arguments at API boundaries.
 - Avoid `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and broad `.clone()` shortcuts unless recorded as measurement events.
-- Do not port networking or server command execution in this validation phase.
+- Keep each full-port phase behind tests and recorded diagnostic artifacts.
 
 ## Risks
 
@@ -46,4 +50,4 @@ For every low-cost implementation attempt:
 
 ## Completion Definition
 
-The Redis validation setup is ready when upstream metadata, spec, plan, tasks, quickstart, and iteration log exist, and the upstream checkout is verified ignored by Git.
+The full Redis validation port is complete when the task ledger has no remaining implementation phases, the Rust server can run compatibility fixtures through the TCP interface, persistence and replication smoke tests pass, and the final report records zero unresolved supported ownership diagnostics.

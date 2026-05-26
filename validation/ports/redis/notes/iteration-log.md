@@ -433,6 +433,27 @@ Use this log to separate ownership-report effects from human guidance.
 - Did the ownership report change the next fix: no; no ownership diagnostics were emitted
 - Next action: iteration-019 R176-R185 validation is complete; proceed only if another Redis command slice is requested.
 
+### iteration-020
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R186-R195 command dispatch foundation, diagnostic capture, ownership reports, and ledger updates.
+- Prompt summary: Add command-name normalization and command category metadata tests; introduce a small static metadata table for implemented Redis commands; route executor command handling through a metadata-aware central dispatcher; preserve unknown-command and wrong-arity errors plus transaction queue behavior for `MULTI`, `EXEC`, `DISCARD`, `WATCH`, and `UNWATCH`; capture cargo diagnostics, generate ownership reports, and update notes/tasks.
+- Human ownership hints before attempt: none
+- Command: `cd validation/ports/redis/rust-port && mkdir -p ../reports/iteration-020 && cargo fmt && cargo check --message-format=json > ../reports/iteration-020/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-020/cargo-check.jsonl --json-out ../reports/iteration-020/ownership-report.json --html-out ../reports/iteration-020/ownership-report.html`
+- Result: compile success; test success, 85 passed; ownership report generation success
+- Diagnostics file: `reports/iteration-020/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-020/ownership-report.json`
+- Ownership report HTML: `reports/iteration-020/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: none; no `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or `unsafe` introduced. Dispatch uses a static command table and moves owned command arguments through the existing executor paths.
+- Did the ownership report change the next fix: no; no ownership diagnostics were emitted
+- Next action: iteration-020 R186-R195 validation is complete; proceed to multi-database core only if requested.
+
 ## Human Intervention Definition
 
 A human intervention is any manual Rust design hint, code edit, or prompt instruction that explains how to resolve a concrete compile error beyond asking the model to inspect the generated ownership report.

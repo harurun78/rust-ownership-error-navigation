@@ -28,6 +28,43 @@ impl RespReply {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum CommandCategory {
+    Connection,
+    String,
+    List,
+    Hash,
+    Set,
+    SortedSet,
+    Stream,
+    Keyspace,
+    Transaction,
+    Server,
+}
+
+impl CommandCategory {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Connection => "connection",
+            Self::String => "string",
+            Self::List => "list",
+            Self::Hash => "hash",
+            Self::Set => "set",
+            Self::SortedSet => "sorted-set",
+            Self::Stream => "stream",
+            Self::Keyspace => "keyspace",
+            Self::Transaction => "transaction",
+            Self::Server => "server",
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CommandMetadata {
+    pub name: &'static str,
+    pub category: CommandCategory,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum RedisValue {
     String(Vec<u8>),
@@ -63,20 +100,11 @@ impl RedisMiniDb {
             return RespReply::Error("ERR unknown command ''".to_string());
         }
 
-        if command.args[0].eq_ignore_ascii_case(b"MULTI") {
-            return self.execute_multi(command.args);
-        }
-        if command.args[0].eq_ignore_ascii_case(b"EXEC") {
-            return self.execute_exec(command.args);
-        }
-        if command.args[0].eq_ignore_ascii_case(b"DISCARD") {
-            return self.execute_discard(command.args);
-        }
-        if command.args[0].eq_ignore_ascii_case(b"WATCH") {
-            return self.execute_watch(command.args);
-        }
-        if command.args[0].eq_ignore_ascii_case(b"UNWATCH") {
-            return self.execute_unwatch(command.args);
+        let command_kind = find_command_spec(&command.args[0]).map(|spec| spec.kind);
+        if let Some(kind) = command_kind {
+            if kind.is_transaction_control() {
+                return self.execute_transaction_control(kind, command.args);
+            }
         }
 
         if let Some(queue) = self.transaction_queue.as_mut() {
@@ -86,95 +114,83 @@ impl RedisMiniDb {
 
         let mut args = command.args;
         let command_name = args.remove(0);
-        self.execute_immediate(command_name, args)
+        self.execute_immediate(command_kind, command_name, args)
     }
 
-    fn execute_immediate(&mut self, command_name: Vec<u8>, args: Vec<Vec<u8>>) -> RespReply {
-        if command_name.eq_ignore_ascii_case(b"PING") {
-            self.execute_ping(args)
-        } else if command_name.eq_ignore_ascii_case(b"ECHO") {
-            execute_echo(args)
-        } else if command_name.eq_ignore_ascii_case(b"SET") {
-            self.execute_set(args)
-        } else if command_name.eq_ignore_ascii_case(b"GET") {
-            self.execute_get(args)
-        } else if command_name.eq_ignore_ascii_case(b"DEL") {
-            self.execute_del(args)
-        } else if command_name.eq_ignore_ascii_case(b"EXISTS") {
-            self.execute_exists(args)
-        } else if command_name.eq_ignore_ascii_case(b"EXPIRE") {
-            self.execute_expire(args)
-        } else if command_name.eq_ignore_ascii_case(b"TTL") {
-            self.execute_ttl(args)
-        } else if command_name.eq_ignore_ascii_case(b"PERSIST") {
-            self.execute_persist(args)
-        } else if command_name.eq_ignore_ascii_case(b"INCR") {
-            self.execute_incr_by(args, 1, "incr")
-        } else if command_name.eq_ignore_ascii_case(b"DECR") {
-            self.execute_incr_by(args, -1, "decr")
-        } else if command_name.eq_ignore_ascii_case(b"INCRBY") {
-            self.execute_incrby(args)
-        } else if command_name.eq_ignore_ascii_case(b"LPUSH") {
-            self.execute_push(args, ListSide::Left)
-        } else if command_name.eq_ignore_ascii_case(b"RPUSH") {
-            self.execute_push(args, ListSide::Right)
-        } else if command_name.eq_ignore_ascii_case(b"LPOP") {
-            self.execute_pop(args, ListSide::Left)
-        } else if command_name.eq_ignore_ascii_case(b"RPOP") {
-            self.execute_pop(args, ListSide::Right)
-        } else if command_name.eq_ignore_ascii_case(b"LRANGE") {
-            self.execute_lrange(args)
-        } else if command_name.eq_ignore_ascii_case(b"HSET") {
-            self.execute_hset(args)
-        } else if command_name.eq_ignore_ascii_case(b"HGET") {
-            self.execute_hget(args)
-        } else if command_name.eq_ignore_ascii_case(b"HDEL") {
-            self.execute_hdel(args)
-        } else if command_name.eq_ignore_ascii_case(b"HGETALL") {
-            self.execute_hgetall(args)
-        } else if command_name.eq_ignore_ascii_case(b"SADD") {
-            self.execute_sadd(args)
-        } else if command_name.eq_ignore_ascii_case(b"SREM") {
-            self.execute_srem(args)
-        } else if command_name.eq_ignore_ascii_case(b"SISMEMBER") {
-            self.execute_sismember(args)
-        } else if command_name.eq_ignore_ascii_case(b"SMEMBERS") {
-            self.execute_smembers(args)
-        } else if command_name.eq_ignore_ascii_case(b"SUNIONSTORE") {
-            self.execute_set_store(args, SetStoreOp::Union)
-        } else if command_name.eq_ignore_ascii_case(b"SINTERSTORE") {
-            self.execute_set_store(args, SetStoreOp::Intersection)
-        } else if command_name.eq_ignore_ascii_case(b"SDIFFSTORE") {
-            self.execute_set_store(args, SetStoreOp::Difference)
-        } else if command_name.eq_ignore_ascii_case(b"ZADD") {
-            self.execute_zadd(args)
-        } else if command_name.eq_ignore_ascii_case(b"ZREM") {
-            self.execute_zrem(args)
-        } else if command_name.eq_ignore_ascii_case(b"ZSCORE") {
-            self.execute_zscore(args)
-        } else if command_name.eq_ignore_ascii_case(b"ZRANGE") {
-            self.execute_zrange(args)
-        } else if command_name.eq_ignore_ascii_case(b"XADD") {
-            self.execute_xadd(args)
-        } else if command_name.eq_ignore_ascii_case(b"XLEN") {
-            self.execute_xlen(args)
-        } else if command_name.eq_ignore_ascii_case(b"XRANGE") {
-            self.execute_xrange(args)
-        } else if command_name.eq_ignore_ascii_case(b"TYPE") {
-            self.execute_type(args)
-        } else if command_name.eq_ignore_ascii_case(b"RENAME") {
-            self.execute_rename(args)
-        } else if command_name.eq_ignore_ascii_case(b"RENAMENX") {
-            self.execute_renamenx(args)
-        } else if command_name.eq_ignore_ascii_case(b"KEYS") {
-            self.execute_keys(args)
-        } else if command_name.eq_ignore_ascii_case(b"SCAN") {
-            self.execute_scan(args)
-        } else {
-            RespReply::Error(format!(
+    fn execute_transaction_control(
+        &mut self,
+        command_kind: CommandKind,
+        args: Vec<Vec<u8>>,
+    ) -> RespReply {
+        match command_kind {
+            CommandKind::Multi => self.execute_multi(args),
+            CommandKind::Exec => self.execute_exec(args),
+            CommandKind::Discard => self.execute_discard(args),
+            CommandKind::Watch => self.execute_watch(args),
+            CommandKind::Unwatch => self.execute_unwatch(args),
+            _ => unreachable!("only transaction-control commands are routed here"),
+        }
+    }
+
+    fn execute_immediate(
+        &mut self,
+        command_kind: Option<CommandKind>,
+        command_name: Vec<u8>,
+        args: Vec<Vec<u8>>,
+    ) -> RespReply {
+        let Some(command_kind) = command_kind else {
+            return RespReply::Error(format!(
                 "ERR unknown command '{}'",
                 String::from_utf8_lossy(&command_name)
-            ))
+            ));
+        };
+
+        match command_kind {
+            CommandKind::Ping => self.execute_ping(args),
+            CommandKind::Echo => execute_echo(args),
+            CommandKind::Set => self.execute_set(args),
+            CommandKind::Get => self.execute_get(args),
+            CommandKind::Del => self.execute_del(args),
+            CommandKind::Exists => self.execute_exists(args),
+            CommandKind::Expire => self.execute_expire(args),
+            CommandKind::Ttl => self.execute_ttl(args),
+            CommandKind::Persist => self.execute_persist(args),
+            CommandKind::Incr => self.execute_incr_by(args, 1, "incr"),
+            CommandKind::Decr => self.execute_incr_by(args, -1, "decr"),
+            CommandKind::IncrBy => self.execute_incrby(args),
+            CommandKind::LPush => self.execute_push(args, ListSide::Left),
+            CommandKind::RPush => self.execute_push(args, ListSide::Right),
+            CommandKind::LPop => self.execute_pop(args, ListSide::Left),
+            CommandKind::RPop => self.execute_pop(args, ListSide::Right),
+            CommandKind::LRange => self.execute_lrange(args),
+            CommandKind::HSet => self.execute_hset(args),
+            CommandKind::HGet => self.execute_hget(args),
+            CommandKind::HDel => self.execute_hdel(args),
+            CommandKind::HGetAll => self.execute_hgetall(args),
+            CommandKind::SAdd => self.execute_sadd(args),
+            CommandKind::SRem => self.execute_srem(args),
+            CommandKind::SIsMember => self.execute_sismember(args),
+            CommandKind::SMembers => self.execute_smembers(args),
+            CommandKind::SUnionStore => self.execute_set_store(args, SetStoreOp::Union),
+            CommandKind::SInterStore => self.execute_set_store(args, SetStoreOp::Intersection),
+            CommandKind::SDiffStore => self.execute_set_store(args, SetStoreOp::Difference),
+            CommandKind::ZAdd => self.execute_zadd(args),
+            CommandKind::ZRem => self.execute_zrem(args),
+            CommandKind::ZScore => self.execute_zscore(args),
+            CommandKind::ZRange => self.execute_zrange(args),
+            CommandKind::XAdd => self.execute_xadd(args),
+            CommandKind::XLen => self.execute_xlen(args),
+            CommandKind::XRange => self.execute_xrange(args),
+            CommandKind::Type => self.execute_type(args),
+            CommandKind::Rename => self.execute_rename(args),
+            CommandKind::RenameNx => self.execute_renamenx(args),
+            CommandKind::Keys => self.execute_keys(args),
+            CommandKind::Scan => self.execute_scan(args),
+            CommandKind::Multi
+            | CommandKind::Exec
+            | CommandKind::Discard
+            | CommandKind::Watch
+            | CommandKind::Unwatch => self.execute_transaction_control(command_kind, args),
         }
     }
 
@@ -1384,6 +1400,159 @@ impl RedisValue {
             Self::Stream(_) => "stream",
         }
     }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum CommandKind {
+    Ping,
+    Echo,
+    Set,
+    Get,
+    Del,
+    Exists,
+    Expire,
+    Ttl,
+    Persist,
+    Incr,
+    Decr,
+    IncrBy,
+    LPush,
+    RPush,
+    LPop,
+    RPop,
+    LRange,
+    HSet,
+    HGet,
+    HDel,
+    HGetAll,
+    SAdd,
+    SRem,
+    SIsMember,
+    SMembers,
+    SUnionStore,
+    SInterStore,
+    SDiffStore,
+    ZAdd,
+    ZRem,
+    ZScore,
+    ZRange,
+    XAdd,
+    XLen,
+    XRange,
+    Type,
+    Rename,
+    RenameNx,
+    Keys,
+    Scan,
+    Multi,
+    Exec,
+    Discard,
+    Watch,
+    Unwatch,
+}
+
+impl CommandKind {
+    fn is_transaction_control(self) -> bool {
+        matches!(
+            self,
+            Self::Multi | Self::Exec | Self::Discard | Self::Watch | Self::Unwatch
+        )
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+struct CommandSpec {
+    metadata: CommandMetadata,
+    kind: CommandKind,
+}
+
+static COMMAND_SPECS: &[CommandSpec] = &[
+    command_spec("PING", CommandCategory::Connection, CommandKind::Ping),
+    command_spec("ECHO", CommandCategory::Connection, CommandKind::Echo),
+    command_spec("SET", CommandCategory::String, CommandKind::Set),
+    command_spec("GET", CommandCategory::String, CommandKind::Get),
+    command_spec("DEL", CommandCategory::Keyspace, CommandKind::Del),
+    command_spec("EXISTS", CommandCategory::Keyspace, CommandKind::Exists),
+    command_spec("EXPIRE", CommandCategory::Keyspace, CommandKind::Expire),
+    command_spec("TTL", CommandCategory::Keyspace, CommandKind::Ttl),
+    command_spec("PERSIST", CommandCategory::Keyspace, CommandKind::Persist),
+    command_spec("INCR", CommandCategory::String, CommandKind::Incr),
+    command_spec("DECR", CommandCategory::String, CommandKind::Decr),
+    command_spec("INCRBY", CommandCategory::String, CommandKind::IncrBy),
+    command_spec("LPUSH", CommandCategory::List, CommandKind::LPush),
+    command_spec("RPUSH", CommandCategory::List, CommandKind::RPush),
+    command_spec("LPOP", CommandCategory::List, CommandKind::LPop),
+    command_spec("RPOP", CommandCategory::List, CommandKind::RPop),
+    command_spec("LRANGE", CommandCategory::List, CommandKind::LRange),
+    command_spec("HSET", CommandCategory::Hash, CommandKind::HSet),
+    command_spec("HGET", CommandCategory::Hash, CommandKind::HGet),
+    command_spec("HDEL", CommandCategory::Hash, CommandKind::HDel),
+    command_spec("HGETALL", CommandCategory::Hash, CommandKind::HGetAll),
+    command_spec("SADD", CommandCategory::Set, CommandKind::SAdd),
+    command_spec("SREM", CommandCategory::Set, CommandKind::SRem),
+    command_spec("SISMEMBER", CommandCategory::Set, CommandKind::SIsMember),
+    command_spec("SMEMBERS", CommandCategory::Set, CommandKind::SMembers),
+    command_spec(
+        "SUNIONSTORE",
+        CommandCategory::Set,
+        CommandKind::SUnionStore,
+    ),
+    command_spec(
+        "SINTERSTORE",
+        CommandCategory::Set,
+        CommandKind::SInterStore,
+    ),
+    command_spec("SDIFFSTORE", CommandCategory::Set, CommandKind::SDiffStore),
+    command_spec("ZADD", CommandCategory::SortedSet, CommandKind::ZAdd),
+    command_spec("ZREM", CommandCategory::SortedSet, CommandKind::ZRem),
+    command_spec("ZSCORE", CommandCategory::SortedSet, CommandKind::ZScore),
+    command_spec("ZRANGE", CommandCategory::SortedSet, CommandKind::ZRange),
+    command_spec("XADD", CommandCategory::Stream, CommandKind::XAdd),
+    command_spec("XLEN", CommandCategory::Stream, CommandKind::XLen),
+    command_spec("XRANGE", CommandCategory::Stream, CommandKind::XRange),
+    command_spec("TYPE", CommandCategory::Keyspace, CommandKind::Type),
+    command_spec("RENAME", CommandCategory::Keyspace, CommandKind::Rename),
+    command_spec("RENAMENX", CommandCategory::Keyspace, CommandKind::RenameNx),
+    command_spec("KEYS", CommandCategory::Keyspace, CommandKind::Keys),
+    command_spec("SCAN", CommandCategory::Keyspace, CommandKind::Scan),
+    command_spec("MULTI", CommandCategory::Transaction, CommandKind::Multi),
+    command_spec("EXEC", CommandCategory::Transaction, CommandKind::Exec),
+    command_spec(
+        "DISCARD",
+        CommandCategory::Transaction,
+        CommandKind::Discard,
+    ),
+    command_spec("WATCH", CommandCategory::Transaction, CommandKind::Watch),
+    command_spec(
+        "UNWATCH",
+        CommandCategory::Transaction,
+        CommandKind::Unwatch,
+    ),
+];
+
+const fn command_spec(
+    name: &'static str,
+    category: CommandCategory,
+    kind: CommandKind,
+) -> CommandSpec {
+    CommandSpec {
+        metadata: CommandMetadata { name, category },
+        kind,
+    }
+}
+
+pub fn normalize_command_name(command_name: &[u8]) -> Option<&'static str> {
+    find_command_spec(command_name).map(|spec| spec.metadata.name)
+}
+
+pub fn command_metadata(command_name: &[u8]) -> Option<CommandMetadata> {
+    find_command_spec(command_name).map(|spec| spec.metadata)
+}
+
+fn find_command_spec(command_name: &[u8]) -> Option<&'static CommandSpec> {
+    COMMAND_SPECS
+        .iter()
+        .find(|spec| command_name.eq_ignore_ascii_case(spec.metadata.name.as_bytes()))
 }
 
 #[derive(Debug, Copy, Clone)]

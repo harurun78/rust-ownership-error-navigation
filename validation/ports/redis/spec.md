@@ -1,8 +1,8 @@
-# Redis RESP Parser Porting Validation Spec
+# Redis Rust Porting Validation Spec
 
 ## Purpose
 
-This target measures whether the Rust ownership-error navigation tool helps a low-cost model port Redis C code to Rust when the source code has streaming buffers, cursor state, partial frames, and owned argument transfer.
+This target measures whether the Rust ownership-error navigation tool helps a low-cost model port Redis C code to Rust when the source code has streaming buffers, cursor state, partial frames, owned argument transfer, mutable in-memory data structures, transactions, persistence, networking, and multi-client server state.
 
 The cJSON validation target has stayed too easy because the chosen Rust design used an owned tree with straightforward `Vec` ownership. Redis RESP parsing should create more ownership pressure through mutable input buffers, cursor advancement, partial reads, command extraction, and buffer compaction.
 
@@ -19,9 +19,9 @@ The cJSON validation target has stayed too easy because the chosen Rust design u
 
 ## Functional Scope
 
-Implement a Rust library that parses Redis client request frames into command arguments.
+Implement a Rust Redis-compatible validation port in incremental slices. The first milestones built a parser and in-memory command executor. The expanded goal is to grow this into a complete Rust Redis server implementation suitable for compatibility validation against Redis behavior.
 
-The initial port must support:
+Already completed parser scope:
 
 - RESP2 multibulk command arrays such as `*2\r\n$3\r\nGET\r\n$3\r\nkey\r\n`.
 - Partial input where a command is incomplete until more bytes are appended.
@@ -30,12 +30,24 @@ The initial port must support:
 - Inline commands such as `PING\r\n` and `SET key value\r\n` after multibulk parsing is established.
 - Protocol errors for malformed multibulk lengths, bulk lengths, missing `$`, invalid line endings, overlarge inline requests, and unbalanced inline quoting.
 
+Expanded full-port scope:
+
+- Command dispatch and metadata for all supported commands.
+- RESP2 and RESP3 protocol surfaces.
+- TCP server loop, client sessions, command pipelining, and graceful shutdown.
+- Multi-database keyspace, expiration, eviction, and memory-policy behavior.
+- Complete core data type command families for strings, lists, hashes, sets, sorted sets, streams, transactions, keyspace, scanning, and scripting-facing behavior.
+- Pub/Sub, blocking commands, stream consumer groups, ACL/auth, config, and observability commands.
+- RDB snapshot loading/saving and AOF append/replay.
+- Replication protocol, partial sync, and cluster slot/routing behavior.
+- Compatibility fixtures and integration tests derived from Redis upstream behavior.
+
 ## Non-Goals
 
-- No Redis server, networking, authentication, replication, ACLs, command execution, persistence, cluster, scripting, or pub/sub.
-- No RESP replies in the first validation phase.
+- Exact drop-in performance parity with Redis C in early validation phases.
+- Redis module ABI compatibility until the core server reaches compatibility milestones.
+- Unsafe Rust unless an iteration explicitly records it as a measurement event and is reviewed.
 - No exact SDS allocator behavior or Redis object reference counting.
-- No unsafe Rust unless an iteration explicitly records it as a measurement event.
 
 ## Data Model Expectations
 
@@ -74,6 +86,8 @@ This target should deliberately exercise Rust ownership behavior that cJSON avoi
 
 - Each implementation iteration saves `cargo check --message-format=json` to `reports/iteration-NNN/cargo-check.jsonl`.
 - Each iteration generates `ownership-report.json` and `ownership-report.html` from the saved JSONL.
+- If a report contains E0382, E0499, or E0502, the next lightweight-model attempt must receive the generated report as the primary fix guide and must record whether diagnostics decreased.
 - Each iteration records model, prompt summary, human ownership hints, command result, diagnostic counts, shortcut pressure, and next action in `notes/iteration-log.md`.
 - `cargo fmt -- --check` and `cargo test` pass for completed iterations.
 - Existing repository validation commands continue to pass when tracked files outside the Rust validation crate are changed.
+- Completion requires command compatibility, TCP server operation, persistence, replication, cluster basics, ACL/auth, observability, and a final compatibility report set documenting remaining known gaps.

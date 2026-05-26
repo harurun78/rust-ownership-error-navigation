@@ -249,3 +249,111 @@ NOTE: R154-R160 were implemented as a minimal attempt in iteration-017. The init
 - [x] R183 Generate `reports/iteration-019/ownership-report.json`.
 - [x] R184 Generate `reports/iteration-019/ownership-report.html`.
 - [x] R185 Record iteration-019 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Full Redis Port Expansion Roadmap
+
+The validation target is now expanded from a parser/executor experiment into a staged Rust Redis-compatible server port. Each implementation phase must continue the diagnostic loop: save Cargo JSONL, generate JSON/HTML ownership reports, record diagnostic counts, and if E0382/E0499/E0502 appears, feed the generated report back into a low-cost follow-up attempt before manual ownership guidance.
+
+## Phase 22: Command Dispatch Foundation
+
+- [x] R186 Add tests for command-name normalization and command category metadata.
+- [x] R187 Add tests for a central command dispatcher preserving current command behavior.
+- [x] R188 Add tests that unknown commands and arity errors remain stable after dispatch refactor.
+- [x] R189 Introduce a small command metadata table for implemented commands.
+- [x] R190 Route executor commands through the metadata-aware dispatcher without broad clones.
+- [x] R191 Preserve transaction queue, WATCH invalidation, expiration, stream, scan, and all existing command-family behavior.
+- [x] R192 Save `cargo check --message-format=json` output to `reports/iteration-020/cargo-check.jsonl`.
+- [x] R193 Generate `reports/iteration-020/ownership-report.json`.
+- [x] R194 Generate `reports/iteration-020/ownership-report.html`.
+- [x] R195 Record iteration-020 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 23: Multi-Database Core
+
+- [ ] R196 Add DB index state and tests for `SELECT`, `DBSIZE`, and per-database key isolation.
+- [ ] R197 Move expiration, key versions, watched keys, and values into per-database state.
+- [ ] R198 Preserve transactions and WATCH semantics across selected DBs.
+- [ ] R199 Save diagnostics and reports for iteration-021.
+
+## Phase 24: RESP3 Protocol Surface
+
+- [ ] R200 Add RESP3 reply variants and encoding tests.
+- [ ] R201 Add `HELLO 2|3` protocol negotiation state for client/session execution.
+- [ ] R202 Preserve RESP2 compatibility as the default.
+- [ ] R203 Save diagnostics and reports for iteration-022.
+
+## Phase 25: Client Session And TCP Server MVP
+
+- [ ] R204 Add a client session abstraction that combines parser, selected DB, protocol version, and transaction state.
+- [ ] R205 Add a blocking TCP server binary that accepts one or more clients and handles pipelined commands.
+- [ ] R206 Add integration tests using localhost TCP sockets.
+- [ ] R207 Save diagnostics and reports for iteration-023.
+
+## Phase 26: String Command Completion
+
+- [ ] R208 Add string commands `MGET`, `MSET`, `APPEND`, `STRLEN`, `GETRANGE`, `SETRANGE`, `GETSET`, and `SET` options (`NX`, `XX`, `GET`, `EX`, `PX`).
+- [ ] R209 Add Redis-compatible edge-case tests for integer and binary-safe strings.
+- [ ] R210 Save diagnostics and reports for the string completion iterations.
+
+## Phase 27: List Command Completion And Blocking Lists
+
+- [ ] R211 Add `LLEN`, `LINDEX`, `LSET`, `LTRIM`, `LREM`, `RPOPLPUSH`, `LMOVE`, and range edge cases.
+- [ ] R212 Add minimal blocking list command behavior for `BLPOP`, `BRPOP`, and `BLMOVE` once client sessions exist.
+- [ ] R213 Save diagnostics and reports for list completion iterations.
+
+## Phase 28: Hash/Set/Sorted Set Completion
+
+- [ ] R214 Complete hash commands including `HMGET`, `HGETALL`, `HKEYS`, `HVALS`, `HLEN`, `HINCRBY`, and scan variants.
+- [ ] R215 Complete set commands including `SPOP`, `SRANDMEMBER`, `SMOVE`, `SCARD`, `SDIFF`, `SINTER`, `SUNION`, and scan variants.
+- [ ] R216 Complete sorted set commands including score ranges, rank/removal commands, cardinality, lex ranges, and scan variants.
+- [ ] R217 Save diagnostics and reports for collection completion iterations.
+
+## Phase 29: Stream Consumer Groups
+
+- [ ] R218 Add generated stream IDs, `XREAD`, `XDEL`, `XTRIM`, and range/count options.
+- [ ] R219 Add consumer group commands `XGROUP`, `XREADGROUP`, `XACK`, `XPENDING`, and `XCLAIM` in minimal compatible slices.
+- [ ] R220 Save diagnostics and reports for stream group iterations.
+
+## Phase 30: Pub/Sub
+
+- [ ] R221 Add client subscription state and `SUBSCRIBE`, `UNSUBSCRIBE`, `PUBLISH`, `PSUBSCRIBE`, and `PUNSUBSCRIBE`.
+- [ ] R222 Add multi-client integration tests for message delivery and subscribed-mode command restrictions.
+- [ ] R223 Save diagnostics and reports for pub/sub iterations.
+
+## Phase 31: Persistence
+
+- [ ] R224 Add deterministic snapshot serialization and load tests as a stepping stone toward RDB.
+- [ ] R225 Add Redis RDB-compatible subset load/save for implemented value types.
+- [ ] R226 Add AOF append/replay with fsync policy placeholders.
+- [ ] R227 Save diagnostics and reports for persistence iterations.
+
+## Phase 32: ACL, Auth, Config, And Introspection
+
+- [ ] R228 Add `AUTH`, `ACL` subset, user permissions, and command-category checks.
+- [ ] R229 Add `CONFIG GET/SET` subset for implemented configuration values.
+- [ ] R230 Add `INFO`, `COMMAND`, `CLIENT`, `TIME`, and `SLOWLOG`/latency placeholders where useful.
+- [ ] R231 Save diagnostics and reports for admin-command iterations.
+
+## Phase 33: Scripting And Functions
+
+- [ ] R232 Add a scripting boundary and decide whether to embed a maintained Lua engine or provide compatibility stubs first.
+- [ ] R233 Add `EVAL`, `EVALSHA`, `SCRIPT LOAD/EXISTS/FLUSH`, and deterministic tests for key access.
+- [ ] R234 Save diagnostics and reports for scripting iterations.
+
+## Phase 34: Replication
+
+- [ ] R235 Add master/replica role state and `REPLICAOF`, `ROLE`, and replication handshake smoke tests.
+- [ ] R236 Add command propagation log and partial sync checkpoint model.
+- [ ] R237 Save diagnostics and reports for replication iterations.
+
+## Phase 35: Cluster Basics
+
+- [ ] R238 Add hash slot calculation, key-slot validation, and `CLUSTER KEYSLOT`/`CLUSTER SLOTS` subset.
+- [ ] R239 Add MOVED/ASK response behavior and cluster-aware command routing tests.
+- [ ] R240 Save diagnostics and reports for cluster iterations.
+
+## Phase 36: Compatibility Harness And Final Gap Report
+
+- [ ] R241 Add fixture-driven compatibility tests comparing selected Redis upstream command transcripts.
+- [ ] R242 Add TCP smoke tests for parser, executor, persistence, pub/sub, and replication slices.
+- [ ] R243 Produce a final compatibility matrix documenting complete, partial, and intentionally unsupported behavior.
+- [ ] R244 Run final `cargo fmt -- --check`, `cargo test`, repository gates, shortcut scan, and generate final ownership report summary.

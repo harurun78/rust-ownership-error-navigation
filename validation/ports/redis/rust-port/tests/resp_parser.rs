@@ -1,4 +1,7 @@
-use rust_port::{Command, ParseOutcome, RedisMiniDb, RespCommandParser, RespError, RespReply};
+use rust_port::{
+    Command, CommandCategory, CommandMetadata, ParseOutcome, RedisMiniDb, RespCommandParser,
+    RespError, RespReply, command_metadata, normalize_command_name,
+};
 
 fn assert_incomplete(parser: &mut RespCommandParser) {
     assert_eq!(
@@ -45,6 +48,87 @@ fn command(args: &[&[u8]]) -> Command {
 
 fn execute(db: &mut RedisMiniDb, args: &[&[u8]]) -> RespReply {
     db.execute(command(args))
+}
+
+#[test]
+fn normalizes_known_command_names_without_allocating_errors_for_unknowns() {
+    assert_eq!(normalize_command_name(b"ping"), Some("PING"));
+    assert_eq!(normalize_command_name(b"pInG"), Some("PING"));
+    assert_eq!(normalize_command_name(b"sunionstore"), Some("SUNIONSTORE"));
+    assert_eq!(normalize_command_name(b"scan"), Some("SCAN"));
+    assert_eq!(normalize_command_name(b"NOPE"), None);
+}
+
+#[test]
+fn exposes_command_category_metadata_for_implemented_commands() {
+    assert_eq!(
+        command_metadata(b"PING"),
+        Some(CommandMetadata {
+            name: "PING",
+            category: CommandCategory::Connection,
+        })
+    );
+    assert_eq!(
+        command_metadata(b"set").unwrap().category.as_str(),
+        "string"
+    );
+    assert_eq!(
+        command_metadata(b"lpush").unwrap().category.as_str(),
+        "list"
+    );
+    assert_eq!(
+        command_metadata(b"hgetall").unwrap().category.as_str(),
+        "hash"
+    );
+    assert_eq!(command_metadata(b"sadd").unwrap().category.as_str(), "set");
+    assert_eq!(
+        command_metadata(b"zrange").unwrap().category.as_str(),
+        "sorted-set"
+    );
+    assert_eq!(
+        command_metadata(b"xadd").unwrap().category.as_str(),
+        "stream"
+    );
+    assert_eq!(
+        command_metadata(b"scan").unwrap().category.as_str(),
+        "keyspace"
+    );
+    assert_eq!(
+        command_metadata(b"multi").unwrap().category.as_str(),
+        "transaction"
+    );
+    assert_eq!(command_metadata(b"unknown"), None);
+}
+
+#[test]
+fn central_dispatcher_preserves_unknown_arity_and_transaction_queue_behavior() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"PING", b"one", b"two"]),
+        RespReply::Error("ERR wrong number of arguments for 'ping' command".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"NOPE"]),
+        RespReply::Error("ERR unknown command 'NOPE'".to_string())
+    );
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"PING"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"NOPE"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::SimpleString("PONG"),
+            RespReply::Error("ERR unknown command 'NOPE'".to_string()),
+        ])
+    );
 }
 
 #[test]
