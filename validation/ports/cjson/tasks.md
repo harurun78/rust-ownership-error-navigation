@@ -177,3 +177,16 @@
 - [x] C131 Generate `reports/iteration-009/ownership-report.html`.
 - [x] C132 Record iteration-009 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] C133 Run final `cargo test` in `rust-port/`.
+
+## Phase 16: Merge Patch Utility
+
+- [x] C134 Add tests for applying object merge patches to existing objects.
+- [x] C135 Add tests for null-valued merge patch entries deleting object members.
+- [x] C136 Add tests for nested object merge patches.
+- [x] C137 Add tests for non-object patches replacing the whole target value.
+- [x] C138 Implement merge patch utility that transfers patch values into the target where practical.
+- [x] C139 Save `cargo check --message-format=json` output to `reports/iteration-010/cargo-check.jsonl`.
+- [x] C140 Generate `reports/iteration-010/ownership-report.json`.
+- [x] C141 Generate `reports/iteration-010/ownership-report.html`.
+- [x] C142 Record iteration-010 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] C143 Run final `cargo test` in `rust-port/`.

@@ -719,3 +719,54 @@ fn minify_reports_malformed_comments_and_strings() {
         Err(MinifyError::UnterminatedBlockComment { pos: 7 })
     );
 }
+
+#[test]
+fn applies_simple_object_merge_patch() {
+    let mut value = parse_scalar(r#"{"title":"old","unchanged":true}"#).unwrap();
+
+    value.apply_merge_patch(parse_scalar(r#"{"title":"new","count":2}"#).unwrap());
+
+    assert_eq!(
+        value,
+        parse_scalar(r#"{"title":"new","unchanged":true,"count":2}"#).unwrap()
+    );
+}
+
+#[test]
+fn merge_patch_null_entries_delete_members() {
+    let mut value = parse_scalar(r#"{"remove":false,"keep":"yes"}"#).unwrap();
+
+    value.apply_merge_patch(parse_scalar(r#"{"remove":null,"missing":null}"#).unwrap());
+
+    assert_eq!(value, parse_scalar(r#"{"keep":"yes"}"#).unwrap());
+}
+
+#[test]
+fn applies_nested_object_merge_patch_recursively() {
+    let mut value = parse_scalar(r#"{"meta":{"name":"old","keep":true},"items":[1]}"#).unwrap();
+
+    value.apply_merge_patch(parse_scalar(r#"{"meta":{"name":"new","extra":3}}"#).unwrap());
+
+    assert_eq!(
+        value,
+        parse_scalar(r#"{"meta":{"name":"new","keep":true,"extra":3},"items":[1]}"#).unwrap()
+    );
+}
+
+#[test]
+fn non_object_merge_patch_replaces_target() {
+    let mut value = parse_scalar(r#"{"meta":{"name":"old"}}"#).unwrap();
+
+    value.apply_merge_patch(JsonValue::Array(vec![JsonValue::Bool(true)]));
+
+    assert_eq!(value, JsonValue::Array(vec![JsonValue::Bool(true)]));
+}
+
+#[test]
+fn object_merge_patch_turns_non_object_target_into_object() {
+    let mut value = JsonValue::String(String::from("not an object"));
+
+    value.apply_merge_patch(parse_scalar(r#"{"created":true}"#).unwrap());
+
+    assert_eq!(value, parse_scalar(r#"{"created":true}"#).unwrap());
+}

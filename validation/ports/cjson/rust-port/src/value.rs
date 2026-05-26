@@ -351,6 +351,49 @@ impl JsonValue {
             .map(|target| std::mem::replace(target, value))
     }
 
+    pub fn apply_merge_patch(&mut self, patch: JsonValue) {
+        let JsonValue::Object(patch_entries) = patch else {
+            *self = patch;
+            return;
+        };
+
+        if !self.is_object() {
+            *self = JsonValue::Object(Vec::new());
+        }
+
+        let JsonValue::Object(target_entries) = self else {
+            return;
+        };
+
+        for (key, patch_value) in patch_entries {
+            if patch_value == JsonValue::Null {
+                if let Some(index) = target_entries
+                    .iter()
+                    .position(|(entry_key, _)| entry_key == &key)
+                {
+                    target_entries.remove(index);
+                }
+                continue;
+            }
+
+            if let Some((_, target_value)) = target_entries
+                .iter_mut()
+                .find(|(entry_key, _)| entry_key == &key)
+            {
+                match patch_value {
+                    JsonValue::Object(entries) if target_value.is_object() => {
+                        target_value.apply_merge_patch(JsonValue::Object(entries));
+                    }
+                    value => {
+                        *target_value = value;
+                    }
+                }
+            } else {
+                target_entries.push((key, patch_value));
+            }
+        }
+    }
+
     pub fn detach_at_path(
         &mut self,
         path: &[JsonPathSegment<'_>],
