@@ -982,6 +982,169 @@ fn sorted_set_writes_clear_expiration_and_remove_empty_keys() {
 }
 
 #[test]
+fn executes_xadd_xlen_and_xrange_with_ordered_ids() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"XLEN", b"stream"]),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"2-0", b"f", b"v2"]),
+        RespReply::BulkString(b"2-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"1-1", b"a", b"b"]),
+        RespReply::BulkString(b"1-1".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XLEN", b"stream"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XRANGE", b"stream", b"-", b"+"]),
+        RespReply::Array(vec![
+            RespReply::Array(vec![
+                RespReply::BulkString(b"1-1".to_vec()),
+                RespReply::Array(vec![
+                    RespReply::BulkString(b"a".to_vec()),
+                    RespReply::BulkString(b"b".to_vec()),
+                ]),
+            ]),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"2-0".to_vec()),
+                RespReply::Array(vec![
+                    RespReply::BulkString(b"f".to_vec()),
+                    RespReply::BulkString(b"v2".to_vec()),
+                ]),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XRANGE", b"stream", b"2-0", b"2-0"]),
+        RespReply::Array(vec![RespReply::Array(vec![
+            RespReply::BulkString(b"2-0".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"f".to_vec()),
+                RespReply::BulkString(b"v2".to_vec()),
+            ]),
+        ])])
+    );
+}
+
+#[test]
+fn streams_preserve_binary_field_values_and_validate_arguments() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(
+            &mut db,
+            &[
+                b"XADD",
+                b"stream",
+                b"0-1",
+                b"field\0one",
+                b"value\0one",
+                b"field two",
+                b"value two",
+            ]
+        ),
+        RespReply::BulkString(b"0-1".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XRANGE", b"stream", b"-", b"+"]),
+        RespReply::Array(vec![RespReply::Array(vec![
+            RespReply::BulkString(b"0-1".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"field\0one".to_vec()),
+                RespReply::BulkString(b"value\0one".to_vec()),
+                RespReply::BulkString(b"field two".to_vec()),
+                RespReply::BulkString(b"value two".to_vec()),
+            ]),
+        ])])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"bad", b"f", b"v"]),
+        RespReply::Error("ERR Invalid stream ID specified as stream command argument".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"1-", b"f", b"v"]),
+        RespReply::Error("ERR Invalid stream ID specified as stream command argument".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"1-2", b"field"]),
+        RespReply::Error("ERR wrong number of arguments for 'xadd' command".to_string())
+    );
+}
+
+#[test]
+fn streams_wrong_type_expiration_watch_and_transactions_work() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"string", b"1-0", b"f", b"v"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"1-0", b"f", b"v"]),
+        RespReply::BulkString(b"1-0".to_vec())
+    );
+    assert_eq!(execute(&mut db, &[b"GET", b"stream"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SET", b"stream", b"value"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"stream", b"10"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"2-0", b"f", b"v"]),
+        RespReply::BulkString(b"2-0".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"TTL", b"stream"]),
+        RespReply::Integer(-1)
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"stream"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"3-0", b"f", b"v"]),
+        RespReply::BulkString(b"3-0".to_vec())
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"queued", b"1-0", b"f", b"v"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(execute(&mut db, &[b"EXEC"]), RespReply::NullArray);
+
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"queued", b"1-0", b"f", b"v"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XLEN", b"queued"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"1-0".to_vec()),
+            RespReply::Integer(1)
+        ])
+    );
+}
+
+#[test]
 fn queued_sorted_set_commands_execute_in_order() {
     let mut db = RedisMiniDb::new();
 

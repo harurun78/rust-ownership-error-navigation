@@ -222,3 +222,17 @@
 - [x] R164 Record iteration-017 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
 
 NOTE: R154-R160 were implemented as a minimal attempt in iteration-017. The initial `cargo check` failed with E0382 and artifacts were saved under `reports/iteration-017/`; the post-navigation continuation used the generated ownership report, fixed the move/borrow issue without cloning, passed `cargo check` and `cargo test`, and generated after-navigation report artifacts.
+
+## Phase 20: Minimal Stream Commands
+
+- [x] R165 Add tests for `XADD` with explicit integer sequence IDs and field/value pairs.
+- [x] R166 Add tests for `XLEN` on missing and existing stream keys.
+- [x] R167 Add tests for `XRANGE` with deterministic ID ordering and nested RESP array replies.
+- [x] R168 Add tests for binary-safe stream field names and values, wrong arity, invalid IDs, and wrong-type errors.
+- [x] R169 Refactor the DB value model to support stream values without regressing existing value types.
+- [x] R170 Implement minimal `XADD`, `XLEN`, and `XRANGE` behavior.
+- [x] R171 Preserve existing expiration, transaction, watch/version tracking, and all command family behavior for streams.
+- [x] R172 Save `cargo check --message-format=json` output to `reports/iteration-018/cargo-check.jsonl`.
+- [x] R173 Generate `reports/iteration-018/ownership-report.json`.
+- [x] R174 Generate `reports/iteration-018/ownership-report.html`.
+- [x] R175 Record iteration-018 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.

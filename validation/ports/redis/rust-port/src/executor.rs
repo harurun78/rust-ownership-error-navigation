@@ -35,6 +35,13 @@ enum RedisValue {
     Hash(BTreeMap<Vec<u8>, Vec<u8>>),
     Set(BTreeSet<Vec<u8>>),
     ZSet(BTreeMap<Vec<u8>, i64>),
+    Stream(BTreeMap<(u64, u64), StreamEntry>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct StreamEntry {
+    id: Vec<u8>,
+    fields: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
 #[derive(Debug, Default)]
@@ -147,6 +154,12 @@ impl RedisMiniDb {
             self.execute_zscore(args)
         } else if command_name.eq_ignore_ascii_case(b"ZRANGE") {
             self.execute_zrange(args)
+        } else if command_name.eq_ignore_ascii_case(b"XADD") {
+            self.execute_xadd(args)
+        } else if command_name.eq_ignore_ascii_case(b"XLEN") {
+            self.execute_xlen(args)
+        } else if command_name.eq_ignore_ascii_case(b"XRANGE") {
+            self.execute_xrange(args)
         } else if command_name.eq_ignore_ascii_case(b"TYPE") {
             self.execute_type(args)
         } else if command_name.eq_ignore_ascii_case(b"RENAME") {
@@ -265,6 +278,7 @@ impl RedisMiniDb {
                 | Some(RedisValue::Hash(_))
                 | Some(RedisValue::Set(_))
                 | Some(RedisValue::ZSet(_))
+                | Some(RedisValue::Stream(_))
         ) {
             return wrong_type();
         }
@@ -286,7 +300,8 @@ impl RedisMiniDb {
             Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             None => RespReply::NullBulkString,
         }
     }
@@ -426,7 +441,8 @@ impl RedisMiniDb {
             Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
             None => 0,
         };
 
@@ -454,7 +470,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::List(list)) => {
                 for value in args {
                     match side {
@@ -494,7 +511,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match side {
                 ListSide::Left => {
                     if list.is_empty() {
@@ -535,7 +553,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::Hash(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::List(list)) => match normalize_range(list.len(), start, stop) {
                 Some((start, stop)) => RespReply::Array(
                     list[start..=stop]
@@ -561,7 +580,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => {
                 let mut added = 0i64;
                 while !args.is_empty() {
@@ -604,7 +624,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => match hash.get(&args[1]) {
                 Some(value) => RespReply::BulkString(value.to_vec()),
                 None => RespReply::NullBulkString,
@@ -625,7 +646,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
             Some(RedisValue::Hash(hash)) => {
                 let mut removed = 0i64;
                 for field in &args[1..] {
@@ -660,7 +682,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Set(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::Hash(hash)) => {
                 let mut values = Vec::with_capacity(hash.len() * 2);
                 for (field, value) in hash {
@@ -685,7 +708,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::Set(set)) => {
                 let mut added = 0i64;
                 for member in args {
@@ -728,7 +752,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::ZSet(_)) => return wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
             Some(RedisValue::Set(set)) => {
                 let mut removed = 0i64;
                 for member in &args[1..] {
@@ -765,7 +790,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::Set(set)) => RespReply::Integer(i64::from(set.contains(&args[1]))),
             None => RespReply::Integer(0),
         }
@@ -781,7 +807,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            | Some(RedisValue::ZSet(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::Set(set)) => RespReply::Array(
                 set.iter()
                     .map(|member| RespReply::BulkString(member.to_vec()))
@@ -809,7 +836,8 @@ impl RedisMiniDb {
                 Some(RedisValue::String(_))
                 | Some(RedisValue::List(_))
                 | Some(RedisValue::Hash(_))
-                | Some(RedisValue::ZSet(_)) => return wrong_type(),
+                | Some(RedisValue::ZSet(_))
+                | Some(RedisValue::Stream(_)) => return wrong_type(),
             }
         }
 
@@ -915,7 +943,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::Set(_)) => wrong_type(),
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::ZSet(zset)) => {
                 let mut added = 0i64;
                 for (member, score) in pairs {
@@ -955,7 +984,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::Set(_)) => return wrong_type(),
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => return wrong_type(),
             Some(RedisValue::ZSet(zset)) => {
                 let mut removed = 0i64;
                 for member in &args[1..] {
@@ -992,7 +1022,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::Set(_)) => wrong_type(),
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::ZSet(zset)) => match zset.get(&args[1]) {
                 Some(score) => RespReply::BulkString(score.to_string().into_bytes()),
                 None => RespReply::NullBulkString,
@@ -1020,7 +1051,8 @@ impl RedisMiniDb {
             Some(RedisValue::String(_))
             | Some(RedisValue::List(_))
             | Some(RedisValue::Hash(_))
-            | Some(RedisValue::Set(_)) => wrong_type(),
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::Stream(_)) => wrong_type(),
             Some(RedisValue::ZSet(zset)) => match normalize_range(zset.len(), start, stop) {
                 Some((start, stop)) => {
                     let mut entries: Vec<(&Vec<u8>, &i64)> = zset.iter().collect();
@@ -1038,6 +1070,118 @@ impl RedisMiniDb {
                 }
                 None => RespReply::Array(Vec::new()),
             },
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+
+    fn execute_xadd(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 4 || args.len() % 2 != 0 {
+            return wrong_arity("xadd");
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        let id = args.remove(0);
+        let parsed_id = match parse_stream_id(&id) {
+            Some(id) => id,
+            None => return invalid_stream_id(),
+        };
+        let mut fields = Vec::new();
+        while !args.is_empty() {
+            let field = args.remove(0);
+            let value = args.remove(0);
+            fields.push((field, value));
+        }
+
+        self.remove_if_expired(&key);
+        match self.values.get_mut(&key) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            Some(RedisValue::Stream(stream)) => {
+                stream.insert(
+                    parsed_id,
+                    StreamEntry {
+                        id: id.to_vec(),
+                        fields,
+                    },
+                );
+                self.expires_at.remove(&key);
+                self.bump_key_version(&key);
+                RespReply::BulkString(id)
+            }
+            None => {
+                let mut stream = BTreeMap::new();
+                stream.insert(
+                    parsed_id,
+                    StreamEntry {
+                        id: id.to_vec(),
+                        fields,
+                    },
+                );
+                self.bump_key_version(&key);
+                self.values.insert(key, RedisValue::Stream(stream));
+                RespReply::BulkString(id)
+            }
+        }
+    }
+
+    fn execute_xlen(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("xlen");
+        }
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            Some(RedisValue::Stream(stream)) => RespReply::Integer(stream.len() as i64),
+            None => RespReply::Integer(0),
+        }
+    }
+
+    fn execute_xrange(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("xrange");
+        }
+
+        let start = match parse_stream_bound(&args[1], StreamBoundKind::Minimum) {
+            Some(id) => id,
+            None => return invalid_stream_id(),
+        };
+        let end = match parse_stream_bound(&args[2], StreamBoundKind::Maximum) {
+            Some(id) => id,
+            None => return invalid_stream_id(),
+        };
+
+        self.remove_if_expired(&args[0]);
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_))
+            | Some(RedisValue::List(_))
+            | Some(RedisValue::Hash(_))
+            | Some(RedisValue::Set(_))
+            | Some(RedisValue::ZSet(_)) => wrong_type(),
+            Some(RedisValue::Stream(stream)) => RespReply::Array(
+                stream
+                    .range(start..=end)
+                    .map(|(_id, entry)| {
+                        let mut field_values = Vec::with_capacity(entry.fields.len() * 2);
+                        for (field, value) in &entry.fields {
+                            field_values.push(RespReply::BulkString(field.to_vec()));
+                            field_values.push(RespReply::BulkString(value.to_vec()));
+                        }
+                        RespReply::Array(vec![
+                            RespReply::BulkString(entry.id.to_vec()),
+                            RespReply::Array(field_values),
+                        ])
+                    })
+                    .collect(),
+            ),
             None => RespReply::Array(Vec::new()),
         }
     }
@@ -1191,8 +1335,15 @@ impl RedisValue {
             Self::Hash(_) => "hash",
             Self::Set(_) => "set",
             Self::ZSet(_) => "zset",
+            Self::Stream(_) => "stream",
         }
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+enum StreamBoundKind {
+    Minimum,
+    Maximum,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1256,6 +1407,35 @@ fn parse_integer(value: &[u8]) -> Option<i64> {
 
 fn integer_error() -> RespReply {
     RespReply::Error("ERR value is not an integer or out of range".to_string())
+}
+
+fn parse_stream_id(value: &[u8]) -> Option<(u64, u64)> {
+    let separator = value.iter().position(|byte| *byte == b'-')?;
+    if value[separator + 1..].contains(&b'-') {
+        return None;
+    }
+    let milliseconds = parse_unsigned_part(&value[..separator])?;
+    let sequence = parse_unsigned_part(&value[separator + 1..])?;
+    Some((milliseconds, sequence))
+}
+
+fn parse_unsigned_part(value: &[u8]) -> Option<u64> {
+    if value.is_empty() || !value.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    std::str::from_utf8(value).ok()?.parse::<u64>().ok()
+}
+
+fn parse_stream_bound(value: &[u8], kind: StreamBoundKind) -> Option<(u64, u64)> {
+    match (value, kind) {
+        (b"-", StreamBoundKind::Minimum) => Some((0, 0)),
+        (b"+", StreamBoundKind::Maximum) => Some((u64::MAX, u64::MAX)),
+        _ => parse_stream_id(value),
+    }
+}
+
+fn invalid_stream_id() -> RespReply {
+    RespReply::Error("ERR Invalid stream ID specified as stream command argument".to_string())
 }
 
 fn wrong_type() -> RespReply {
