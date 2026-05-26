@@ -14,24 +14,24 @@
 
 ## Phase 2: Rust Crate Skeleton
 
-- [ ] R010 Initialize Rust library crate in `validation/ports/redis/rust-port/`.
-- [ ] R011 Add crate README or module docs stating RESP parser-only scope.
-- [ ] R012 Define command argument model.
-- [ ] R013 Define parser error model.
-- [ ] R014 Expose crate modules from `rust-port/src/lib.rs`.
+- [x] R010 Initialize Rust library crate in `validation/ports/redis/rust-port/`.
+- [x] R011 Add crate README or module docs stating RESP parser-only scope.
+- [x] R012 Define command argument model.
+- [x] R013 Define parser error model.
+- [x] R014 Expose crate modules from `rust-port/src/lib.rs`.
 
 ## Phase 3: RESP Multibulk Happy Path
 
-- [ ] R015 Add tests for `PING`, `GET key`, and `SET key value` as RESP multibulk frames.
-- [ ] R016 Add tests for binary-safe bulk strings containing spaces and null bytes.
-- [ ] R017 Implement multibulk length parsing.
-- [ ] R018 Implement bulk string length parsing.
-- [ ] R019 Implement command extraction into owned argument bytes.
-- [ ] R020 Save `cargo check --message-format=json` output to `reports/iteration-001/cargo-check.jsonl`.
-- [ ] R021 Generate `reports/iteration-001/ownership-report.json`.
-- [ ] R022 Generate `reports/iteration-001/ownership-report.html`.
-- [ ] R023 Record iteration-001 results and diagnostic counts in `notes/iteration-log.md`.
-- [ ] R024 Run final `cargo test` in `rust-port/`.
+- [x] R015 Add tests for `PING`, `GET key`, and `SET key value` as RESP multibulk frames.
+- [x] R016 Add tests for binary-safe bulk strings containing spaces and null bytes.
+- [x] R017 Implement multibulk length parsing.
+- [x] R018 Implement bulk string length parsing.
+- [x] R019 Implement command extraction into owned argument bytes.
+- [x] R020 Save `cargo check --message-format=json` output to `reports/iteration-001/cargo-check.jsonl`.
+- [x] R021 Generate `reports/iteration-001/ownership-report.json`.
+- [x] R022 Generate `reports/iteration-001/ownership-report.html`.
+- [x] R023 Record iteration-001 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] R024 Run final `cargo test` in `rust-port/`.
 
 ## Phase 4: Partial Input And State Retention
 
