@@ -1,0 +1,72 @@
+# Tasks: Redis RESP Parser Porting Validation
+
+## Phase 1: Experiment Setup
+
+- [x] R001 Create `validation/ports/redis/` target directory.
+- [x] R002 Fetch Redis upstream into ignored checkout `validation/ports/redis/upstream/redis/`.
+- [x] R003 Record upstream repository, tag, commit, license, and acquisition commands in `upstream/UPSTREAM.md`.
+- [x] R004 Create Redis porting validation `spec.md`.
+- [x] R005 Create Redis porting validation `plan.md`.
+- [x] R006 Create Redis porting validation `tasks.md`.
+- [x] R007 Create Redis porting validation `quickstart.md`.
+- [x] R008 Create `notes/iteration-log.md` template.
+- [x] R009 Verify upstream checkout remains ignored by Git before first implementation iteration.
+
+## Phase 2: Rust Crate Skeleton
+
+- [ ] R010 Initialize Rust library crate in `validation/ports/redis/rust-port/`.
+- [ ] R011 Add crate README or module docs stating RESP parser-only scope.
+- [ ] R012 Define command argument model.
+- [ ] R013 Define parser error model.
+- [ ] R014 Expose crate modules from `rust-port/src/lib.rs`.
+
+## Phase 3: RESP Multibulk Happy Path
+
+- [ ] R015 Add tests for `PING`, `GET key`, and `SET key value` as RESP multibulk frames.
+- [ ] R016 Add tests for binary-safe bulk strings containing spaces and null bytes.
+- [ ] R017 Implement multibulk length parsing.
+- [ ] R018 Implement bulk string length parsing.
+- [ ] R019 Implement command extraction into owned argument bytes.
+- [ ] R020 Save `cargo check --message-format=json` output to `reports/iteration-001/cargo-check.jsonl`.
+- [ ] R021 Generate `reports/iteration-001/ownership-report.json`.
+- [ ] R022 Generate `reports/iteration-001/ownership-report.html`.
+- [ ] R023 Record iteration-001 results and diagnostic counts in `notes/iteration-log.md`.
+- [ ] R024 Run final `cargo test` in `rust-port/`.
+
+## Phase 4: Partial Input And State Retention
+
+- [ ] R025 Add tests for command frames split across multiple `append` calls.
+- [ ] R026 Add tests for incomplete multibulk length, bulk length, and bulk payload states.
+- [ ] R027 Preserve parser state without producing a command until complete.
+- [ ] R028 Save and report diagnostics for iteration-002.
+
+## Phase 5: Multiple Commands And Buffer Compaction
+
+- [ ] R029 Add tests for two or more commands in one input buffer.
+- [ ] R030 Add tests that incomplete trailing bytes remain after complete commands are extracted.
+- [ ] R031 Implement consumed-byte compaction after successful parse.
+- [ ] R032 Save and report diagnostics for iteration-003.
+
+## Phase 6: Protocol Errors
+
+- [ ] R033 Add tests for invalid multibulk length.
+- [ ] R034 Add tests for invalid bulk length.
+- [ ] R035 Add tests for expected `$` but got another byte.
+- [ ] R036 Add tests for overlarge inline or multibulk header strings.
+- [ ] R037 Implement stable protocol error variants.
+- [ ] R038 Save and report diagnostics for iteration-004.
+
+## Phase 7: Inline Command Parsing
+
+- [ ] R039 Add tests for inline `PING`, `SET key value`, and quoted values.
+- [ ] R040 Add tests for unbalanced inline quotes.
+- [ ] R041 Implement representative `sdssplitargs`-style inline parsing.
+- [ ] R042 Save and report diagnostics for iteration-005.
+
+## Phase 8: Ownership Pressure Slice
+
+- [ ] R043 Add tests for large bulk payload extraction.
+- [ ] R044 Add tests for compaction after extracting a large argument.
+- [ ] R045 Attempt to move owned byte ranges out of the parser buffer where practical.
+- [ ] R046 Record shortcut pressure: `clone`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and `unsafe`.
+- [ ] R047 Save and report diagnostics for iteration-006.
