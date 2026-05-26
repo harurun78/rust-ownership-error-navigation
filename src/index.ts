@@ -1,1 +1,16 @@
-export {};
+export * from './cli/main.js';
+export * from './parser/cargo-message-parser.js';
+export * from './diagnostics/rustc-diagnostic.js';
+export * from './diagnostics/diagnostic-span.js';
+export * from './diagnostics/normalizer.js';
+export * from './mapper/e0382.js';
+export * from './mapper/e0499.js';
+export * from './mapper/e0502.js';
+export * from './mapper/ownership-event.js';
+export * from './mapper/index.js';
+export * from './mapper/rustc-suggestions.js';
+export * from './mapper/unsupported.js';
+export * from './reporter/json-reporter.js';
+export * from './reporter/html-reporter.js';
+export * from './reporter/borrow-sheet.js';
+export * from './reporter/reporter-utils.js';

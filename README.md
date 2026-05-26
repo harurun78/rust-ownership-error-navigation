@@ -1,31 +1,61 @@
 # rust-ownership-error-navigation
 
-> このREADME.mdは自動生成されたテンプレートです。プロジェクトに合わせて編集してください。
+Rust compiler JSON diagnostics into a local ownership-focused JSON and static HTML report.
 
-## 概要
-rust-ownership-error-navigation プロジェクトの概要をここに記述します。
+The Phase 1 MVP maps E0382, E0499, and E0502 into evidence-backed ownership events. Other diagnostics are retained as display-only unsupported records so captured compiler output is not lost.
 
-## コンポーネント
-- cli: nodejs (src)
+## Requirements
 
-## クイックスタート
+- Node.js 20+
+- npm
 
-### 必要な環境
-- TODO: 必要な環境を記載
+## Install
 
-### インストール
 ```bash
-# TODO: インストール手順
+npm ci
+npm run build
 ```
 
-### 使い方
+## CLI Usage
+
+Generate a report from the baseline ownership fixture:
+
 ```bash
-# TODO: 基本的な使い方
+node dist/cli/main.js \
+	--input test/fixtures/diagnostics/ownership-baseline-2026-05-24.jsonl \
+	--json-out out/ownership-report.json \
+	--html-out out/ownership-report.html
 ```
 
-## ドキュメント
-- [仕様書一覧](docs/)
-- [仕様検討ログ](docs/specification-discussion-log.md)
+Run a compatibility fixture with unsupported diagnostics preserved:
 
-## ライセンス
-TODO: ライセンスを記載
+```bash
+node dist/cli/main.js \
+	--input test/fixtures/diagnostics/ownership-followup-2026-05-25.jsonl \
+	--json-out out/followup-report.json \
+	--html-out out/followup-report.html
+```
+
+The JSON report contains `schemaVersion`, `input`, `summary`, and `diagnostics`. The HTML report contains Summary, Diagnostics, Causality Timeline, Source Spans, Evidence, Borrow Sheet, and Unsupported Diagnostics sections.
+
+## Examples
+
+- [examples/ownership-report.json](examples/ownership-report.json)
+- [examples/ownership-report.html](examples/ownership-report.html)
+
+## Verification
+
+```bash
+npm run lint
+npm run format:check
+npm run type-check
+npm run test:run
+npm run test:integration
+npm run build
+```
+
+## Documentation
+
+- [docs/quickstart.md](docs/quickstart.md)
+- [specs/001-ownership-report-mvp/spec.md](specs/001-ownership-report-mvp/spec.md)
+- [docs/specification-discussion-log.md](docs/specification-discussion-log.md)

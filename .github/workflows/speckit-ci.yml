@@ -28,10 +28,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Spec Kit CLI
+      - name: Run Spec Kit repository checks
         run: |
-          if command -v specify >/dev/null 2>&1; then
-            specify check
-          else
-            echo "Spec Kit CLI is not installed on this runner; skipping environment check."
+          test -f specs/001-ownership-report-mvp/spec.md
+          test -f specs/001-ownership-report-mvp/plan.md
+          test -f specs/001-ownership-report-mvp/tasks.md
+          test -f specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json
+
+          open_tasks=$(grep -c '^- \[ \]' specs/001-ownership-report-mvp/tasks.md || true)
+          if [ "$open_tasks" -ne 0 ]; then
+            echo "::error::Spec Kit tasks.md still has $open_tasks open task(s)."
+            exit 1
+          fi
+
+          checked_tasks=$(grep -c '^- \[x\]' specs/001-ownership-report-mvp/tasks.md || true)
+          if [ "$checked_tasks" -lt 56 ]; then
+            echo "::error::Expected at least 56 completed Spec Kit tasks, found $checked_tasks."
+            exit 1
           fi
