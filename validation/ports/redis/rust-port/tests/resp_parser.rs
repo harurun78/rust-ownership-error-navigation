@@ -1474,6 +1474,163 @@ fn keys_star_returns_deterministic_current_key_names() {
 }
 
 #[test]
+fn scan_zero_returns_all_current_key_names_in_deterministic_order() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"z", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"HSET", b"hash", b"field", b"value"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SADD", b"set", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"ZADD", b"zset", b"1", b"member"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"XADD", b"stream", b"1-0", b"field", b"value"]),
+        RespReply::BulkString(b"1-0".to_vec())
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"hash".to_vec()),
+                RespReply::BulkString(b"list".to_vec()),
+                RespReply::BulkString(b"set".to_vec()),
+                RespReply::BulkString(b"stream".to_vec()),
+                RespReply::BulkString(b"z".to_vec()),
+                RespReply::BulkString(b"zset".to_vec()),
+            ]),
+        ])
+    );
+}
+
+#[test]
+fn scan_count_returns_stable_cursor_batches() {
+    let mut db = RedisMiniDb::new();
+
+    for key in [b"a".as_slice(), b"b", b"c", b"d", b"e"] {
+        assert_eq!(
+            execute(&mut db, &[b"SET", key, b"value"]),
+            RespReply::SimpleString("OK")
+        );
+    }
+
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0", b"COUNT", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"2".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"a".to_vec()),
+                RespReply::BulkString(b"b".to_vec()),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"2", b"COUNT", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"4".to_vec()),
+            RespReply::Array(vec![
+                RespReply::BulkString(b"c".to_vec()),
+                RespReply::BulkString(b"d".to_vec()),
+            ]),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"4", b"COUNT", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![RespReply::BulkString(b"e".to_vec())]),
+        ])
+    );
+}
+
+#[test]
+fn scan_rejects_invalid_cursor_count_and_options() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"-1"]),
+        RespReply::Error("ERR invalid cursor".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"not-a-cursor"]),
+        RespReply::Error("ERR invalid cursor".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0", b"COUNT", b"0"]),
+        RespReply::Error("ERR invalid COUNT".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0", b"COUNT", b"nope"]),
+        RespReply::Error("ERR invalid COUNT".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0", b"MATCH", b"*"]),
+        RespReply::Error("ERR unsupported SCAN option".to_string())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0", b"COUNT"]),
+        RespReply::Error("ERR wrong number of arguments for 'scan' command".to_string())
+    );
+}
+
+#[test]
+fn scan_observes_lazy_expiration_and_does_not_invalidate_watches() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"watched", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"expired", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXPIRE", b"expired", b"0"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"WATCH", b"watched"]),
+        RespReply::SimpleString("OK")
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![RespReply::BulkString(b"watched".to_vec())]),
+        ])
+    );
+    assert_eq!(execute(&mut db, &[b"MULTI"]), RespReply::SimpleString("OK"));
+    assert_eq!(
+        execute(&mut db, &[b"SCAN", b"0"]),
+        RespReply::SimpleString("QUEUED")
+    );
+    assert_eq!(
+        execute(&mut db, &[b"EXEC"]),
+        RespReply::Array(vec![RespReply::Array(vec![
+            RespReply::BulkString(b"0".to_vec()),
+            RespReply::Array(vec![RespReply::BulkString(b"watched".to_vec())]),
+        ])])
+    );
+}
+
+#[test]
 fn srem_removes_empty_set_key() {
     let mut db = RedisMiniDb::new();
 

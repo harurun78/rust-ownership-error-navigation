@@ -168,6 +168,8 @@ impl RedisMiniDb {
             self.execute_renamenx(args)
         } else if command_name.eq_ignore_ascii_case(b"KEYS") {
             self.execute_keys(args)
+        } else if command_name.eq_ignore_ascii_case(b"SCAN") {
+            self.execute_scan(args)
         } else {
             RespReply::Error(format!(
                 "ERR unknown command '{}'",
@@ -1278,6 +1280,50 @@ impl RedisMiniDb {
         )
     }
 
+    fn execute_scan(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 && args.len() != 3 {
+            return wrong_arity("scan");
+        }
+
+        let cursor = match parse_scan_index(&args[0]) {
+            Some(cursor) => cursor,
+            None => return RespReply::Error("ERR invalid cursor".to_string()),
+        };
+        let count = if args.len() == 3 {
+            if !args[1].eq_ignore_ascii_case(b"COUNT") {
+                return RespReply::Error("ERR unsupported SCAN option".to_string());
+            }
+            match parse_scan_index(&args[2]) {
+                Some(0) | None => return RespReply::Error("ERR invalid COUNT".to_string()),
+                Some(count) => Some(count),
+            }
+        } else {
+            None
+        };
+
+        self.remove_expired_keys();
+        let mut keys: Vec<&Vec<u8>> = self.values.keys().collect();
+        keys.sort();
+        if cursor > keys.len() {
+            return RespReply::Error("ERR invalid cursor".to_string());
+        }
+
+        let end = match count {
+            Some(count) => cursor.saturating_add(count).min(keys.len()),
+            None => keys.len(),
+        };
+        let next_cursor = if end < keys.len() { end } else { 0 };
+        let key_replies = keys[cursor..end]
+            .iter()
+            .map(|key| RespReply::BulkString(key.to_vec()))
+            .collect();
+
+        RespReply::Array(vec![
+            RespReply::BulkString(next_cursor.to_string().into_bytes()),
+            RespReply::Array(key_replies),
+        ])
+    }
+
     fn remove_expired_keys(&mut self) {
         let now = Instant::now();
         let expired: Vec<Vec<u8>> = self
@@ -1403,6 +1449,13 @@ fn wrong_arity(command_name: &str) -> RespReply {
 
 fn parse_integer(value: &[u8]) -> Option<i64> {
     std::str::from_utf8(value).ok()?.parse::<i64>().ok()
+}
+
+fn parse_scan_index(value: &[u8]) -> Option<usize> {
+    if value.is_empty() || !value.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    std::str::from_utf8(value).ok()?.parse::<usize>().ok()
 }
 
 fn integer_error() -> RespReply {

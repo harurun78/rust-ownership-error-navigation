@@ -236,3 +236,16 @@ NOTE: R154-R160 were implemented as a minimal attempt in iteration-017. The init
 - [x] R173 Generate `reports/iteration-018/ownership-report.json`.
 - [x] R174 Generate `reports/iteration-018/ownership-report.html`.
 - [x] R175 Record iteration-018 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
+
+## Phase 21: Minimal Cursor Scan Command
+
+- [x] R176 Add tests for `SCAN 0` returning deterministic current key names and terminal cursor `0`.
+- [x] R177 Add tests for multi-step `SCAN` with `COUNT n` returning stable cursor batches.
+- [x] R178 Add tests for invalid cursor/count arguments and unsupported options.
+- [x] R179 Add tests that `SCAN` observes lazy expiration and covers all supported value types.
+- [x] R180 Implement minimal `SCAN cursor [COUNT n]` keyspace iteration without persistent server cursor state.
+- [x] R181 Preserve existing parser, expiration, transaction, watch/version tracking, streams, sorted sets, and all command family behavior.
+- [x] R182 Save `cargo check --message-format=json` output to `reports/iteration-019/cargo-check.jsonl`.
+- [x] R183 Generate `reports/iteration-019/ownership-report.json`.
+- [x] R184 Generate `reports/iteration-019/ownership-report.html`.
+- [x] R185 Record iteration-019 results and diagnostic counts in `notes/iteration-log.md` and run final `cargo test`.
