@@ -8,6 +8,7 @@ pub enum RespReply {
     BulkString(Vec<u8>),
     NullBulkString,
     Integer(i64),
+    Array(Vec<RespReply>),
     Error(String),
 }
 
@@ -18,14 +19,21 @@ impl RespReply {
             Self::BulkString(value) => encode_bulk_string(value),
             Self::NullBulkString => b"$-1\r\n".to_vec(),
             Self::Integer(value) => format!(":{value}\r\n").into_bytes(),
+            Self::Array(values) => encode_array(values),
             Self::Error(message) => encode_error(message),
         }
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum RedisValue {
+    String(Vec<u8>),
+    List(Vec<Vec<u8>>),
+}
+
 #[derive(Debug, Default)]
 pub struct RedisMiniDb {
-    strings: HashMap<Vec<u8>, Vec<u8>>,
+    values: HashMap<Vec<u8>, RedisValue>,
 }
 
 impl RedisMiniDb {
@@ -59,6 +67,16 @@ impl RedisMiniDb {
             self.execute_incr_by(args, -1, "decr")
         } else if command_name.eq_ignore_ascii_case(b"INCRBY") {
             self.execute_incrby(args)
+        } else if command_name.eq_ignore_ascii_case(b"LPUSH") {
+            self.execute_push(args, ListSide::Left)
+        } else if command_name.eq_ignore_ascii_case(b"RPUSH") {
+            self.execute_push(args, ListSide::Right)
+        } else if command_name.eq_ignore_ascii_case(b"LPOP") {
+            self.execute_pop(args, ListSide::Left)
+        } else if command_name.eq_ignore_ascii_case(b"RPOP") {
+            self.execute_pop(args, ListSide::Right)
+        } else if command_name.eq_ignore_ascii_case(b"LRANGE") {
+            self.execute_lrange(args)
         } else {
             RespReply::Error(format!(
                 "ERR unknown command '{}'",
@@ -86,7 +104,11 @@ impl RedisMiniDb {
         let mut args = args;
         let key = args.remove(0);
         let value = args.remove(0);
-        self.strings.insert(key, value);
+        if matches!(self.values.get(&key), Some(RedisValue::List(_))) {
+            return wrong_type();
+        }
+
+        self.values.insert(key, RedisValue::String(value));
         RespReply::SimpleString("OK")
     }
 
@@ -95,8 +117,9 @@ impl RedisMiniDb {
             return wrong_arity("get");
         }
 
-        match self.strings.get(&args[0]) {
-            Some(value) => RespReply::BulkString(value.to_vec()),
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(value)) => RespReply::BulkString(value.to_vec()),
+            Some(RedisValue::List(_)) => wrong_type(),
             None => RespReply::NullBulkString,
         }
     }
@@ -108,7 +131,7 @@ impl RedisMiniDb {
 
         let mut deleted = 0i64;
         for key in args {
-            if self.strings.remove(&key).is_some() {
+            if self.values.remove(&key).is_some() {
                 deleted += 1;
             }
         }
@@ -122,7 +145,7 @@ impl RedisMiniDb {
 
         let mut count = 0i64;
         for key in args {
-            if self.strings.contains_key(&key) {
+            if self.values.contains_key(&key) {
                 count += 1;
             }
         }
@@ -155,20 +178,123 @@ impl RedisMiniDb {
     }
 
     fn increment_key(&mut self, key: Vec<u8>, delta: i64) -> RespReply {
-        let current = match self.strings.get(&key) {
-            Some(value) => match parse_integer(value) {
+        let current = match self.values.get(&key) {
+            Some(RedisValue::String(value)) => match parse_integer(value) {
                 Some(value) => value,
                 None => return integer_error(),
             },
+            Some(RedisValue::List(_)) => return wrong_type(),
             None => 0,
         };
 
         match current.checked_add(delta) {
             Some(next) => {
-                self.strings.insert(key, next.to_string().into_bytes());
+                self.values
+                    .insert(key, RedisValue::String(next.to_string().into_bytes()));
                 RespReply::Integer(next)
             }
             None => RespReply::Error("ERR increment or decrement would overflow".to_string()),
+        }
+    }
+
+    fn execute_push(&mut self, args: Vec<Vec<u8>>, side: ListSide) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity(side.push_command_name());
+        }
+
+        let mut args = args;
+        let key = args.remove(0);
+        let entry = self
+            .values
+            .entry(key)
+            .or_insert_with(|| RedisValue::List(Vec::new()));
+
+        match entry {
+            RedisValue::String(_) => wrong_type(),
+            RedisValue::List(list) => {
+                for value in args {
+                    match side {
+                        ListSide::Left => list.insert(0, value),
+                        ListSide::Right => list.push(value),
+                    }
+                }
+                RespReply::Integer(list.len() as i64)
+            }
+        }
+    }
+
+    fn execute_pop(&mut self, args: Vec<Vec<u8>>, side: ListSide) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity(side.pop_command_name());
+        }
+
+        match self.values.get_mut(&args[0]) {
+            Some(RedisValue::String(_)) => wrong_type(),
+            Some(RedisValue::List(list)) => match side {
+                ListSide::Left => {
+                    if list.is_empty() {
+                        RespReply::NullBulkString
+                    } else {
+                        RespReply::BulkString(list.remove(0))
+                    }
+                }
+                ListSide::Right => match list.pop() {
+                    Some(value) => RespReply::BulkString(value),
+                    None => RespReply::NullBulkString,
+                },
+            },
+            None => RespReply::NullBulkString,
+        }
+    }
+
+    fn execute_lrange(&self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("lrange");
+        }
+
+        let start = match parse_integer(&args[1]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+        let stop = match parse_integer(&args[2]) {
+            Some(value) => value,
+            None => return integer_error(),
+        };
+
+        match self.values.get(&args[0]) {
+            Some(RedisValue::String(_)) => wrong_type(),
+            Some(RedisValue::List(list)) => match normalize_range(list.len(), start, stop) {
+                Some((start, stop)) => RespReply::Array(
+                    list[start..=stop]
+                        .iter()
+                        .map(|value| RespReply::BulkString(value.to_vec()))
+                        .collect(),
+                ),
+                None => RespReply::Array(Vec::new()),
+            },
+            None => RespReply::Array(Vec::new()),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+enum ListSide {
+    Left,
+    Right,
+}
+
+impl ListSide {
+    fn push_command_name(self) -> &'static str {
+        match self {
+            Self::Left => "lpush",
+            Self::Right => "rpush",
+        }
+    }
+
+    fn pop_command_name(self) -> &'static str {
+        match self {
+            Self::Left => "lpop",
+            Self::Right => "rpop",
         }
     }
 }
@@ -197,6 +323,34 @@ fn integer_error() -> RespReply {
     RespReply::Error("ERR value is not an integer or out of range".to_string())
 }
 
+fn wrong_type() -> RespReply {
+    RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    )
+}
+
+fn normalize_range(len: usize, start: i64, stop: i64) -> Option<(usize, usize)> {
+    if len == 0 {
+        return None;
+    }
+
+    let len = len as i64;
+    let mut start = if start < 0 { len + start } else { start };
+    let mut stop = if stop < 0 { len + stop } else { stop };
+
+    if start < 0 {
+        start = 0;
+    }
+    if stop < 0 || start >= len || start > stop {
+        return None;
+    }
+    if stop >= len {
+        stop = len - 1;
+    }
+
+    Some((start as usize, stop as usize))
+}
+
 fn encode_prefixed_string(prefix: u8, value: &[u8]) -> Vec<u8> {
     let mut encoded = Vec::with_capacity(value.len() + 3);
     encoded.push(prefix);
@@ -209,6 +363,14 @@ fn encode_bulk_string(value: &[u8]) -> Vec<u8> {
     let mut encoded = format!("${}\r\n", value.len()).into_bytes();
     encoded.extend_from_slice(value);
     encoded.extend_from_slice(b"\r\n");
+    encoded
+}
+
+fn encode_array(values: &[RespReply]) -> Vec<u8> {
+    let mut encoded = format!("*{}\r\n", values.len()).into_bytes();
+    for value in values {
+        encoded.extend_from_slice(&value.encode());
+    }
     encoded
 }
 

@@ -57,6 +57,14 @@ fn encodes_resp_replies() {
     assert_eq!(RespReply::NullBulkString.encode(), b"$-1\r\n".to_vec());
     assert_eq!(RespReply::Integer(42).encode(), b":42\r\n".to_vec());
     assert_eq!(
+        RespReply::Array(vec![
+            RespReply::BulkString(b"one".to_vec()),
+            RespReply::BulkString(b"two".to_vec()),
+        ])
+        .encode(),
+        b"*2\r\n$3\r\none\r\n$3\r\ntwo\r\n".to_vec()
+    );
+    assert_eq!(
         RespReply::Error("ERR wrong number of arguments".to_string()).encode(),
         b"-ERR wrong number of arguments\r\n".to_vec()
     );
@@ -230,6 +238,135 @@ fn rejects_integer_overflow_and_preserves_stored_values() {
         execute(&mut db, &[b"GET", b"max"]),
         RespReply::BulkString(b"9223372036854775807".to_vec())
     );
+}
+
+#[test]
+fn executes_lpush_and_lpop_on_missing_and_existing_lists() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"LPOP", b"missing"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPUSH", b"letters", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPUSH", b"letters", b"c"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPOP", b"letters"]),
+        RespReply::BulkString(b"c".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPOP", b"letters"]),
+        RespReply::BulkString(b"b".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPOP", b"letters"]),
+        RespReply::BulkString(b"a".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LPOP", b"letters"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn executes_rpush_and_rpop_on_missing_and_existing_lists() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"RPOP", b"missing"]),
+        RespReply::NullBulkString
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"letters", b"a", b"b"]),
+        RespReply::Integer(2)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"letters", b"c"]),
+        RespReply::Integer(3)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPOP", b"letters"]),
+        RespReply::BulkString(b"c".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPOP", b"letters"]),
+        RespReply::BulkString(b"b".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPOP", b"letters"]),
+        RespReply::BulkString(b"a".to_vec())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPOP", b"letters"]),
+        RespReply::NullBulkString
+    );
+}
+
+#[test]
+fn executes_lrange_with_positive_and_negative_indexes() {
+    let mut db = RedisMiniDb::new();
+
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"missing", b"0", b"-1"]),
+        RespReply::Array(Vec::new())
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"letters", b"a", b"b", b"c", b"d"]),
+        RespReply::Integer(4)
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"letters", b"0", b"2"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"a".to_vec()),
+            RespReply::BulkString(b"b".to_vec()),
+            RespReply::BulkString(b"c".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"letters", b"-2", b"-1"]),
+        RespReply::Array(vec![
+            RespReply::BulkString(b"c".to_vec()),
+            RespReply::BulkString(b"d".to_vec()),
+        ])
+    );
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"letters", b"3", b"1"]),
+        RespReply::Array(Vec::new())
+    );
+}
+
+#[test]
+fn rejects_wrong_type_access_between_strings_and_lists() {
+    let mut db = RedisMiniDb::new();
+    let wrong_type = RespReply::Error(
+        "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+    );
+
+    assert_eq!(
+        execute(&mut db, &[b"SET", b"string", b"value"]),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(execute(&mut db, &[b"LPUSH", b"string", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"RPUSH", b"string", b"x"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"LPOP", b"string"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"RPOP", b"string"]), wrong_type);
+    assert_eq!(
+        execute(&mut db, &[b"LRANGE", b"string", b"0", b"-1"]),
+        wrong_type
+    );
+    assert_eq!(
+        execute(&mut db, &[b"RPUSH", b"list", b"a"]),
+        RespReply::Integer(1)
+    );
+    assert_eq!(execute(&mut db, &[b"GET", b"list"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"INCR", b"list"]), wrong_type);
+    assert_eq!(execute(&mut db, &[b"SET", b"list", b"value"]), wrong_type);
 }
 
 #[test]

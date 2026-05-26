@@ -97,3 +97,17 @@
 - [x] R066 Generate `reports/iteration-008/ownership-report.html`.
 - [x] R067 Record iteration-008 results and diagnostic counts in `notes/iteration-log.md`.
 - [x] R068 Run final `cargo test` in `rust-port/`.
+
+## Phase 11: Minimal List Commands
+
+- [x] R069 Add tests for `LPUSH`, `RPUSH`, `LPOP`, and `RPOP` on missing and existing list keys.
+- [x] R070 Add tests for list reply encoding with RESP arrays.
+- [x] R071 Add tests for `LRANGE` with positive and negative indexes.
+- [x] R072 Add tests for wrong-type errors when string commands touch lists or list commands touch strings.
+- [x] R073 Refactor the minimal DB value model to support strings and lists.
+- [x] R074 Preserve existing string command, integer command, and parser behavior.
+- [x] R075 Save `cargo check --message-format=json` output to `reports/iteration-009/cargo-check.jsonl`.
+- [x] R076 Generate `reports/iteration-009/ownership-report.json`.
+- [x] R077 Generate `reports/iteration-009/ownership-report.html`.
+- [x] R078 Record iteration-009 results and diagnostic counts in `notes/iteration-log.md`.
+- [x] R079 Run final `cargo test` in `rust-port/`.
