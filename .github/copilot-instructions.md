@@ -71,6 +71,8 @@
 | エージェント | 用途 |
 |---|---|
 | `planner` | Issue 着手前の実装計画策定。ファイル変更一覧・テスト方針・リスクを出力 |
+| `porting-compatibility` | C API/ABI 形状・context/callback/allocator/error surface を保つ移植検証 track の実装 |
+| `porting-rust-native` | 入出力 behavior のみを保ち、owned values / Result / builder / iterator へ寄せる Rust-native 移植検証 track の実装 |
 | `reviewer` | PR レビュー。コード品質・セキュリティ・仕様準拠を検証 |
 | `test-writer` | テストコード生成。仕様の受入条件からテストケースを導出 |
 | `security-auditor` | セキュリティ監査。OWASP Top 10・依存関係・シークレットを検査 |
