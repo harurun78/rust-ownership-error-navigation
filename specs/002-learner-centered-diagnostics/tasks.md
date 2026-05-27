@@ -28,10 +28,10 @@
 
 **Purpose**: Add the shared learner summary, audience, diagnostic navigation, and fix strategy model surfaces used by all stories.
 
-- [ ] T001 Define `AudienceMode`, `LearnerSummary`, `FixStrategy`, and `RecommendedFirstFix` types in `src/mapper/ownership-event.ts` or a new `src/mapper/diagnostic-navigation.ts`
-- [ ] T002 [P] Add model unit tests for learner summary and fix strategy shape in `test/mapper/diagnostic-navigation.test.ts`
-- [ ] T003 Add report schema expectations for optional learner fields in `specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json` or a new versioned contract file
-- [ ] T004 [P] Add reporter fixture helper for generating reports under different audience modes in `test/helpers/diagnostic-fixtures.ts`
+- [x] T001 Define `AudienceMode`, `LearnerSummary`, `FixStrategy`, and `RecommendedFirstFix` types in `src/mapper/ownership-event.ts` or a new `src/mapper/diagnostic-navigation.ts`
+- [x] T002 [P] Add model unit tests for learner summary and fix strategy shape in `test/mapper/diagnostic-navigation.test.ts`
+- [x] T003 Add report schema expectations for optional learner fields in `specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json` or a new versioned contract file
+- [x] T004 [P] Add reporter fixture helper for generating reports under different audience modes in `test/helpers/diagnostic-fixtures.ts`
 
 **Checkpoint**: Report model can carry learner-oriented fields without breaking MVP diagnostics.
 

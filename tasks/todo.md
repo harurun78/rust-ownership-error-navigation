@@ -164,3 +164,10 @@
 - 作成: `specs/002-learner-centered-diagnostics/` に post-MVP speckit spec / plan / tasks を追加。
 - Issue 化: #48 learner model foundation、#49 learner summary cards、#50 audience modes、#51 non-ownership diagnostics、#52 first-fix order / fix strategy guidance。
 - 着手順: #48 を最初の実装ブランチとして開始する。
+
+## 2026-05-27 Issue #48 implementation start
+
+- ブランチ: `feature/48-learner-diagnostic-model-foundation`
+- 実装: learner diagnostic shared model types、optional report schema fields、audience-aware fixture helper、model/schema tests を追加。
+- 対象 speckit tasks: T001-T004。
+- 検証: `npm: verify` 成功（lint / format:check / type-check / test:run / test:integration）、`npm: build` 成功。
