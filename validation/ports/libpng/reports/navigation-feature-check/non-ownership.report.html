@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Rust Ownership Diagnostic Report</title>
+	<style>
+		body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
+		table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }
+		th, td { border: 1px solid #d0d7de; padding: 0.5rem; text-align: left; vertical-align: top; }
+		th { background: #f6f8fa; }
+		code, pre { background: #f6f8fa; padding: 0.125rem 0.25rem; }
+		pre { overflow-x: auto; padding: 0.75rem; }
+	</style>
+</head>
+<body>
+	<h1>Rust Ownership Diagnostic Report</h1>
+	<section id="summary">
+	<h2>Summary</h2>
+	<table>
+		<tbody>
+			<tr><th>Input</th><td>test/fixtures/diagnostics/porting/non-ownership-navigation-2026-05-25.jsonl</td></tr>
+			<tr><th>Total Diagnostics</th><td>3</td></tr>
+			<tr><th>Supported Diagnostics</th><td>3</td></tr>
+			<tr><th>Unsupported Diagnostics</th><td>0</td></tr>
+		</tbody>
+	</table>
+</section>
+  <section id="recommended-first-fixes">
+	<h2>Recommended First Fixes</h2>
+	<table>
+		<thead><tr><th>Priority</th><th>Code</th><th>Diagnostic</th><th>Reason</th><th>Next Step</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td>1</td><td>E0425</td><td>diagnostic-3</td><td>Resolve missing names first because later diagnostics may depend on the referenced item.</td><td>Resolve the missing name in this scope</td><td>high</td></tr>
+<tr><td>2</td><td>E0308</td><td>diagnostic-1</td><td>Align types before changing ownership so the code has the expected shape.</td><td>Align the expression type with the expected type</td><td>high</td></tr>
+<tr><td>3</td><td>E0004</td><td>diagnostic-2</td><td>Complete match coverage before refining the surrounding control flow.</td><td>Cover every possible match case</td><td>high</td></tr></tbody>
+	</table>
+</section>
+	<section id="learner-summaries">
+	<h2>Learner Summaries</h2>
+	<p>No learner summaries</p>
+</section>
+	<section id="diagnostic-groups">
+	<h2>Diagnostic Groups</h2>
+	<table>
+		<thead><tr><th>Group</th><th>Count</th><th>Codes</th></tr></thead>
+		<tbody><tr><td>Ownership</td><td>0</td><td>none</td></tr>
+<tr><td>Non-Ownership</td><td>3</td><td>E0308, E0004, E0425</td></tr>
+<tr><td>Unsupported</td><td>0</td><td>none</td></tr></tbody>
+	</table>
+</section>
+	<section id="diagnostics">
+	<h2>Diagnostics</h2>
+	<table>
+		<thead><tr><th>ID</th><th>Group</th><th>Code</th><th>Message</th><th>Status</th></tr></thead>
+		<tbody><tr><td>diagnostic-1</td><td>non-ownership</td><td>E0308</td><td>mismatched types</td><td>supported</td></tr>
+<tr><td>diagnostic-2</td><td>non-ownership</td><td>E0004</td><td>non-exhaustive patterns: `State::Done` not covered</td><td>supported</td></tr>
+<tr><td>diagnostic-3</td><td>non-ownership</td><td>E0425</td><td>cannot find value `missing_name` in this scope</td><td>supported</td></tr></tbody>
+	</table>
+</section>
+  <section id="fix-strategies">
+	<h2>Fix Strategies</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Rationale</th><th>Trade-offs</th><th>Span</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td>E0308</td><td>align_types</td><td>Align the expression type with the expected type</td><td>Rust expected one type at this location but inferred a different expression type.</td><td>Changing the expression may be simpler when the expected type is correct. Changing the annotation or signature may be better when the expected type is too narrow.</td><td>diagnostic-1-child-1-span-1</td><td>high</td></tr>
+<tr><td>E0004</td><td>add_match_arm</td><td>Cover every possible match case</td><td>Rust cannot prove this match handles every value the input type can produce.</td><td>Adding an explicit arm documents the missing case clearly. A wildcard arm is shorter but can hide future enum variants.</td><td>diagnostic-2-child-2-span-1</td><td>high</td></tr>
+<tr><td>E0425</td><td>resolve_name</td><td>Resolve the missing name in this scope</td><td>Rust could not find the referenced item where this code is compiled.</td><td>Renaming the reference is direct when this is a typo. Adding an import or declaration is better when the item exists elsewhere.</td><td>diagnostic-3-span-1</td><td>high</td></tr></tbody>
+	</table>
+</section>
+	<section id="causality-timeline">
+	<h2>Causality Timeline</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Role</th><th>Kind</th><th>Message</th><th>Span</th></tr></thead>
+		<tbody><tr><td colspan="5">No events</td></tr></tbody>
+	</table>
+</section>
+	<section id="source-spans">
+	<h2>Source Spans</h2>
+	<table>
+		<thead><tr><th>Diagnostic</th><th>Role</th><th>Location</th><th>Label</th><th>Snippet</th></tr></thead>
+		<tbody><tr><td>diagnostic-1</td><td>conflict</td><td>src/main.rs:3:24</td><td>expected `String`, found integer</td><td><pre>    let text: String = 42;</pre></td></tr>
+<tr><td>diagnostic-1</td><td>cause</td><td>src/main.rs:3:15</td><td>expected due to this</td><td><pre>    let text: String = 42;</pre></td></tr>
+<tr><td>diagnostic-2</td><td>conflict</td><td>src/main.rs:10:11</td><td>pattern `State::Done` not covered</td><td><pre>    match state {</pre></td></tr>
+<tr><td>diagnostic-3</td><td>conflict</td><td>src/main.rs:2:17</td><td>not found in this scope</td><td><pre>    let value = missing_name + 1;</pre></td></tr></tbody>
+	</table>
+</section>
+	<section id="evidence">
+	<h2>Evidence</h2>
+	<table>
+		<thead><tr><th>Event</th><th>Source</th><th>Field</th><th>Value</th></tr></thead>
+		<tbody><tr><td colspan="4">No evidence</td></tr></tbody>
+	</table>
+</section>
+	<section id="borrow-sheet">
+	<h2>Borrow Sheet</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Role</th><th>Place</th><th>Message</th><th>Span</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td colspan="7">No borrow sheet rows</td></tr></tbody>
+	</table>
+</section>
+	<section id="unsupported-diagnostics">
+	<h2>Unsupported Diagnostics</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Message</th><th>Reason</th><th>Rendered</th></tr></thead>
+		<tbody><tr><td colspan="4">No unsupported diagnostics</td></tr></tbody>
+	</table>
+</section>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# libpng iteration-001 notes
+
+- Date: 2026-05-27
+- Model: porting-lowcost subagent
+- Task slice: L011-L026 signature and chunk-header parser
+- Prompt summary: Implement a minimal compile-checkable Rust slice for libpng `png_sig_cmp`-style signature comparison, chunk type/header models, streaming parser outcomes, partial input tests, and saved cargo diagnostics without manual ownership hints.
+- Human ownership hints before attempt: none
+- Human intervention during review: fixed one same-feed boundary bug where signature and chunk-header bytes arrived together, then added regression coverage.
+- Command: `cargo fmt && cargo fmt -- --check && cargo check --message-format=json > ../reports/iteration-001/cargo-check.jsonl && cargo test`; report command `npm run build && node dist/cli/main.js --input validation/ports/libpng/reports/iteration-001/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-001/ownership-report.json --html-out validation/ports/libpng/reports/iteration-001/ownership-report.html`
+- Result: compile success; test success, 9 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-001/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-001/ownership-report.json`
+- Ownership report HTML: `reports/iteration-001/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 1
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; small value types derive `Copy, Clone`.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: continue with L027-L029 chunk payload and CRC boundary tests, where buffer retention and owned payload extraction should create stronger ownership pressure.
