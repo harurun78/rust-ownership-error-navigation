@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Decision
 
-The libpng validation port reached the practical Rust read-path boundary at iteration-014. Iterations 015-019 deliberately broadened the scope toward selected full-libpng parity gaps while keeping the work Rust-native and compile-checkable.
+The libpng validation port reached the practical Rust read-path boundary at iteration-014. Iterations 015-020 deliberately broadened the scope toward selected full-libpng parity gaps while keeping the work Rust-native and compile-checkable.
 
 Completed capabilities:
 
@@ -23,6 +23,7 @@ Completed capabilities:
 - gAMA, sRGB, pHYs, tIME, and tEXt metadata extraction
 - cHRM, zTXt, iTXt, and iCCP metadata extraction
 - Basic PNG writing for non-interlaced grayscale/truecolor-style images
+- Indexed PNG writing with PLTE and optional tRNS alpha for 8-bit palette indices
 - Document-level decode with unknown ancillary chunk preservation
 - Document-level writing with metadata emission and safe-to-copy unknown ancillary chunk preservation
 
@@ -40,7 +41,7 @@ The following are intentionally outside this validation port boundary rather tha
 
 ## Navigation App Effect
 
-Across libpng iterations 001-019, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
+Across libpng iterations 001-020, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
 
 The feature improvements remain verified through fixture smoke reports, but libpng itself did not provide a measurable before/after diagnostic-reduction signal.
 

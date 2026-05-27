@@ -446,3 +446,24 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; document output is assembled from borrowed metadata into owned chunk payload buffers.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: remaining full-parity work is progressive row callbacks, palette/interlace writer support, configurable filter strategies, and C ABI behavior.
+
+### iteration-020
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L103-L106 indexed palette write support
+- Prompt summary: Add an indexed-color PNG writer that emits IHDR, PLTE, optional tRNS alpha, IDAT, and IEND, with round-trip decode coverage and palette/index validation.
+- Human ownership hints before attempt: keep the first writer slice to 8-bit indexed output; avoid `unsafe`, shared mutability shortcuts, and broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-020 && cargo check --message-format=json > ../reports/iteration-020/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-020/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-020/ownership-report.json --html-out validation/ports/libpng/reports/iteration-020/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 68 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-020/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-020/ownership-report.json`
+- Ownership report HTML: `reports/iteration-020/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; indexed scanlines and palette chunks are assembled as owned payload buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: remaining full-parity work is progressive callbacks, packed indexed writer support, interlaced output, filter strategy selection, and C ABI behavior.

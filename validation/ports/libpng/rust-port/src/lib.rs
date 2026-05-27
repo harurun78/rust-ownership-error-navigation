@@ -343,6 +343,16 @@ pub struct PngImage {
     pub pixels: Vec<u8>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct PngIndexedImage {
+    pub width: u32,
+    pub height: u32,
+    pub bit_depth: u8,
+    pub palette: Vec<PaletteEntry>,
+    pub indices: Vec<u8>,
+    pub alpha: Option<Vec<u8>>,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct PaletteEntry {
     pub red: u8,
@@ -972,6 +982,25 @@ pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseEr
     Ok(output)
 }
 
+pub fn encode_indexed_png_image(image: &PngIndexedImage) -> Result<Vec<u8>, PngParseError> {
+    let mut output = PNG_SIGNATURE.to_vec();
+    append_png_chunk(&mut output, *b"IHDR", &encode_indexed_ihdr_payload(image)?)?;
+    append_png_chunk(&mut output, *b"PLTE", &encode_plte_payload(&image.palette)?)?;
+
+    if let Some(alpha) = &image.alpha {
+        append_png_chunk(
+            &mut output,
+            *b"tRNS",
+            &encode_indexed_trns_payload(alpha, image.palette.len())?,
+        )?;
+    }
+
+    append_png_chunk(&mut output, *b"IDAT", &encode_indexed_idat_payload(image)?)?;
+    append_png_chunk(&mut output, *b"IEND", &[])?;
+
+    Ok(output)
+}
+
 fn encode_idat_payload(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
     if image.width == 0 || image.height == 0 {
         return Err(PngParseError::InvalidIhdrDimensions {
@@ -1050,6 +1079,97 @@ fn encode_ihdr_payload(image: &PngImage) -> Result<[u8; IHDR_PAYLOAD_LEN], PngPa
         PngFilterMethod::Adaptive.byte(),
         PngInterlaceMethod::None.byte(),
     ])
+}
+
+fn encode_indexed_ihdr_payload(
+    image: &PngIndexedImage,
+) -> Result<[u8; IHDR_PAYLOAD_LEN], PngParseError> {
+    if image.width == 0 || image.height == 0 {
+        return Err(PngParseError::InvalidIhdrDimensions {
+            width: image.width,
+            height: image.height,
+        });
+    }
+    if image.bit_depth != 8 {
+        return Err(PngParseError::UnsupportedEncodeFormat {
+            bit_depth: image.bit_depth,
+            color_type: IhdrColorType::Indexed.byte(),
+        });
+    }
+
+    let width = image.width.to_be_bytes();
+    let height = image.height.to_be_bytes();
+
+    Ok([
+        width[0],
+        width[1],
+        width[2],
+        width[3],
+        height[0],
+        height[1],
+        height[2],
+        height[3],
+        image.bit_depth,
+        IhdrColorType::Indexed.byte(),
+        PngCompressionMethod::Deflate.byte(),
+        PngFilterMethod::Adaptive.byte(),
+        PngInterlaceMethod::None.byte(),
+    ])
+}
+
+fn encode_plte_payload(palette: &[PaletteEntry]) -> Result<Vec<u8>, PngParseError> {
+    if palette.is_empty() || palette.len() > 256 {
+        return Err(PngParseError::InvalidPlteLength {
+            length: palette.len() * 3,
+        });
+    }
+
+    let mut payload = Vec::with_capacity(palette.len() * 3);
+    for entry in palette {
+        payload.extend_from_slice(&[entry.red, entry.green, entry.blue]);
+    }
+
+    Ok(payload)
+}
+
+fn encode_indexed_trns_payload(alpha: &[u8], palette_len: usize) -> Result<Vec<u8>, PngParseError> {
+    if alpha.is_empty() || alpha.len() > palette_len {
+        return Err(PngParseError::InvalidTrnsLength {
+            color_type: IhdrColorType::Indexed.byte(),
+            length: alpha.len(),
+        });
+    }
+
+    Ok(Vec::from(alpha))
+}
+
+fn encode_indexed_idat_payload(image: &PngIndexedImage) -> Result<Vec<u8>, PngParseError> {
+    let row_len = image.width as usize;
+    let expected = row_len * image.height as usize;
+
+    if image.indices.len() != expected {
+        return Err(PngParseError::InvalidImageDataLength {
+            expected,
+            actual: image.indices.len(),
+        });
+    }
+
+    for index in &image.indices {
+        if *index as usize >= image.palette.len() {
+            return Err(PngParseError::InvalidPaletteIndex {
+                index: *index,
+                palette_len: image.palette.len(),
+            });
+        }
+    }
+
+    let mut scanlines = Vec::with_capacity(expected + image.height as usize);
+    for row in image.indices.chunks_exact(row_len) {
+        scanlines.push(0);
+        scanlines.extend_from_slice(row);
+    }
+
+    deflate_zlib_payload(&scanlines)
 }
 
 fn append_png_chunk(
@@ -2809,6 +2929,102 @@ mod tests {
             Err(PngParseError::InvalidImageDataLength {
                 expected: 6,
                 actual: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn encode_indexed_png_image_writes_palette_round_trip_png() {
+        let image = PngIndexedImage {
+            width: 2,
+            height: 1,
+            bit_depth: 8,
+            palette: vec![
+                PaletteEntry {
+                    red: 255,
+                    green: 0,
+                    blue: 0,
+                },
+                PaletteEntry {
+                    red: 0,
+                    green: 0,
+                    blue: 255,
+                },
+            ],
+            indices: vec![0, 1],
+            alpha: None,
+        };
+
+        let encoded = encode_indexed_png_image(&image).expect("indexed image should encode");
+
+        assert_eq!(
+            decode_png_image(&encoded),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Indexed,
+                bit_depth: 8,
+                pixels: vec![255, 0, 0, 0, 0, 255],
+            })
+        );
+    }
+
+    #[test]
+    fn encode_indexed_png_image_writes_trns_alpha_round_trip_png() {
+        let image = PngIndexedImage {
+            width: 2,
+            height: 1,
+            bit_depth: 8,
+            palette: vec![
+                PaletteEntry {
+                    red: 255,
+                    green: 0,
+                    blue: 0,
+                },
+                PaletteEntry {
+                    red: 0,
+                    green: 0,
+                    blue: 255,
+                },
+            ],
+            indices: vec![0, 1],
+            alpha: Some(vec![0, 128]),
+        };
+
+        let encoded = encode_indexed_png_image(&image).expect("indexed alpha image should encode");
+
+        assert_eq!(
+            decode_png_image(&encoded),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Indexed,
+                bit_depth: 8,
+                pixels: vec![255, 0, 0, 0, 0, 0, 255, 128],
+            })
+        );
+    }
+
+    #[test]
+    fn encode_indexed_png_image_rejects_invalid_palette_index() {
+        let image = PngIndexedImage {
+            width: 1,
+            height: 1,
+            bit_depth: 8,
+            palette: vec![PaletteEntry {
+                red: 255,
+                green: 0,
+                blue: 0,
+            }],
+            indices: vec![3],
+            alpha: None,
+        };
+
+        assert_eq!(
+            encode_indexed_png_image(&image),
+            Err(PngParseError::InvalidPaletteIndex {
+                index: 3,
+                palette_len: 1,
             })
         );
     }

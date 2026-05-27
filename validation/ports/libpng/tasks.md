@@ -167,3 +167,10 @@
 - [x] L100 Implement document-level encoder that writes metadata, safe ancillary chunks, IDAT, and IEND. (iteration-019)
 - [x] L101 Add encode/decode document round-trip coverage. (iteration-019)
 - [x] L102 Record iteration-019 diagnostics and ownership report. (iteration-019)
+
+## Phase 23: Indexed Palette Write Slice
+
+- [x] L103 Add tests for encoding 8-bit indexed PNG images with PLTE. (iteration-020)
+- [x] L104 Add tests for optional indexed tRNS alpha output. (iteration-020)
+- [x] L105 Implement indexed PNG writer with palette/index validation. (iteration-020)
+- [x] L106 Record iteration-020 diagnostics and ownership report. (iteration-020)

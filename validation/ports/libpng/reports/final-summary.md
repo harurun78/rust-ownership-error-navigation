@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Boundary
 
-This validation target has moved beyond the original structure-only slice into a practical PNG implementation subset: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, Adam7 pass reconstruction for byte-aligned decoded samples, common and rich metadata extraction, basic PNG writing, document-level metadata emission, and safe unknown ancillary preservation.
+This validation target has moved beyond the original structure-only slice into a practical PNG implementation subset: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, Adam7 pass reconstruction for byte-aligned decoded samples, common and rich metadata extraction, basic PNG writing, indexed palette writing, document-level metadata emission, and safe unknown ancillary preservation.
 
 This is still not full libpng parity. Remaining gaps are tracked in `reports/full-port-gap-assessment.md`.
 
@@ -31,6 +31,7 @@ This is still not full libpng parity. Remaining gaps are tracked in `reports/ful
 | iteration-017 | Document decode and ancillary preservation | compile/test pass | 62 | 0 | 0 | 0 | Return image data, metadata, and unknown ancillary chunk payloads |
 | iteration-018 | Rich metadata chunks | compile/test pass | 65 | 0 | 0 | 0 | Parse cHRM, zTXt, iTXt, and iCCP into owned metadata records |
 | iteration-019 | Document write and copy policy | compile/test pass | 65 | 0 | 0 | 0 | Write metadata chunks and safe-to-copy unknown ancillary chunks |
+| iteration-020 | Indexed palette write support | compile/test pass | 68 | 0 | 0 | 0 | Write 8-bit indexed PNG images with PLTE and optional tRNS alpha |
 
 ## Shortcut Pressure
 
@@ -60,5 +61,5 @@ Interpretation:
 
 - Use a different validation target, or an intentionally failed libpng branch, to measure diagnostic navigation effectiveness.
 - Add progressive row callback style decoding to increase ownership pressure.
-- Expand the writer to palette output, interlaced output, and configurable filter strategies.
+- Expand the writer to packed indexed output, interlaced output, and configurable filter strategies.
 - If future iterations produce E0382/E0499/E0502 or E0308/E0004/E0425, feed the generated report into the next low-cost attempt and compare repeated diagnostics.

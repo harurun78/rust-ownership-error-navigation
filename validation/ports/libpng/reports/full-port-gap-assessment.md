@@ -25,6 +25,7 @@ The validation port now covers a practical minimal PNG read path:
 - Metadata extraction for gAMA, sRGB, pHYs, tIME, and tEXt chunks
 - Rich metadata extraction for cHRM, zTXt, iTXt, and iCCP chunks
 - Basic PNG writing for non-interlaced grayscale, truecolor, grayscale-alpha, and truecolor-alpha images at 8/16-bit depths
+- Indexed PNG writing with PLTE and optional tRNS alpha for 8-bit palette indices
 - Document-level decode returning image data, metadata, and unknown ancillary chunks as owned records
 - Document-level writing for metadata chunks and safe-to-copy unknown ancillary chunks
 
@@ -36,7 +37,7 @@ This is not a full libpng replacement. Major remaining gaps include:
 - Full color transform behavior from color-management metadata
 - Full unknown ancillary copy policy with exact ordering and transform-aware safe/unsafe handling
 - Error recovery and warning model closer to libpng
-- Broader write/encode APIs, including indexed palette output, filtering choices, and interlaced output
+- Broader write/encode APIs, including packed indexed output, filtering choices, and interlaced output
 - C ABI, allocator hooks, setjmp/longjmp behavior, and full public API parity
 
 ## Next Slice Decision
