@@ -16,13 +16,13 @@ The validation port now covers a practical minimal PNG read path:
 - PNG scanline filter reconstruction for filter types 0-4
 - Non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6
 - PLTE parsing and indexed-color expansion to RGB pixels
+- tRNS transparency expansion for grayscale, truecolor, and indexed-color images
 
 ## Remaining Gaps Versus Full libpng Parity
 
 This is not a full libpng replacement. Major remaining gaps include:
 
 - Bit depths 1, 2, 4, and 16 for grayscale/indexed/truecolor paths
-- tRNS transparency expansion for grayscale, truecolor, and indexed images
 - PLTE ordering and cardinality rules beyond the basic decode path
 - Adam7 interlace reconstruction
 - Progressive row callbacks and true streaming row decode
@@ -35,6 +35,6 @@ This is not a full libpng replacement. Major remaining gaps include:
 
 ## Next Slice Decision
 
-The next highest-value slice is tRNS transparency expansion. It builds directly on the current palette and color-type decode work, exercises metadata ownership, and adds behavior that beginners often need to understand when moving from byte parsing to image semantics.
+The next highest-value slice is bit-depth expansion for 1/2/4/16-bit scanlines. It is smaller than Adam7 interlace, builds directly on the current row reconstruction path, and will force explicit handling of packed samples and 16-bit channel width.
 
-Adam7 interlace and progressive row callbacks are better handled after tRNS because they require broader data-flow changes and more substantial test fixtures.
+Adam7 interlace and progressive row callbacks are better handled after bit-depth expansion because they require broader data-flow changes and more substantial test fixtures.

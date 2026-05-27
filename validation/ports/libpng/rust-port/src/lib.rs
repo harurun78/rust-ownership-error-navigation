@@ -88,6 +88,13 @@ pub enum PngParseError {
         index: u8,
         palette_len: usize,
     },
+    InvalidTrnsLength {
+        color_type: u8,
+        length: usize,
+    },
+    TrnsNotAllowed {
+        color_type: u8,
+    },
     InvalidFilterType {
         row: usize,
         filter_type: u8,
@@ -296,6 +303,13 @@ pub struct PaletteEntry {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Transparency {
+    Grayscale { sample: u8 },
+    Truecolor { red: u8, green: u8, blue: u8 },
+    Indexed { alpha: Vec<u8> },
 }
 
 impl Ihdr {
@@ -634,6 +648,7 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
         .ok_or(PngParseError::MissingIhdr)?;
     let ihdr = Ihdr::parse(&ihdr_chunk.payload)?;
     let bytes_per_pixel = decode_bytes_per_pixel(ihdr)?;
+    let transparency = find_transparency(&chunks, ihdr)?;
 
     let mut compressed = Vec::new();
     for chunk in chunks
@@ -654,11 +669,30 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
         .map_err(|_| PngParseError::InflateFailed)?;
 
     let reconstructed = reconstruct_scanlines(&inflated, ihdr.width, ihdr.height, bytes_per_pixel)?;
-    let pixels = if ihdr.color_type == IhdrColorType::Indexed {
-        let palette = find_palette(&chunks)?;
-        expand_indexed_pixels(&reconstructed, &palette)?
-    } else {
-        reconstructed
+    let pixels = match ihdr.color_type {
+        IhdrColorType::Grayscale => match transparency {
+            Some(Transparency::Grayscale { sample }) => {
+                expand_grayscale_transparency(&reconstructed, sample)
+            }
+            _ => reconstructed,
+        },
+        IhdrColorType::Truecolor => match transparency {
+            Some(Transparency::Truecolor { red, green, blue }) => {
+                expand_truecolor_transparency(&reconstructed, red, green, blue)
+            }
+            _ => reconstructed,
+        },
+        IhdrColorType::Indexed => {
+            let palette = find_palette(&chunks)?;
+
+            match transparency {
+                Some(Transparency::Indexed { alpha }) => {
+                    expand_indexed_pixels_with_alpha(&reconstructed, &palette, &alpha)?
+                }
+                _ => expand_indexed_pixels(&reconstructed, &palette)?,
+            }
+        }
+        IhdrColorType::GrayscaleAlpha | IhdrColorType::TruecolorAlpha => reconstructed,
     };
 
     Ok(PngImage {
@@ -705,6 +739,63 @@ pub fn parse_plte(payload: &[u8]) -> Result<Vec<PaletteEntry>, PngParseError> {
         .collect())
 }
 
+pub fn parse_trns(
+    payload: &[u8],
+    color_type: IhdrColorType,
+) -> Result<Transparency, PngParseError> {
+    match color_type {
+        IhdrColorType::Grayscale => {
+            if payload.len() != 2 {
+                return Err(PngParseError::InvalidTrnsLength {
+                    color_type: color_type.byte(),
+                    length: payload.len(),
+                });
+            }
+
+            Ok(Transparency::Grayscale { sample: payload[1] })
+        }
+        IhdrColorType::Truecolor => {
+            if payload.len() != 6 {
+                return Err(PngParseError::InvalidTrnsLength {
+                    color_type: color_type.byte(),
+                    length: payload.len(),
+                });
+            }
+
+            Ok(Transparency::Truecolor {
+                red: payload[1],
+                green: payload[3],
+                blue: payload[5],
+            })
+        }
+        IhdrColorType::Indexed => {
+            if payload.is_empty() || payload.len() > 256 {
+                return Err(PngParseError::InvalidTrnsLength {
+                    color_type: color_type.byte(),
+                    length: payload.len(),
+                });
+            }
+
+            Ok(Transparency::Indexed {
+                alpha: payload.to_vec(),
+            })
+        }
+        IhdrColorType::GrayscaleAlpha | IhdrColorType::TruecolorAlpha => {
+            Err(PngParseError::TrnsNotAllowed {
+                color_type: color_type.byte(),
+            })
+        }
+    }
+}
+
+fn find_transparency(chunks: &[Chunk], ihdr: Ihdr) -> Result<Option<Transparency>, PngParseError> {
+    chunks
+        .iter()
+        .find(|chunk| chunk.header.chunk_type.bytes() == *b"tRNS")
+        .map(|chunk| parse_trns(&chunk.payload, ihdr.color_type))
+        .transpose()
+}
+
 fn find_palette(chunks: &[Chunk]) -> Result<Vec<PaletteEntry>, PngParseError> {
     let plte = chunks
         .iter()
@@ -729,6 +820,64 @@ fn expand_indexed_pixels(
         })?;
 
         pixels.extend_from_slice(&[entry.red, entry.green, entry.blue]);
+    }
+
+    Ok(pixels)
+}
+
+fn expand_grayscale_transparency(pixels: &[u8], transparent_sample: u8) -> Vec<u8> {
+    let mut expanded = Vec::with_capacity(pixels.len() * 2);
+
+    for sample in pixels {
+        let alpha = if *sample == transparent_sample {
+            0
+        } else {
+            255
+        };
+        expanded.extend_from_slice(&[*sample, alpha]);
+    }
+
+    expanded
+}
+
+fn expand_truecolor_transparency(
+    pixels: &[u8],
+    transparent_red: u8,
+    transparent_green: u8,
+    transparent_blue: u8,
+) -> Vec<u8> {
+    let mut expanded = Vec::with_capacity(pixels.len() / 3 * 4);
+
+    for pixel in pixels.chunks_exact(3) {
+        let alpha = if pixel == [transparent_red, transparent_green, transparent_blue] {
+            0
+        } else {
+            255
+        };
+
+        expanded.extend_from_slice(&[pixel[0], pixel[1], pixel[2], alpha]);
+    }
+
+    expanded
+}
+
+fn expand_indexed_pixels_with_alpha(
+    indices: &[u8],
+    palette: &[PaletteEntry],
+    alpha: &[u8],
+) -> Result<Vec<u8>, PngParseError> {
+    let mut pixels = Vec::with_capacity(indices.len() * 4);
+
+    for index in indices {
+        let entry = palette.get(*index as usize).ok_or({
+            PngParseError::InvalidPaletteIndex {
+                index: *index,
+                palette_len: palette.len(),
+            }
+        })?;
+        let alpha = alpha.get(*index as usize).copied().unwrap_or(255);
+
+        pixels.extend_from_slice(&[entry.red, entry.green, entry.blue, alpha]);
     }
 
     Ok(pixels)
@@ -907,6 +1056,24 @@ mod tests {
             chunk(*b"IDAT", zlib_compress(scanlines)),
             chunk(*b"IEND", Vec::new()),
         ];
+
+        png_bytes_from_chunks(&chunks)
+    }
+
+    fn image_png_bytes_with_extra_chunks(
+        width: u32,
+        height: u32,
+        color_type: u8,
+        extra_chunks: Vec<Chunk>,
+        scanlines: &[u8],
+    ) -> Vec<u8> {
+        let mut chunks = vec![chunk(
+            *b"IHDR",
+            ihdr_payload(width, height, 8, color_type, 0, 0, 0).to_vec(),
+        )];
+        chunks.extend(extra_chunks);
+        chunks.push(chunk(*b"IDAT", zlib_compress(scanlines)));
+        chunks.push(chunk(*b"IEND", Vec::new()));
 
         png_bytes_from_chunks(&chunks)
     }
@@ -1555,6 +1722,125 @@ mod tests {
                 index: 1,
                 palette_len: 1,
             })
+        );
+    }
+
+    #[test]
+    fn trns_parser_returns_transparency_metadata() {
+        assert_eq!(
+            parse_trns(&[0, 20], IhdrColorType::Grayscale),
+            Ok(Transparency::Grayscale { sample: 20 })
+        );
+        assert_eq!(
+            parse_trns(&[0, 10, 0, 20, 0, 30], IhdrColorType::Truecolor),
+            Ok(Transparency::Truecolor {
+                red: 10,
+                green: 20,
+                blue: 30,
+            })
+        );
+        assert_eq!(
+            parse_trns(&[0, 128], IhdrColorType::Indexed),
+            Ok(Transparency::Indexed {
+                alpha: vec![0, 128],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_expands_grayscale_trns_to_alpha() {
+        let input = image_png_bytes_with_extra_chunks(
+            2,
+            1,
+            0,
+            vec![chunk(*b"tRNS", vec![0, 20])],
+            &[0, 10, 20],
+        );
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 8,
+                pixels: vec![10, 255, 20, 0],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_expands_truecolor_trns_to_alpha() {
+        let input = image_png_bytes_with_extra_chunks(
+            2,
+            1,
+            2,
+            vec![chunk(*b"tRNS", vec![0, 10, 0, 20, 0, 30])],
+            &[0, 10, 20, 30, 1, 2, 3],
+        );
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Truecolor,
+                bit_depth: 8,
+                pixels: vec![10, 20, 30, 0, 1, 2, 3, 255],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_expands_indexed_trns_to_rgba() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(2, 1, 8, 3, 0, 0, 0).to_vec()),
+            chunk(*b"PLTE", vec![255, 0, 0, 0, 255, 0]),
+            chunk(*b"tRNS", vec![0, 128]),
+            chunk(*b"IDAT", zlib_compress(&[0, 0, 1])),
+            chunk(*b"IEND", Vec::new()),
+        ];
+        let input = png_bytes_from_chunks(&chunks);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Indexed,
+                bit_depth: 8,
+                pixels: vec![255, 0, 0, 0, 0, 255, 0, 128],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_rejects_invalid_trns_length() {
+        let input =
+            image_png_bytes_with_extra_chunks(1, 1, 0, vec![chunk(*b"tRNS", vec![0])], &[0, 10]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Err(PngParseError::InvalidTrnsLength {
+                color_type: 0,
+                length: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_rejects_trns_for_alpha_color_types() {
+        let input = image_png_bytes_with_extra_chunks(
+            1,
+            1,
+            6,
+            vec![chunk(*b"tRNS", vec![0, 10, 0, 20, 0, 30])],
+            &[0, 10, 20, 30, 255],
+        );
+
+        assert_eq!(
+            decode_png_image(&input),
+            Err(PngParseError::TrnsNotAllowed { color_type: 6 })
         );
     }
 }

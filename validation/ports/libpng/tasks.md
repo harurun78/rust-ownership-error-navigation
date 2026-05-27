@@ -89,3 +89,12 @@
 - [x] L055 Implement PLTE parsing and indexed-color expansion to RGB pixels. (iteration-008)
 - [x] L056 Add deterministic errors for missing PLTE and invalid palette indices. (iteration-008)
 - [x] L057 Record iteration-008 diagnostics and ownership report. (iteration-008)
+
+## Phase 12: Transparency Chunk Decode Slice
+
+- [x] L058 Add tests for grayscale tRNS transparency expansion. (iteration-009)
+- [x] L059 Add tests for truecolor tRNS transparency expansion. (iteration-009)
+- [x] L060 Add tests for indexed-color tRNS alpha expansion. (iteration-009)
+- [x] L061 Implement tRNS parsing for grayscale, truecolor, and indexed-color images. (iteration-009)
+- [x] L062 Add deterministic errors for invalid tRNS lengths and disallowed tRNS color types. (iteration-009)
+- [x] L063 Record iteration-009 diagnostics and ownership report. (iteration-009)
