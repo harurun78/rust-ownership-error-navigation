@@ -15,6 +15,7 @@ The validation port now covers a practical minimal PNG read path:
 - IDAT concatenation and zlib inflation
 - PNG scanline filter reconstruction for filter types 0-4
 - Non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6
+- Non-interlaced 16-bit decode for color types 0 and 2, preserving big-endian sample bytes
 - PLTE parsing and indexed-color expansion to RGB pixels
 - tRNS transparency expansion for grayscale, truecolor, and indexed-color images
 
@@ -22,7 +23,8 @@ The validation port now covers a practical minimal PNG read path:
 
 This is not a full libpng replacement. Major remaining gaps include:
 
-- Bit depths 1, 2, 4, and 16 for grayscale/indexed/truecolor paths
+- Packed bit depths 1, 2, and 4 for grayscale/indexed paths
+- 16-bit grayscale-alpha and truecolor-alpha decode paths
 - PLTE ordering and cardinality rules beyond the basic decode path
 - Adam7 interlace reconstruction
 - Progressive row callbacks and true streaming row decode
@@ -35,6 +37,6 @@ This is not a full libpng replacement. Major remaining gaps include:
 
 ## Next Slice Decision
 
-The next highest-value slice is bit-depth expansion for 1/2/4/16-bit scanlines. It is smaller than Adam7 interlace, builds directly on the current row reconstruction path, and will force explicit handling of packed samples and 16-bit channel width.
+The next highest-value slice is packed bit-depth expansion for 1/2/4-bit scanlines. It is smaller than Adam7 interlace, builds directly on the current row reconstruction path, and will force explicit handling of sub-byte samples.
 
 Adam7 interlace and progressive row callbacks are better handled after bit-depth expansion because they require broader data-flow changes and more substantial test fixtures.

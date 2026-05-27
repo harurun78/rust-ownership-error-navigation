@@ -98,3 +98,10 @@
 - [x] L061 Implement tRNS parsing for grayscale, truecolor, and indexed-color images. (iteration-009)
 - [x] L062 Add deterministic errors for invalid tRNS lengths and disallowed tRNS color types. (iteration-009)
 - [x] L063 Record iteration-009 diagnostics and ownership report. (iteration-009)
+
+## Phase 13: 16-bit Decode Slice
+
+- [x] L064 Add tests for decoding a tiny non-interlaced 16-bit grayscale PNG image. (iteration-010)
+- [x] L065 Add tests for decoding a tiny non-interlaced 16-bit truecolor PNG image. (iteration-010)
+- [x] L066 Implement 16-bit row byte reconstruction for color types 0 and 2 while preserving big-endian sample bytes. (iteration-010)
+- [x] L067 Record iteration-010 diagnostics and ownership report. (iteration-010)

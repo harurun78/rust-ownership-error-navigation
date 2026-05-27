@@ -236,3 +236,24 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; tRNS metadata is parsed into owned enum variants and pixel expansion writes into owned output buffers.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: continue with bit-depth expansion or Adam7 interlace; bit-depth expansion is the smaller compile-checkable slice.
+
+### iteration-010
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L064-L067 16-bit grayscale/truecolor decode
+- Prompt summary: Add tests for tiny non-interlaced 16-bit grayscale and truecolor PNG images, and preserve big-endian sample bytes through scanline reconstruction.
+- Human ownership hints before attempt: keep packed 1/2/4-bit samples and Adam7 interlace out of scope; no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-010 && cargo check --message-format=json > ../reports/iteration-010/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-010/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-010/ownership-report.json --html-out validation/ports/libpng/reports/iteration-010/ownership-report.html`
+- Result: compile success; test success, 44 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-010/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-010/ownership-report.json`
+- Ownership report HTML: `reports/iteration-010/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; 16-bit sample bytes reuse the existing owned scanline reconstruction path.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: continue with packed 1/2/4-bit sample expansion before attempting Adam7 interlace.

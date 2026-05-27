@@ -650,6 +650,14 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
     let bytes_per_pixel = decode_bytes_per_pixel(ihdr)?;
     let transparency = find_transparency(&chunks, ihdr)?;
 
+    if transparency.is_some() && ihdr.bit_depth != 8 {
+        return Err(PngParseError::UnsupportedDecodeFormat {
+            bit_depth: ihdr.bit_depth,
+            color_type: ihdr.color_type.byte(),
+            interlace_method: ihdr.interlace_method.byte(),
+        });
+    }
+
     let mut compressed = Vec::new();
     for chunk in chunks
         .iter()
@@ -705,7 +713,7 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
 }
 
 fn decode_bytes_per_pixel(ihdr: Ihdr) -> Result<usize, PngParseError> {
-    if ihdr.bit_depth != 8 || ihdr.interlace_method != PngInterlaceMethod::None {
+    if ihdr.interlace_method != PngInterlaceMethod::None {
         return Err(PngParseError::UnsupportedDecodeFormat {
             bit_depth: ihdr.bit_depth,
             color_type: ihdr.color_type.byte(),
@@ -713,12 +721,21 @@ fn decode_bytes_per_pixel(ihdr: Ihdr) -> Result<usize, PngParseError> {
         });
     }
 
-    match ihdr.color_type {
-        IhdrColorType::Grayscale => Ok(1),
-        IhdrColorType::Truecolor => Ok(3),
-        IhdrColorType::Indexed => Ok(1),
-        IhdrColorType::GrayscaleAlpha => Ok(2),
-        IhdrColorType::TruecolorAlpha => Ok(4),
+    let channel_count = match ihdr.color_type {
+        IhdrColorType::Grayscale | IhdrColorType::Indexed => 1,
+        IhdrColorType::Truecolor => 3,
+        IhdrColorType::GrayscaleAlpha => 2,
+        IhdrColorType::TruecolorAlpha => 4,
+    };
+
+    match ihdr.bit_depth {
+        8 => Ok(channel_count),
+        16 if ihdr.color_type != IhdrColorType::Indexed => Ok(channel_count * 2),
+        _ => Err(PngParseError::UnsupportedDecodeFormat {
+            bit_depth: ihdr.bit_depth,
+            color_type: ihdr.color_type.byte(),
+            interlace_method: ihdr.interlace_method.byte(),
+        }),
     }
 }
 
@@ -1048,10 +1065,20 @@ mod tests {
     }
 
     fn image_png_bytes(width: u32, height: u32, color_type: u8, scanlines: &[u8]) -> Vec<u8> {
+        image_png_bytes_with_bit_depth(width, height, 8, color_type, scanlines)
+    }
+
+    fn image_png_bytes_with_bit_depth(
+        width: u32,
+        height: u32,
+        bit_depth: u8,
+        color_type: u8,
+        scanlines: &[u8],
+    ) -> Vec<u8> {
         let chunks = vec![
             chunk(
                 *b"IHDR",
-                ihdr_payload(width, height, 8, color_type, 0, 0, 0).to_vec(),
+                ihdr_payload(width, height, bit_depth, color_type, 0, 0, 0).to_vec(),
             ),
             chunk(*b"IDAT", zlib_compress(scanlines)),
             chunk(*b"IEND", Vec::new()),
@@ -1618,6 +1645,22 @@ mod tests {
     }
 
     #[test]
+    fn decode_png_image_preserves_16_bit_grayscale_sample_bytes() {
+        let input = image_png_bytes_with_bit_depth(2, 1, 16, 0, &[0, 0x12, 0x34, 0xab, 0xcd]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 16,
+                pixels: vec![0x12, 0x34, 0xab, 0xcd],
+            })
+        );
+    }
+
+    #[test]
     fn decode_png_image_reconstructs_truecolor_sub_filter() {
         let input = image_png_bytes(2, 1, 2, &[1, 10, 20, 30, 5, 5, 5]);
 
@@ -1629,6 +1672,23 @@ mod tests {
                 color_type: IhdrColorType::Truecolor,
                 bit_depth: 8,
                 pixels: vec![10, 20, 30, 15, 25, 35],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_preserves_16_bit_truecolor_sample_bytes() {
+        let input =
+            image_png_bytes_with_bit_depth(1, 1, 16, 2, &[0, 0x00, 0x10, 0x00, 0x20, 0x00, 0x30]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 1,
+                height: 1,
+                color_type: IhdrColorType::Truecolor,
+                bit_depth: 16,
+                pixels: vec![0x00, 0x10, 0x00, 0x20, 0x00, 0x30],
             })
         );
     }
