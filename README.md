@@ -27,6 +27,18 @@ node dist/cli/main.js \
 	--html-out out/ownership-report.html
 ```
 
+Select the learner summary audience when needed:
+
+```bash
+node dist/cli/main.js \
+	--input test/fixtures/diagnostics/ownership-baseline-2026-05-24.jsonl \
+	--json-out out/ownership-report.agent.json \
+	--html-out out/ownership-report.agent.html \
+	--audience agent
+```
+
+`--audience` accepts `beginner`, `intermediate`, or `agent` and defaults to `beginner`. The mode changes the learner summary surface while preserving the underlying diagnostic evidence, spans, and events.
+
 Run a compatibility fixture with unsupported diagnostics preserved:
 
 ```bash
@@ -36,7 +48,7 @@ node dist/cli/main.js \
 	--html-out out/followup-report.html
 ```
 
-The JSON report contains `schemaVersion`, `input`, `summary`, and `diagnostics`. The HTML report contains Summary, Diagnostics, Causality Timeline, Source Spans, Evidence, Borrow Sheet, and Unsupported Diagnostics sections.
+The JSON report contains `schemaVersion`, `input`, `summary`, and `diagnostics`. The HTML report contains Summary, Learner Summaries, Diagnostics, Causality Timeline, Source Spans, Evidence, Borrow Sheet, and Unsupported Diagnostics sections.
 
 ## Examples
 

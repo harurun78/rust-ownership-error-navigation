@@ -29,11 +29,24 @@ node dist/cli/main.js \
   --html-out out/ownership-report.html
 ```
 
+Audience mode can be selected explicitly:
+
+```sh
+node dist/cli/main.js \
+  --input test/fixtures/diagnostics/ownership-baseline-2026-05-24.jsonl \
+  --json-out out/ownership-report.intermediate.json \
+  --html-out out/ownership-report.intermediate.html \
+  --audience intermediate
+```
+
+Supported audience modes are `beginner`, `intermediate`, and `agent`. The default is `beginner`. The mode changes learner summary wording while preserving diagnostic evidence, spans, and ownership events.
+
 Expected result:
 
 - JSON report is created.
 - Static HTML report is created.
 - E0382 / E0499 / E0502 have ownership events.
+- Supported diagnostics include learner summaries.
 - Unsupported count is 2 for the baseline fixture because rustc failure-note diagnostics are preserved display-only.
 
 ## 3. Run compatibility fixture checks
@@ -77,6 +90,7 @@ Open `out/ownership-report.html` in a browser.
 Required sections:
 
 - Summary
+- Learner Summaries
 - Causality Timeline
 - Source Spans
 - Evidence
