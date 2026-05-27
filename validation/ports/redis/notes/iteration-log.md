@@ -47,6 +47,27 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; narrow `to_vec()` copies used for propagation log and replies; no broad clone shortcuts introduced.
 - Did the ownership report change the next fix: not applicable; no ownership diagnostics were emitted
 - Next action: continue with Phase 35 cluster basics or expand replication partial-sync handling and downstream propagation integration.
+
+### iteration-038
+
+- Date: 2026-05-27
+- Model: GPT-5 mini (copilot)
+- Task slice: R238-R240 Phase 35 Cluster Basics
+- Prompt summary: Add Redis CRC16 hash slot calculation with hash-tag support, `CLUSTER` command subset (`KEYSLOT`, `SLOTS`, `INFO`, `NODES`), cluster mode test helpers on `RedisMiniSession`, deterministic MOVED/ASK replies and cluster-aware command routing including CROSSSLOT validation, and tests covering tag behavior, slot replies, routing errors, multi-key validation, transaction boundary behavior, and TCP session KEYslot handling; capture cargo diagnostics and generate ownership reports under `reports/iteration-038/`.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-038/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-038/cargo-check.jsonl --json-out ../reports/iteration-038/ownership-report.json --html-out ../reports/iteration-038/ownership-report.html`
+- Result: compile success; test success, all tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-038/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-038/ownership-report.json`
+- Ownership report HTML: `reports/iteration-038/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 1 (small scope fix for name binding)
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; narrow `to_vec()` copies used; no broad clone shortcuts introduced.
+- Did the ownership report change the next fix: not applicable; no ownership diagnostics were emitted
+- Next action: continue incremental cluster feature expansion (slot migration simulation, ASK handling over TCP, cluster-replicas topology tests)
 - Date: 2026-05-26
 - Task slice: R010-R024 crate skeleton, RESP2 multibulk happy path, diagnostic capture, reports, and ledger updates.
 - Prompt summary: Initialize `validation/ports/redis/rust-port`, expose a complete RESP2 multibulk parser API returning owned command argument bytes, test PING/GET/SET and binary-safe payloads, capture cargo diagnostics, generate ownership reports, and update notes/tasks without committing.

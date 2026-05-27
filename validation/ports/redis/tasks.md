@@ -362,9 +362,9 @@ iteration-036: completed scripting compatibility stubs with deterministic `SCRIP
 
 ## Phase 35: Cluster Basics
 
-- [ ] R238 Add hash slot calculation, key-slot validation, and `CLUSTER KEYSLOT`/`CLUSTER SLOTS` subset.
-- [ ] R239 Add MOVED/ASK response behavior and cluster-aware command routing tests.
-- [ ] R240 Save diagnostics and reports for cluster iterations.
+- [x] R238 Add hash slot calculation, key-slot validation, and `CLUSTER KEYSLOT`/`CLUSTER SLOTS` subset.
+- [x] R239 Add MOVED/ASK response behavior and cluster-aware command routing tests.
+- [x] R240 Save diagnostics and reports for cluster iterations.
 
 ## Phase 36: Compatibility Harness And Final Gap Report
 

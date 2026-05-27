@@ -5,6 +5,7 @@ use crate::Command;
 
 const DATABASE_COUNT: usize = 16;
 const MAX_STRING_SIZE: usize = 512 * 1024 * 1024;
+const CLUSTER_SLOT_COUNT: u16 = 16384;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum SetCondition {
@@ -46,6 +47,49 @@ pub enum RespReply {
     Integer(i64),
     Array(Vec<RespReply>),
     Error(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClusterSlotRange {
+    start: u16,
+    end: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClusterRedirectTarget {
+    host: String,
+    port: u16,
+}
+
+impl ClusterRedirectTarget {
+    fn endpoint(&self) -> String {
+        format!("{}:{}", self.host, self.port)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClusterState {
+    enabled: bool,
+    local_slots: Vec<ClusterSlotRange>,
+    node_host: String,
+    node_port: u16,
+    node_id: String,
+    moved_target: Option<ClusterRedirectTarget>,
+    ask_target: Option<ClusterRedirectTarget>,
+}
+
+impl Default for ClusterState {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            local_slots: Vec::new(),
+            node_host: "127.0.0.1".to_string(),
+            node_port: 6379,
+            node_id: "0000000000000000000000000000000000000001".to_string(),
+            moved_target: None,
+            ask_target: None,
+        }
+    }
 }
 
 impl RespReply {
@@ -121,6 +165,7 @@ pub struct RedisMiniSession {
     replication_role: ReplicationRole,
     replication_checkpoint: ReplicationCheckpoint,
     propagation_log: Vec<PropagationLogEntry>,
+    cluster: ClusterState,
 }
 
 impl Default for RedisMiniSession {
@@ -142,6 +187,7 @@ impl Default for RedisMiniSession {
             replication_role: ReplicationRole::default(),
             replication_checkpoint: ReplicationCheckpoint::default(),
             propagation_log: Vec::new(),
+            cluster: ClusterState::default(),
         }
     }
 }
@@ -161,6 +207,28 @@ impl RedisMiniSession {
 
     pub fn propagation_log(&self) -> &[PropagationLogEntry] {
         &self.propagation_log
+    }
+
+    pub fn enable_cluster_for_test(&mut self, local_slots: Vec<(u16, u16)>) {
+        self.cluster.enabled = true;
+        self.cluster.local_slots = local_slots
+            .into_iter()
+            .map(|(start, end)| ClusterSlotRange { start, end })
+            .collect();
+    }
+
+    pub fn set_cluster_moved_target_for_test(&mut self, host: &str, port: u16) {
+        self.cluster.moved_target = Some(ClusterRedirectTarget {
+            host: host.to_string(),
+            port,
+        });
+    }
+
+    pub fn set_cluster_ask_target_for_test(&mut self, host: &str, port: u16) {
+        self.cluster.ask_target = Some(ClusterRedirectTarget {
+            host: host.to_string(),
+            port,
+        });
     }
 
     pub fn set_requirepass(&mut self, password: Vec<u8>) {
@@ -200,6 +268,7 @@ impl RedisMiniSession {
                 | CommandKind::Config
                 | CommandKind::Info
                 | CommandKind::Command
+                | CommandKind::Cluster
                 | CommandKind::Client
                 | CommandKind::Time
                 | CommandKind::SlowLog => return self.execute_session_admin(kind, command.args),
@@ -245,6 +314,12 @@ impl RedisMiniSession {
                 | CommandKind::PUnsubscribe
                 | CommandKind::Publish => return self.handle_pubsub(kind, command.args),
                 _ => {}
+            }
+        }
+
+        if let Some(kind) = command_kind {
+            if let Some(reply) = self.cluster_routing_reply(kind, &command.args) {
+                return reply;
             }
         }
 
@@ -552,11 +627,138 @@ impl RedisMiniSession {
             CommandKind::Config => self.execute_config(args),
             CommandKind::Info => self.execute_info(args),
             CommandKind::Command => execute_command(args),
+            CommandKind::Cluster => self.execute_cluster(args),
             CommandKind::Client => self.execute_client(args),
             CommandKind::Time => execute_time(args),
             CommandKind::SlowLog => self.execute_slowlog(args),
             _ => RespReply::Error("ERR unsupported session admin command".to_string()),
         }
+    }
+
+    fn cluster_routing_reply(&self, kind: CommandKind, args: &[Vec<u8>]) -> Option<RespReply> {
+        if !self.cluster.enabled || kind == CommandKind::Cluster {
+            return None;
+        }
+        let keys = match command_key_slices(kind, args) {
+            Ok(keys) => keys,
+            Err(reply) => return Some(reply),
+        };
+        let first_key = keys.first()?;
+        let slot = redis_cluster_hash_slot(first_key);
+        if keys
+            .iter()
+            .skip(1)
+            .any(|key| redis_cluster_hash_slot(key) != slot)
+        {
+            return Some(crossslot_error());
+        }
+        if self.cluster_slot_is_local(slot) {
+            return None;
+        }
+        Some(self.cluster_redirect_reply(slot))
+    }
+
+    fn cluster_slot_is_local(&self, slot: u16) -> bool {
+        self.cluster
+            .local_slots
+            .iter()
+            .any(|range| range.start <= slot && slot <= range.end)
+    }
+
+    fn cluster_redirect_reply(&self, slot: u16) -> RespReply {
+        if let Some(target) = &self.cluster.ask_target {
+            return RespReply::Error(format!("ASK {slot} {}", target.endpoint()));
+        }
+        let endpoint = self
+            .cluster
+            .moved_target
+            .as_ref()
+            .map(ClusterRedirectTarget::endpoint)
+            .unwrap_or_else(|| format!("{}:{}", self.cluster.node_host, self.cluster.node_port));
+        RespReply::Error(format!("MOVED {slot} {endpoint}"))
+    }
+
+    fn execute_cluster(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("cluster");
+        }
+        if args[1].eq_ignore_ascii_case(b"KEYSLOT") {
+            if args.len() != 3 {
+                return wrong_arity("cluster|keyslot");
+            }
+            return RespReply::Integer(i64::from(redis_cluster_hash_slot(&args[2])));
+        }
+        if args[1].eq_ignore_ascii_case(b"SLOTS") {
+            if args.len() != 2 {
+                return wrong_arity("cluster|slots");
+            }
+            return self.cluster_slots_reply();
+        }
+        if args[1].eq_ignore_ascii_case(b"INFO") {
+            if args.len() != 2 {
+                return wrong_arity("cluster|info");
+            }
+            let info = format!(
+                "cluster_enabled:{}\r\ncluster_state:{}\r\ncluster_slots_assigned:{}\r\n",
+                if self.cluster.enabled { 1 } else { 0 },
+                if self.cluster.enabled { "ok" } else { "fail" },
+                self.cluster_assigned_slot_count()
+            );
+            return RespReply::BulkString(info.into_bytes());
+        }
+        if args[1].eq_ignore_ascii_case(b"NODES") {
+            if args.len() != 2 {
+                return wrong_arity("cluster|nodes");
+            }
+            let nodes = format!(
+                "{} {}:{} myself,master - 0 0 1 connected{}\n",
+                self.cluster.node_id,
+                self.cluster.node_host,
+                self.cluster.node_port,
+                self.cluster_slot_summary()
+            );
+            return RespReply::BulkString(nodes.into_bytes());
+        }
+        RespReply::Error("ERR unsupported CLUSTER subcommand".to_string())
+    }
+
+    fn cluster_slots_reply(&self) -> RespReply {
+        let slots = self
+            .cluster
+            .local_slots
+            .iter()
+            .map(|range| {
+                RespReply::Array(vec![
+                    RespReply::Integer(i64::from(range.start)),
+                    RespReply::Integer(i64::from(range.end)),
+                    RespReply::Array(vec![
+                        RespReply::BulkString(self.cluster.node_host.as_bytes().to_vec()),
+                        RespReply::Integer(i64::from(self.cluster.node_port)),
+                        RespReply::BulkString(self.cluster.node_id.as_bytes().to_vec()),
+                    ]),
+                ])
+            })
+            .collect();
+        RespReply::Array(slots)
+    }
+
+    fn cluster_assigned_slot_count(&self) -> u16 {
+        self.cluster
+            .local_slots
+            .iter()
+            .map(|range| range.end.saturating_sub(range.start).saturating_add(1))
+            .sum()
+    }
+
+    fn cluster_slot_summary(&self) -> String {
+        let mut summary = String::new();
+        for range in &self.cluster.local_slots {
+            summary.push(' ');
+            summary.push_str(&range.start.to_string());
+            summary.push('-');
+            summary.push_str(&range.end.to_string());
+        }
+        summary
     }
 
     fn execute_acl(&mut self, args: Vec<Vec<u8>>) -> RespReply {
@@ -892,6 +1094,7 @@ impl RedisPubSubBroker {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CommandCategory {
+    Cluster,
     Connection,
     PubSub,
     Replication,
@@ -909,6 +1112,7 @@ pub enum CommandCategory {
 impl CommandCategory {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::Cluster => "cluster",
             Self::Connection => "connection",
             Self::PubSub => "pubsub",
             Self::Replication => "replication",
@@ -1171,6 +1375,7 @@ impl RedisMiniDb {
             CommandKind::Client => RespReply::Error("ERR CLIENT handled by session".to_string()),
             CommandKind::Time => RespReply::Error("ERR TIME handled by session".to_string()),
             CommandKind::SlowLog => RespReply::Error("ERR SLOWLOG handled by session".to_string()),
+            CommandKind::Cluster => RespReply::Error("ERR CLUSTER handled by session".to_string()),
             CommandKind::Select => self.execute_select(args),
             CommandKind::Subscribe => {
                 RespReply::Error("ERR SUBSCRIBE handled by session".to_string())
@@ -4601,6 +4806,7 @@ impl RedisValue {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum CommandKind {
+    Cluster,
     Ping,
     Echo,
     Set,
@@ -4788,6 +4994,7 @@ struct CommandSpec {
 }
 
 static COMMAND_SPECS: &[CommandSpec] = &[
+    command_spec("CLUSTER", CommandCategory::Cluster, CommandKind::Cluster),
     command_spec("PING", CommandCategory::Connection, CommandKind::Ping),
     command_spec("ECHO", CommandCategory::Connection, CommandKind::Echo),
     command_spec("ROLE", CommandCategory::Replication, CommandKind::Role),
@@ -5004,6 +5211,101 @@ pub fn command_metadata(command_name: &[u8]) -> Option<CommandMetadata> {
     find_command_spec(command_name).map(|spec| spec.metadata)
 }
 
+pub fn redis_cluster_hash_slot(key: &[u8]) -> u16 {
+    redis_crc16(cluster_hash_key(key)) % CLUSTER_SLOT_COUNT
+}
+
+fn cluster_hash_key(key: &[u8]) -> &[u8] {
+    let Some(open) = key.iter().position(|byte| *byte == b'{') else {
+        return key;
+    };
+    let tag_start = open + 1;
+    let Some(close_offset) = key[tag_start..].iter().position(|byte| *byte == b'}') else {
+        return key;
+    };
+    if close_offset == 0 {
+        return key;
+    }
+    &key[tag_start..tag_start + close_offset]
+}
+
+fn redis_crc16(bytes: &[u8]) -> u16 {
+    let mut crc = 0u16;
+    for byte in bytes {
+        crc ^= u16::from(*byte) << 8;
+        for _ in 0..8 {
+            if crc & 0x8000 != 0 {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+    crc
+}
+
+fn command_key_slices<'a>(
+    kind: CommandKind,
+    args: &'a [Vec<u8>],
+) -> Result<Vec<&'a [u8]>, RespReply> {
+    use CommandKind::*;
+    match kind {
+        Get | Set | Append | StrLen | GetRange | SetRange | GetSet | Expire | Ttl | Persist
+        | Incr | Decr | IncrBy | LPush | RPush | LPop | RPop | LRange | LLen | LIndex | LSet
+        | LTrim | LRem | BLPop | BRPop | HSet | HGet | HMGet | HDel | HGetAll | HKeys | HVals
+        | HLen | HIncrBy | HScan | SAdd | SRem | SIsMember | SMembers | SCard | SPop
+        | SRandMember | SDiff | SInter | SUnion | SScan | SUnionStore | SInterStore
+        | SDiffStore | ZAdd | ZRem | ZScore | ZRange | ZCard | ZCount | ZRank | ZRevRank
+        | ZRevRange | ZRangeByScore | ZRemRangeByRank | ZRemRangeByScore | ZRangeByLex
+        | ZLexCount | ZRemRangeByLex | ZScan | XAdd | XLen | XRange | XRead | XDel | XTrim
+        | XGroup | XReadGroup | XAck | XPending | XClaim | Type => Ok(single_key_arg(args, 1)),
+        Del | Exists | MGet | Watch => Ok(args.iter().skip(1).map(Vec::as_slice).collect()),
+        MSet => Ok(mset_key_args(args)),
+        Rename | RenameNx | RPopLPush | SMove | LMove | BLMove => Ok(two_key_args(args, 1, 2)),
+        Eval | EvalSha => Ok(script_key_args(args)),
+        _ => Ok(Vec::new()),
+    }
+}
+
+fn single_key_arg(args: &[Vec<u8>], index: usize) -> Vec<&[u8]> {
+    args.get(index)
+        .map(|key| vec![key.as_slice()])
+        .unwrap_or_default()
+}
+
+fn two_key_args(args: &[Vec<u8>], first: usize, second: usize) -> Vec<&[u8]> {
+    let (Some(first), Some(second)) = (args.get(first), args.get(second)) else {
+        return Vec::new();
+    };
+    vec![first.as_slice(), second.as_slice()]
+}
+
+fn mset_key_args(args: &[Vec<u8>]) -> Vec<&[u8]> {
+    if args.len() < 3 || args.len() % 2 == 0 {
+        return Vec::new();
+    }
+    args.iter().skip(1).step_by(2).map(Vec::as_slice).collect()
+}
+
+fn script_key_args(args: &[Vec<u8>]) -> Vec<&[u8]> {
+    let Some(numkeys) = args
+        .get(2)
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .and_then(|text| text.parse::<usize>().ok())
+    else {
+        return Vec::new();
+    };
+    let end = 3usize.saturating_add(numkeys);
+    if args.len() < end {
+        return Vec::new();
+    }
+    args[3..end].iter().map(Vec::as_slice).collect()
+}
+
+fn crossslot_error() -> RespReply {
+    RespReply::Error("CROSSSLOT Keys in request don't hash to the same slot".to_string())
+}
+
 fn find_command_spec(command_name: &[u8]) -> Option<&'static CommandSpec> {
     COMMAND_SPECS
         .iter()
@@ -5103,6 +5405,7 @@ fn all_command_categories() -> BTreeSet<CommandCategory> {
     use CommandCategory::*;
     let mut s = BTreeSet::new();
     s.insert(Connection);
+    s.insert(Cluster);
     s.insert(PubSub);
     s.insert(Replication);
     s.insert(String);
