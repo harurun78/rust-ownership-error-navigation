@@ -2,6 +2,13 @@
 
 This quickstart describes the workflow for this repository, which stores both the feature specification and the Phase 1 TypeScript implementation.
 
+## 0. Install and build
+
+```sh
+npm ci
+npm run build
+```
+
 ## 1. Prepare fixture input
 
 Use the reference JSONL fixtures committed in this repository or regenerate them with Docker.
@@ -16,7 +23,7 @@ Reference files:
 ## 2. Run CLI on Phase 1 fixture
 
 ```sh
-rust-ownership-report \
+node dist/cli/main.js \
   --input test/fixtures/diagnostics/ownership-baseline-2026-05-24.jsonl \
   --json-out out/ownership-report.json \
   --html-out out/ownership-report.html
@@ -32,7 +39,7 @@ Expected result:
 ## 3. Run compatibility fixture checks
 
 ```sh
-rust-ownership-report \
+node dist/cli/main.js \
   --input test/fixtures/diagnostics/ownership-followup-2026-05-25.jsonl \
   --json-out out/followup-report.json \
   --html-out out/followup-report.html
@@ -51,6 +58,17 @@ npm run test:run -- test/reporter/diagnostic-report-schema.test.ts
 ```
 
 The project uses Ajv in tests to validate the generated report shape against `specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json`.
+
+## 4.5 Run implementation verification
+
+```sh
+npm run lint
+npm run format:check
+npm run type-check
+npm run test:run
+npm run test:integration
+npm run build
+```
 
 ## 5. Inspect HTML
 
@@ -83,3 +101,9 @@ Future VS Code adapters should convert to VS Code's 0-based `Range` model at the
 - Do not call rust-analyzer.
 - Do not apply suggestions to user source files.
 - Do not implement VS Code extension UI.
+
+## Post-MVP Direction
+
+The Redis porting validation showed that learner value should expand beyond ownership-only reports. The next slice focuses on learner summaries, beginner/intermediate/agent display modes, E0308/E0004/E0425 triage, fix strategy trade-offs, and a cargo wrapper workflow.
+
+See [application-roadmap-from-redis-validation.md](../tasks/application-roadmap-from-redis-validation.md) for the prioritized task list.

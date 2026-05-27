@@ -152,3 +152,22 @@
 - 追加: object/array add、remove、replace、invalid document、unsupported op、missing path/value、array bounds tests を追加。
 - 保存: `reports/iteration-012/` に cargo JSONL、ownership JSON/HTML、notes を保存。
 - 結果: `cargo check --message-format=json` 成功、navigation diagnostics は 0 件、`cargo test` は 73 tests passed。
+
+## 2026-05-27 Post Redis validation roadmap
+
+- 作成: [application-roadmap-from-redis-validation.md](application-roadmap-from-redis-validation.md)
+- 方針: Redis porting 検証結果を、低コスト agent 専用ではなく Rust 初学者・中級者に有用な学習支援アプリの実装タスクへ変換。
+- 重点: learner summary、beginner/intermediate 表示、E0308/E0004/E0425 など高頻度 non-ownership diagnostics、fix strategy trade-off、cargo wrapper、porting fixture corpus。
+
+## 2026-05-27 Speckit issue creation
+
+- 作成: `specs/002-learner-centered-diagnostics/` に post-MVP speckit spec / plan / tasks を追加。
+- Issue 化: #48 learner model foundation、#49 learner summary cards、#50 audience modes、#51 non-ownership diagnostics、#52 first-fix order / fix strategy guidance。
+- 着手順: #48 を最初の実装ブランチとして開始する。
+
+## 2026-05-27 Issue #48 implementation start
+
+- ブランチ: `feature/48-learner-diagnostic-model-foundation`
+- 実装: learner diagnostic shared model types、optional report schema fields、audience-aware fixture helper、model/schema tests を追加。
+- 対象 speckit tasks: T001-T004。
+- 検証: `npm: verify` 成功（lint / format:check / type-check / test:run / test:integration）、`npm: build` 成功。

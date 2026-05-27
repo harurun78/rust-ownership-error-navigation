@@ -4,9 +4,17 @@
 
 **Created**: 2026-05-25
 
-**Status**: Draft
+**Status**: MVP implemented; post-MVP learner-centered diagnostics planning active
 
 **Input**: User description: "Build a CLI tool that reads Rust cargo check JSONL, maps E0382 E0499 E0502 ownership diagnostics into event JSON, and generates a static HTML report while preserving future diagnostics as display-only compatibility corpus."
+
+## Current State
+
+The Phase 1 MVP has been implemented as a TypeScript / Node.js CLI. It parses Cargo JSONL diagnostics, maps E0382 / E0499 / E0502 into evidence-backed ownership events, preserves unsupported diagnostics, and emits JSON plus static HTML reports.
+
+Validation after implementation used cJSON and Redis porting corpora. The Redis validation confirmed that ownership navigation can guide repair for E0382, but also showed that learner workflows need broader compiler diagnostic triage, especially E0308, E0004, E0425, E0596, and warning quality lanes.
+
+Post-MVP work therefore keeps Rust beginners and intermediate users as the primary audience. Low-cost agents remain a useful validation consumer, but not the product center.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -68,6 +76,22 @@ Rust 中級者として、E0499 / E0502 が出たときに、最初の borrow �
 1. **Given** ownership event JSON, **When** HTML reporter が report を生成する, **Then** causality view と balance-sheet section の両方が含まれる。
 2. **Given** balance-sheet section, **When** ユーザーが表示を読む, **Then** `move` / `borrow` / `use` / `conflict` など Rust event kind は置換されずに表示される。
 
+### Post-MVP User Story 5 - 学習者向け summary を読む (Priority: P1)
+
+Rust 初学者として、compiler output を見た直後に、何が起きたか、なぜ問題か、次に何を試すべきかを短い summary で確認したい。
+
+**Why this priority**: Redis validation showed that diagnostic navigation works best when the user can connect spans to a plain-language explanation and a bounded next action.
+
+**Independent Test**: E0382 / E0499 / E0502 fixture を beginner mode で report 生成し、`whatHappened` / `whyItMatters` / `nextStep` が JSON と HTML の先頭に出ることを確認する。
+
+### Post-MVP User Story 6 - 複数診断の修正順を見る (Priority: P1)
+
+Rust 中級者として、大きな compiler output に複数の error / warning が含まれるとき、どの診断から直すべきかを知りたい。
+
+**Why this priority**: Redis porting では E0308 / E0004 / E0425 / warnings が ownership diagnostics より頻繁に実装ループを止めた。
+
+**Independent Test**: Redis 由来の mixed diagnostic fixture を入力し、型・名前・match 網羅性エラーが downstream borrow diagnostics より先に recommended first fixes として表示されることを確認する。
+
 ### Edge Cases
 
 - JSONL に `reason != compiler-message` の cargo messages が含まれる。
@@ -94,6 +118,15 @@ Rust 中級者として、E0499 / E0502 が出たときに、最初の borrow �
 - **FR-010**: System MUST output event JSON conforming to the diagnostic report contract.
 - **FR-011**: System MUST output a static HTML report containing summary, causality view, source spans, evidence, and balance-sheet section.
 - **FR-012**: System MUST treat clippy, rust-analyzer/LSP, VS Code extension UI, and automatic fix application as out of scope for Phase 1.
+
+### Post-MVP Functional Requirements
+
+- **FR-013**: System SHOULD emit learner summaries for supported diagnostics with `whatHappened`, `whyItMatters`, and `nextStep` fields.
+- **FR-014**: System SHOULD support `beginner`, `intermediate`, and `agent` audience modes without changing the underlying diagnostic evidence.
+- **FR-015**: System SHOULD classify high-frequency non-ownership diagnostics from validation corpora, starting with E0308, E0004, and E0425.
+- **FR-016**: System SHOULD explain fix strategy trade-offs such as borrow, clone/copy, scope split, move timing, extraction, and ownership redesign.
+- **FR-017**: System SHOULD recommend a deterministic first-fix order for multi-diagnostic reports.
+- **FR-018**: System SHOULD provide a cargo wrapper workflow that captures raw JSONL and generated reports while preserving the non-mutating behavior of analysis.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -125,9 +158,9 @@ Rust 中級者として、E0499 / E0502 が出たときに、最初の borrow �
 
 ### 受け入れ条件
 
-- [ ] Phase 1 mapping targets are limited to E0382 / E0499 / E0502.
-- [ ] Follow-up, advanced, and non-ownership smoke fixtures are treated as parse/display compatibility inputs.
-- [ ] Unsupported diagnostics are visible in output instead of silently ignored.
+- [x] Phase 1 mapping targets are limited to E0382 / E0499 / E0502.
+- [x] Follow-up, advanced, and non-ownership smoke fixtures are treated as parse/display compatibility inputs.
+- [x] Unsupported diagnostics are visible in output instead of silently ignored.
 
 ### スコープ外
 
@@ -140,5 +173,6 @@ Rust 中級者として、E0499 / E0502 が出たときに、最初の borrow �
 ### 依存関係
 
 - [Data Model](data-model.md) defines the normative output contracts.
-- [Diagnostic Report Contract](contracts/diagnostic-report.schema.json) defines the initial JSON reporter shape.
+- [Diagnostic Report Contract](../specs/001-ownership-report-mvp/contracts/diagnostic-report.schema.json) defines the initial JSON reporter shape.
 - [Research](research.md) records technology and phase decisions.
+- [Post Redis validation roadmap](../tasks/application-roadmap-from-redis-validation.md) records the prioritized post-MVP task candidates.

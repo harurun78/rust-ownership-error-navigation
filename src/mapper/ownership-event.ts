@@ -4,6 +4,14 @@ import type {
   DiagnosticSpanRole,
   Evidence
 } from '../diagnostics/diagnostic-span.js';
+import type {
+  AudienceMode,
+  FixStrategy,
+  LearnerSummary,
+  RecommendedFirstFix
+} from './diagnostic-navigation.js';
+
+export type { AudienceMode, FixStrategy, LearnerSummary, RecommendedFirstFix };
 
 export type OwnershipEventKind =
   | 'declare'
@@ -59,6 +67,8 @@ export interface DiagnosticRecord {
   spans: DiagnosticSpan[];
   children?: DiagnosticChildRecord[];
   events?: OwnershipEvent[];
+  learnerSummary?: LearnerSummary;
+  fixStrategies?: FixStrategy[];
   rendered?: string | null;
   unsupportedReason?: string;
 }
@@ -67,12 +77,14 @@ export interface DiagnosticReportSummary {
   totalDiagnostics: number;
   supportedDiagnostics: number;
   unsupportedDiagnostics: number;
+  recommendedFirstFixes?: RecommendedFirstFix[];
   [key: string]: unknown;
 }
 
 export interface DiagnosticReportInput {
   path: string;
   commandFamily?: 'cargo-check-jsonl';
+  audienceMode?: AudienceMode;
   rustcVersion?: string | null;
   cargoVersion?: string | null;
   [key: string]: unknown;

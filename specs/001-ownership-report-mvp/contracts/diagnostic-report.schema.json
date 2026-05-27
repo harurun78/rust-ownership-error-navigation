@@ -27,6 +27,14 @@
                     "type": "string",
                     "const": "cargo-check-jsonl"
                 },
+                "audienceMode": {
+                    "type": "string",
+                    "enum": [
+                        "beginner",
+                        "intermediate",
+                        "agent"
+                    ]
+                },
                 "rustcVersion": {
                     "type": [
                         "string",
@@ -61,6 +69,12 @@
                 "unsupportedDiagnostics": {
                     "type": "integer",
                     "minimum": 0
+                },
+                "recommendedFirstFixes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/recommendedFirstFix"
+                    }
                 }
             },
             "additionalProperties": true
@@ -337,6 +351,15 @@
                         "$ref": "#/$defs/ownershipEvent"
                     }
                 },
+                "learnerSummary": {
+                    "$ref": "#/$defs/learnerSummary"
+                },
+                "fixStrategies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/fixStrategy"
+                    }
+                },
                 "rendered": {
                     "type": [
                         "string",
@@ -345,6 +368,158 @@
                 },
                 "unsupportedReason": {
                     "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "learnerSummary": {
+            "type": "object",
+            "required": [
+                "audience",
+                "whatHappened",
+                "whyItMatters",
+                "nextStep",
+                "evidence",
+                "confidence"
+            ],
+            "properties": {
+                "audience": {
+                    "type": "string",
+                    "enum": [
+                        "beginner",
+                        "intermediate",
+                        "agent"
+                    ]
+                },
+                "whatHappened": {
+                    "type": "string"
+                },
+                "whyItMatters": {
+                    "type": "string"
+                },
+                "nextStep": {
+                    "type": "string"
+                },
+                "conceptTerms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "evidence": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/evidence"
+                    }
+                },
+                "confidence": {
+                    "$ref": "#/$defs/confidence"
+                }
+            },
+            "additionalProperties": false
+        },
+        "fixStrategy": {
+            "type": "object",
+            "required": [
+                "id",
+                "diagnosticId",
+                "kind",
+                "title",
+                "rationale",
+                "tradeOffs",
+                "evidence",
+                "confidence"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "diagnosticId": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "borrow",
+                        "clone_or_copy",
+                        "split_scope",
+                        "move_timing",
+                        "extract_value",
+                        "redesign_ownership",
+                        "add_match_arm",
+                        "align_types",
+                        "resolve_name",
+                        "unknown"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "rationale": {
+                    "type": "string"
+                },
+                "tradeOffs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "spanId": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/evidence"
+                    }
+                },
+                "confidence": {
+                    "$ref": "#/$defs/confidence"
+                }
+            },
+            "additionalProperties": false
+        },
+        "recommendedFirstFix": {
+            "type": "object",
+            "required": [
+                "diagnosticId",
+                "priority",
+                "reason",
+                "nextStep",
+                "evidence",
+                "confidence"
+            ],
+            "properties": {
+                "diagnosticId": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "priority": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "nextStep": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/evidence"
+                    }
+                },
+                "confidence": {
+                    "$ref": "#/$defs/confidence"
                 }
             },
             "additionalProperties": false
