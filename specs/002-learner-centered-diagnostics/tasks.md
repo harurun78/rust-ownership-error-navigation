@@ -45,17 +45,17 @@
 
 ### Tests for User Story 1
 
-- [ ] T005 [P] [US1] Add learner summary mapper tests for E0382 in `test/mapper/learner-summary.e0382.test.ts`
-- [ ] T006 [P] [US1] Add learner summary mapper tests for E0499/E0502 in `test/mapper/learner-summary.borrow-conflicts.test.ts`
-- [ ] T007 [P] [US1] Add JSON reporter snapshot coverage for learner summaries in `test/reporter/json-reporter.learner-summary.test.ts`
-- [ ] T008 [P] [US1] Add HTML reporter snapshot coverage for summary cards in `test/reporter/html-reporter.learner-summary.test.ts`
+- [x] T005 [P] [US1] Add learner summary mapper tests for E0382 in `test/mapper/learner-summary.e0382.test.ts`
+- [x] T006 [P] [US1] Add learner summary mapper tests for E0499/E0502 in `test/mapper/learner-summary.borrow-conflicts.test.ts`
+- [x] T007 [P] [US1] Add JSON reporter snapshot coverage for learner summaries in `test/reporter/json-reporter.learner-summary.test.ts`
+- [x] T008 [P] [US1] Add HTML reporter snapshot coverage for summary cards in `test/reporter/html-reporter.learner-summary.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Implement learner summary generation for E0382/E0499/E0502 in `src/mapper/learner-summary.ts`
-- [ ] T010 [US1] Attach learner summaries to supported diagnostic records in `src/mapper/index.ts` or `src/reporter/json-reporter.ts`
-- [ ] T011 [US1] Render learner summary cards before detailed event sections in `src/reporter/html-reporter.ts`
-- [ ] T012 [US1] Export learner summary helpers from `src/index.ts`
+- [x] T009 [US1] Implement learner summary generation for E0382/E0499/E0502 in `src/mapper/learner-summary.ts`
+- [x] T010 [US1] Attach learner summaries to supported diagnostic records in `src/mapper/index.ts` or `src/reporter/json-reporter.ts`
+- [x] T011 [US1] Render learner summary cards before detailed event sections in `src/reporter/html-reporter.ts`
+- [x] T012 [US1] Export learner summary helpers from `src/index.ts`
 
 **Checkpoint**: Beginner-facing summary cards are visible while existing causality, spans, evidence, and Borrow Sheet sections still render.
 

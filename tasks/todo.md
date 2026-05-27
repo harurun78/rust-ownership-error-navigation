@@ -171,3 +171,10 @@
 - 実装: learner diagnostic shared model types、optional report schema fields、audience-aware fixture helper、model/schema tests を追加。
 - 対象 speckit tasks: T001-T004。
 - 検証: `npm: verify` 成功（lint / format:check / type-check / test:run / test:integration）、`npm: build` 成功。
+
+## 2026-05-27 Issue #49 implementation
+
+- ブランチ: `feature/49-learner-summary-cards`
+- 実装: E0382 / E0499 / E0502 learner summary generation、supported diagnostic への summary attachment、HTML learner summary cards、JSON/HTML/mapper tests を追加。
+- 対象 speckit tasks: T005-T012。
+- 検証: lint / format:check / type-check / test:run 26 files・50 tests / test:integration 4 files・7 tests / build 成功。security-auditor 再監査 PASS。
