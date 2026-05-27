@@ -31,13 +31,16 @@ describe('reporter utilities', () => {
       createDiagnosticRecord('diagnostic-3', true)
     ];
 
-    expect(createDiagnosticReportSummary(diagnostics)).toEqual({
+    const summary = createDiagnosticReportSummary(diagnostics);
+
+    expect(summary).toMatchObject({
       totalDiagnostics: 3,
       supportedDiagnostics: 2,
       unsupportedDiagnostics: 1,
       ownershipDiagnostics: 2,
       nonOwnershipDiagnostics: 0
     });
+    expect(summary.recommendedFirstFixes).toHaveLength(2);
   });
 });
 

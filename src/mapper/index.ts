@@ -5,6 +5,7 @@ import { mapE0382Diagnostic } from './e0382.js';
 import { mapE0425Diagnostic } from './e0425.js';
 import { mapE0499Diagnostic } from './e0499.js';
 import { mapE0502Diagnostic } from './e0502.js';
+import { attachFixStrategies } from './fix-strategy.js';
 import { attachLearnerSummary } from './learner-summary.js';
 import { createUnsupportedDiagnosticRecord } from './unsupported.js';
 
@@ -51,7 +52,9 @@ export function mapDiagnostic(
     return createUnsupportedDiagnosticRecord(diagnostic);
   }
 
-  return attachLearnerSummary(registry[diagnostic.code](diagnostic), options.audienceMode);
+  const mappedDiagnostic = attachFixStrategies(registry[diagnostic.code](diagnostic));
+
+  return attachLearnerSummary(mappedDiagnostic, options.audienceMode);
 }
 
 export function mapDiagnostics(

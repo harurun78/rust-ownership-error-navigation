@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { createRecommendedFirstFixes } from '../mapper/recommended-first-fixes.js';
 import type { DiagnosticRecord, DiagnosticReportSummary } from '../mapper/ownership-event.js';
 
 export const OWNERSHIP_DIAGNOSTIC_CODES = ['E0382', 'E0499', 'E0502'] as const;
@@ -43,13 +44,15 @@ export function createDiagnosticReportSummary(
   const nonOwnershipDiagnostics = diagnostics.filter((diagnostic) =>
     isNonOwnershipDiagnosticCode(diagnostic.code)
   ).length;
+  const recommendedFirstFixes = createRecommendedFirstFixes(diagnostics);
 
   return {
     totalDiagnostics: diagnostics.length,
     supportedDiagnostics,
     unsupportedDiagnostics: diagnostics.length - supportedDiagnostics,
     ownershipDiagnostics,
-    nonOwnershipDiagnostics
+    nonOwnershipDiagnostics,
+    ...(recommendedFirstFixes.length === 0 ? {} : { recommendedFirstFixes })
   };
 }
 

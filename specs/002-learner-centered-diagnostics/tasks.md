@@ -118,16 +118,16 @@
 
 ### Tests for User Story 4
 
-- [ ] T030 [P] [US4] Add recommended first-fix ordering tests in `test/mapper/recommended-first-fixes.test.ts`
-- [ ] T031 [P] [US4] Add fix strategy tests for E0382/E0499/E0502 in `test/mapper/fix-strategy.test.ts`
-- [ ] T032 [P] [US4] Add HTML reporter snapshot tests for first fixes and strategy trade-offs in `test/reporter/fix-strategy.test.ts`
+- [x] T030 [P] [US4] Add recommended first-fix ordering tests in `test/mapper/recommended-first-fixes.test.ts`
+- [x] T031 [P] [US4] Add fix strategy tests for E0382/E0499/E0502 in `test/mapper/fix-strategy.test.ts`
+- [x] T032 [P] [US4] Add HTML reporter snapshot tests for first fixes and strategy trade-offs in `test/reporter/fix-strategy.test.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T033 [US4] Implement deterministic first-fix ordering in `src/mapper/recommended-first-fixes.ts`
-- [ ] T034 [US4] Implement fix strategy taxonomy and ownership diagnostic mapping in `src/mapper/fix-strategy.ts`
-- [ ] T035 [US4] Add summary output for recommended first fixes in `src/reporter/json-reporter.ts` and `src/reporter/html-reporter.ts`
-- [ ] T036 [US4] Add fix strategy trade-off rendering in `src/reporter/html-reporter.ts`
+- [x] T033 [US4] Implement deterministic first-fix ordering in `src/mapper/recommended-first-fixes.ts`
+- [x] T034 [US4] Implement fix strategy taxonomy and ownership diagnostic mapping in `src/mapper/fix-strategy.ts`
+- [x] T035 [US4] Add summary output for recommended first fixes in `src/reporter/json-reporter.ts` and `src/reporter/html-reporter.ts`
+- [x] T036 [US4] Add fix strategy trade-off rendering in `src/reporter/html-reporter.ts`
 
 **Checkpoint**: Multi-diagnostic reports tell learners what to try first and why.
 
