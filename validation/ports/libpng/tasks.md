@@ -126,3 +126,10 @@
 - [x] L077 Add tests for duplicate PLTE and PLTE after IDAT errors. (iteration-013)
 - [x] L078 Implement PLTE ordering/cardinality validation in stream structure checks. (iteration-013)
 - [x] L079 Record iteration-013 diagnostics and ownership report. (iteration-013)
+
+## Phase 17: Adam7 Interlace Completion Slice
+
+- [x] L080 Add tests for decoding a tiny Adam7 interlaced grayscale PNG image. (iteration-014)
+- [x] L081 Implement Adam7 pass reconstruction for byte-aligned decoded samples. (iteration-014)
+- [x] L082 Record iteration-014 diagnostics and ownership report. (iteration-014)
+- [x] L083 Write final validation-port completion assessment. (iteration-014)

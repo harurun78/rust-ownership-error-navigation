@@ -21,12 +21,12 @@ The validation port now covers a practical minimal PNG read path:
 - PLTE parsing and indexed-color expansion to RGB pixels
 - PLTE ordering and cardinality validation for indexed-color conformance
 - tRNS transparency expansion for grayscale, truecolor, and indexed-color images
+- Adam7 pass reconstruction for byte-aligned decoded samples
 
 ## Remaining Gaps Versus Full libpng Parity
 
 This is not a full libpng replacement. Major remaining gaps include:
 
-- Adam7 interlace reconstruction
 - Progressive row callbacks and true streaming row decode
 - Color management chunks: gAMA, cHRM, sRGB, iCCP
 - Text/time/physical metadata chunks: tEXt, zTXt, iTXt, tIME, pHYs
@@ -37,6 +37,6 @@ This is not a full libpng replacement. Major remaining gaps include:
 
 ## Next Slice Decision
 
-The next highest-value slice is Adam7 interlace reconstruction. It is the remaining high-value read-path gap after non-interlaced color-type, bit-depth, transparency, and palette validation support.
+The validation port is complete for the practical Rust read-path boundary. Remaining items are broader libpng API parity or metadata interpretation work rather than ownership-navigation validation blockers.
 
-Progressive row callbacks and metadata chunks are better handled after Adam7 because they are broader API-surface work rather than core image reconstruction.
+Further work should switch to a different validation target or an intentionally failed libpng branch if the goal is measuring diagnostic navigation effectiveness.

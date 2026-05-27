@@ -320,3 +320,24 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; validation uses copied IHDR metadata and owned chunk records.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: reassess completion boundary; Adam7 interlace is the remaining high-value read-path gap.
+
+### iteration-014
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L080-L083 Adam7 interlace completion
+- Prompt summary: Add a tiny Adam7 interlaced grayscale PNG decode test, implement Adam7 pass reconstruction for byte-aligned samples, save diagnostics/reports, and write the validation-port completion assessment.
+- Human ownership hints before attempt: keep full libpng API parity out of scope; no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-014 && cargo check --message-format=json > ../reports/iteration-014/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-014/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-014/ownership-report.json --html-out validation/ports/libpng/reports/iteration-014/ownership-report.html`
+- Result: compile success; test success, 54 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-014/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-014/ownership-report.json`
+- Ownership report HTML: `reports/iteration-014/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; Adam7 pass rows are reconstructed into owned pass buffers and copied into an owned final image buffer.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: stop libpng validation at the practical read-path boundary; future work should use a different target or an intentionally failed branch to measure navigation effectiveness.

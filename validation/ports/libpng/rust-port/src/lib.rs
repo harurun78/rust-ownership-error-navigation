@@ -8,6 +8,16 @@ use std::io::Read;
 
 pub const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
+const ADAM7_PASSES: [(u32, u32, u32, u32); 7] = [
+    (0, 0, 8, 8),
+    (4, 0, 8, 8),
+    (0, 4, 4, 8),
+    (2, 0, 4, 4),
+    (0, 2, 2, 4),
+    (1, 0, 2, 2),
+    (0, 1, 1, 2),
+];
+
 const PNG_SIGNATURE_LEN: usize = PNG_SIGNATURE.len();
 const CHUNK_HEADER_LEN: usize = 8;
 const CHUNK_CRC_LEN: usize = 4;
@@ -717,12 +727,17 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
         .read_to_end(&mut inflated)
         .map_err(|_| PngParseError::InflateFailed)?;
 
-    let reconstructed = reconstruct_scanlines(
-        &inflated,
-        ihdr.height,
-        layout.row_data_len,
-        layout.filter_bytes_per_pixel,
-    )?;
+    let reconstructed = match ihdr.interlace_method {
+        PngInterlaceMethod::None => reconstruct_scanlines(
+            &inflated,
+            ihdr.height,
+            layout.row_data_len,
+            layout.filter_bytes_per_pixel,
+        )?,
+        PngInterlaceMethod::Adam7 => {
+            reconstruct_adam7_scanlines(&inflated, ihdr, layout.filter_bytes_per_pixel)?
+        }
+    };
     let pixels = match ihdr.color_type {
         IhdrColorType::Grayscale => match transparency {
             Some(Transparency::Grayscale { sample }) => {
@@ -760,14 +775,6 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
 }
 
 fn decode_layout(ihdr: Ihdr) -> Result<DecodeLayout, PngParseError> {
-    if ihdr.interlace_method != PngInterlaceMethod::None {
-        return Err(PngParseError::UnsupportedDecodeFormat {
-            bit_depth: ihdr.bit_depth,
-            color_type: ihdr.color_type.byte(),
-            interlace_method: ihdr.interlace_method.byte(),
-        });
-    }
-
     let channel_count = match ihdr.color_type {
         IhdrColorType::Grayscale | IhdrColorType::Indexed => 1,
         IhdrColorType::Truecolor => 3,
@@ -1060,6 +1067,80 @@ fn reconstruct_scanlines(
     Ok(pixels)
 }
 
+fn reconstruct_adam7_scanlines(
+    inflated: &[u8],
+    ihdr: Ihdr,
+    bytes_per_pixel: usize,
+) -> Result<Vec<u8>, PngParseError> {
+    if ihdr.bit_depth < 8 {
+        return Err(PngParseError::UnsupportedDecodeFormat {
+            bit_depth: ihdr.bit_depth,
+            color_type: ihdr.color_type.byte(),
+            interlace_method: ihdr.interlace_method.byte(),
+        });
+    }
+
+    let output_len = ihdr.width as usize * ihdr.height as usize * bytes_per_pixel;
+    let mut output = vec![0; output_len];
+    let mut offset = 0;
+
+    for (start_x, start_y, step_x, step_y) in ADAM7_PASSES {
+        let pass_width = adam7_pass_size(ihdr.width, start_x, step_x);
+        let pass_height = adam7_pass_size(ihdr.height, start_y, step_y);
+
+        if pass_width == 0 || pass_height == 0 {
+            continue;
+        }
+
+        let row_len = pass_width as usize * bytes_per_pixel;
+        let pass_len = (row_len + 1) * pass_height as usize;
+
+        if inflated.len() < offset + pass_len {
+            return Err(PngParseError::InvalidInflatedDataLength {
+                expected: offset + pass_len,
+                actual: inflated.len(),
+            });
+        }
+
+        let pass_pixels = reconstruct_scanlines(
+            &inflated[offset..offset + pass_len],
+            pass_height,
+            row_len,
+            bytes_per_pixel,
+        )?;
+        offset += pass_len;
+
+        for pass_y in 0..pass_height as usize {
+            for pass_x in 0..pass_width as usize {
+                let image_x = start_x as usize + pass_x * step_x as usize;
+                let image_y = start_y as usize + pass_y * step_y as usize;
+                let source_start = (pass_y * pass_width as usize + pass_x) * bytes_per_pixel;
+                let target_start = (image_y * ihdr.width as usize + image_x) * bytes_per_pixel;
+
+                output[target_start..target_start + bytes_per_pixel]
+                    .copy_from_slice(&pass_pixels[source_start..source_start + bytes_per_pixel]);
+            }
+        }
+    }
+
+    if offset != inflated.len() {
+        return Err(PngParseError::InvalidInflatedDataLength {
+            expected: offset,
+            actual: inflated.len(),
+        });
+    }
+
+    Ok(output)
+}
+
+fn adam7_pass_size(size: u32, start: u32, step: u32) -> u32 {
+    if size <= start {
+        0
+    } else {
+        (size - start).div_ceil(step)
+    }
+}
+
 fn paeth_predictor(left: u8, up: u8, up_left: u8) -> u8 {
     let left = i32::from(left);
     let up = i32::from(up);
@@ -1179,10 +1260,21 @@ mod tests {
         color_type: u8,
         scanlines: &[u8],
     ) -> Vec<u8> {
+        image_png_bytes_with_interlace(width, height, bit_depth, color_type, 0, scanlines)
+    }
+
+    fn image_png_bytes_with_interlace(
+        width: u32,
+        height: u32,
+        bit_depth: u8,
+        color_type: u8,
+        interlace_method: u8,
+        scanlines: &[u8],
+    ) -> Vec<u8> {
         let chunks = vec![
             chunk(
                 *b"IHDR",
-                ihdr_payload(width, height, bit_depth, color_type, 0, 0, 0).to_vec(),
+                ihdr_payload(width, height, bit_depth, color_type, 0, 0, interlace_method).to_vec(),
             ),
             chunk(*b"IDAT", zlib_compress(scanlines)),
             chunk(*b"IEND", Vec::new()),
@@ -1852,6 +1944,30 @@ mod tests {
                 color_type: IhdrColorType::Grayscale,
                 bit_depth: 16,
                 pixels: vec![0x12, 0x34, 0xab, 0xcd],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_reconstructs_adam7_grayscale_pixels() {
+        let adam7_scanlines = [
+            0, 1, // pass 1: (0,0)
+            0, 3, // pass 4: (2,0)
+            0, 7, 9, // pass 5: (0,2), (2,2)
+            0, 2, // pass 6 row 0: (1,0)
+            0, 8, // pass 6 row 1: (1,2)
+            0, 4, 5, 6, // pass 7: y=1, x=0..2
+        ];
+        let input = image_png_bytes_with_interlace(3, 3, 8, 0, 1, &adam7_scanlines);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 3,
+                height: 3,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 8,
+                pixels: vec![1, 2, 3, 4, 5, 6, 7, 8, 9],
             })
         );
     }

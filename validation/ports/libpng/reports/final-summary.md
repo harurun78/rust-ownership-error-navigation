@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Boundary
 
-This validation target has moved beyond the original structure-only slice into a practical minimal PNG read path: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, and tRNS transparency expansion.
+This validation target has moved beyond the original structure-only slice into a practical minimal PNG read path: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, and Adam7 pass reconstruction for byte-aligned decoded samples.
 
 This is still not full libpng parity. Remaining gaps are tracked in `reports/full-port-gap-assessment.md`.
 
@@ -25,6 +25,7 @@ This is still not full libpng parity. Remaining gaps are tracked in `reports/ful
 | iteration-011 | Packed bit-depth decode | compile/test pass | 47 | 0 | 0 | 0 | Expand 1/2/4-bit grayscale samples and indexed-color indices |
 | iteration-012 | 16-bit alpha decode | compile/test pass | 49 | 0 | 0 | 0 | Preserve big-endian sample bytes for 16-bit grayscale-alpha and truecolor-alpha images |
 | iteration-013 | PLTE structure validation | compile/test pass | 53 | 0 | 0 | 0 | Require PLTE before indexed IDAT and reject duplicate/late/disallowed PLTE chunks |
+| iteration-014 | Adam7 interlace completion | compile/test pass | 54 | 0 | 0 | 0 | Reconstruct Adam7 pass data for byte-aligned decoded samples |
 
 ## Shortcut Pressure
 
@@ -52,7 +53,7 @@ Interpretation:
 
 ## Next Candidate Work
 
-- Add Adam7 interlace reconstruction.
+- Use a different validation target, or an intentionally failed libpng branch, to measure diagnostic navigation effectiveness.
 - Add Adam7 interlace reconstruction.
 - Add progressive row callback style decoding to increase ownership pressure.
 - If future iterations produce E0382/E0499/E0502 or E0308/E0004/E0425, feed the generated report into the next low-cost attempt and compare repeated diagnostics.
