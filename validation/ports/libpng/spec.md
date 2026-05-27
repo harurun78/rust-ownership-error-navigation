@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This target measures whether the Rust ownership-error navigation tool helps a lightweight model port libpng C parsing logic to Rust. libpng is a useful next target because it combines byte-level parsing, mutable decoder state, progressive input, chunk metadata extraction, allocation boundaries, CRC validation, and long-lived read/write structs.
+This target measures whether the Rust ownership-error navigation tool helps port libpng C parsing, decoding, writing, and lifecycle concepts to Rust. libpng is a useful target because it combines byte-level parsing, mutable decoder state, progressive input, chunk metadata extraction, allocation boundaries, CRC validation, interlacing, row filters, and long-lived read/write structs.
 
 ## Upstream Scope
 
@@ -19,7 +19,7 @@ This target measures whether the Rust ownership-error navigation tool helps a li
 
 ## Functional Scope
 
-Implement a Rust validation port in small compile-checkable slices. The first slice focuses on signature and chunk-header navigation rather than full PNG decoding.
+Implement a Rust validation port in small compile-checkable slices. The scope now extends beyond parsing into a Rust-native libpng compatibility layer: read/decode/write/document APIs, rich metadata, filters, indexed color, Adam7, row callbacks, and a lifecycle facade that mirrors libpng read/write concepts.
 
 ### Initial Slice
 
@@ -30,13 +30,18 @@ Implement a Rust validation port in small compile-checkable slices. The first sl
 - Chunk type property helpers for critical/ancillary, public/private, reserved-bit validity, and safe-to-copy.
 - Deterministic errors for invalid signature, invalid chunk type bytes, and length overflow policy.
 
+### Compatibility Slice
+
+- `png_compat_create_read_struct` / `png_compat_set_read_buffer` / `png_compat_read_info` / `png_compat_read_image` / `png_compat_destroy_read_struct` lifecycle coverage.
+- `png_compat_create_write_struct` / `png_compat_write_image` / `png_compat_write_document` / `png_compat_write_indexed_image` / `png_compat_write_output` / `png_compat_destroy_write_struct` lifecycle coverage.
+- Explicit compatibility warnings for Rust-native facade semantics and missing C ABI behavior.
+- Documentation that separates Rust-native compatibility from true C ABI/setjmp/allocator compatibility.
+
 ## Non-Goals
 
-- Full PNG image decoding.
-- zlib/deflate implementation.
-- Color transform, interlace, gamma, ICC, or row filter parity.
-- C ABI or FFI compatibility.
-- Exact libpng allocator/error-jump behavior.
+- Binary-compatible C ABI or FFI replacement in this validation crate.
+- Exact libpng allocator/error-jump behavior in this validation crate.
+- Pretending setjmp/longjmp behavior exists behind safe Rust APIs.
 - `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>` unless recorded as a measurement event.
 
 ## Data Model Expectations

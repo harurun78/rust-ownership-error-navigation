@@ -492,6 +492,36 @@ pub struct PngDocument {
     pub unknown_ancillary_chunks: Vec<UnknownAncillaryChunk>,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PngCompatibilityWarning {
+    RustNativeFacadeOnly,
+    CAbiNotProvided,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct PngCompatInfo {
+    pub width: u32,
+    pub height: u32,
+    pub bit_depth: u8,
+    pub color_type: IhdrColorType,
+    pub rowbytes: usize,
+    pub text_chunk_count: usize,
+    pub unknown_ancillary_count: usize,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct PngCompatReadStruct {
+    input: Vec<u8>,
+    document: Option<PngDocument>,
+    warnings: Vec<PngCompatibilityWarning>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct PngCompatWriteStruct {
+    output: Vec<u8>,
+    warnings: Vec<PngCompatibilityWarning>,
+}
+
 impl Ihdr {
     pub fn parse(payload: &[u8]) -> Result<Self, PngParseError> {
         if payload.len() != IHDR_PAYLOAD_LEN {
@@ -1021,6 +1051,128 @@ where
     }
 
     Ok(())
+}
+
+pub fn png_compat_create_read_struct() -> PngCompatReadStruct {
+    PngCompatReadStruct {
+        input: Vec::new(),
+        document: None,
+        warnings: vec![
+            PngCompatibilityWarning::RustNativeFacadeOnly,
+            PngCompatibilityWarning::CAbiNotProvided,
+        ],
+    }
+}
+
+pub fn png_compat_set_read_buffer(reader: &mut PngCompatReadStruct, input: &[u8]) {
+    reader.input.clear();
+    reader.input.extend_from_slice(input);
+    reader.document = None;
+}
+
+pub fn png_compat_read_info(
+    reader: &mut PngCompatReadStruct,
+) -> Result<PngCompatInfo, PngParseError> {
+    let document = decode_png_document(&reader.input)?;
+    let info = png_compat_info_from_document(&document);
+    reader.document = Some(document);
+
+    Ok(info)
+}
+
+pub fn png_compat_read_image(
+    reader: &mut PngCompatReadStruct,
+) -> Result<Vec<Vec<u8>>, PngParseError> {
+    if reader.document.is_none() {
+        png_compat_read_info(reader)?;
+    }
+
+    let document = reader
+        .document
+        .as_ref()
+        .ok_or(PngParseError::MissingImageData)?;
+    let rowbytes = document.image.pixels.len() / document.image.height as usize;
+
+    Ok(document
+        .image
+        .pixels
+        .chunks_exact(rowbytes)
+        .map(Vec::from)
+        .collect())
+}
+
+pub fn png_compat_read_warnings(reader: &PngCompatReadStruct) -> &[PngCompatibilityWarning] {
+    &reader.warnings
+}
+
+pub fn png_compat_destroy_read_struct(reader: &mut PngCompatReadStruct) {
+    reader.input.clear();
+    reader.document = None;
+    reader.warnings.clear();
+}
+
+pub fn png_compat_create_write_struct() -> PngCompatWriteStruct {
+    PngCompatWriteStruct {
+        output: Vec::new(),
+        warnings: vec![
+            PngCompatibilityWarning::RustNativeFacadeOnly,
+            PngCompatibilityWarning::CAbiNotProvided,
+        ],
+    }
+}
+
+pub fn png_compat_write_image(
+    writer: &mut PngCompatWriteStruct,
+    image: &PngImage,
+) -> Result<(), PngParseError> {
+    writer.output = encode_png_image(image)?;
+
+    Ok(())
+}
+
+pub fn png_compat_write_document(
+    writer: &mut PngCompatWriteStruct,
+    document: &PngDocument,
+) -> Result<(), PngParseError> {
+    writer.output = encode_png_document(document)?;
+
+    Ok(())
+}
+
+pub fn png_compat_write_indexed_image(
+    writer: &mut PngCompatWriteStruct,
+    image: &PngIndexedImage,
+) -> Result<(), PngParseError> {
+    writer.output = encode_indexed_png_image(image)?;
+
+    Ok(())
+}
+
+pub fn png_compat_write_output(writer: &PngCompatWriteStruct) -> &[u8] {
+    &writer.output
+}
+
+pub fn png_compat_write_warnings(writer: &PngCompatWriteStruct) -> &[PngCompatibilityWarning] {
+    &writer.warnings
+}
+
+pub fn png_compat_destroy_write_struct(writer: &mut PngCompatWriteStruct) {
+    writer.output.clear();
+    writer.warnings.clear();
+}
+
+fn png_compat_info_from_document(document: &PngDocument) -> PngCompatInfo {
+    PngCompatInfo {
+        width: document.image.width,
+        height: document.image.height,
+        bit_depth: document.image.bit_depth,
+        color_type: document.image.color_type,
+        rowbytes: document.image.pixels.len() / document.image.height as usize,
+        text_chunk_count: document.metadata.text_chunks.len()
+            + document.metadata.compressed_text_chunks.len()
+            + document.metadata.international_text_chunks.len(),
+        unknown_ancillary_count: document.unknown_ancillary_chunks.len(),
+    }
 }
 
 pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseError> {
@@ -3403,6 +3555,120 @@ mod tests {
         .expect("rows should decode");
 
         assert_eq!(rows, vec![(0, vec![10, 20]), (1, vec![30, 40])]);
+    }
+
+    #[test]
+    fn png_compat_read_lifecycle_returns_info_and_rows() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(2, 1, 8, 0, 0, 0, 0).to_vec()),
+            chunk(*b"tEXt", b"Title\0Compat".to_vec()),
+            chunk(*b"vpAg", vec![1, 2, 3]),
+            chunk(*b"IDAT", zlib_compress(&[0, 10, 20])),
+            chunk(*b"IEND", Vec::new()),
+        ];
+        let input = png_bytes_from_chunks(&chunks);
+        let mut reader = png_compat_create_read_struct();
+
+        png_compat_set_read_buffer(&mut reader, &input);
+
+        assert_eq!(
+            png_compat_read_info(&mut reader),
+            Ok(PngCompatInfo {
+                width: 2,
+                height: 1,
+                bit_depth: 8,
+                color_type: IhdrColorType::Grayscale,
+                rowbytes: 2,
+                text_chunk_count: 1,
+                unknown_ancillary_count: 1,
+            })
+        );
+        assert_eq!(png_compat_read_image(&mut reader), Ok(vec![vec![10, 20]]));
+        assert_eq!(
+            png_compat_read_warnings(&reader),
+            &[
+                PngCompatibilityWarning::RustNativeFacadeOnly,
+                PngCompatibilityWarning::CAbiNotProvided,
+            ]
+        );
+
+        png_compat_destroy_read_struct(&mut reader);
+
+        assert!(png_compat_read_warnings(&reader).is_empty());
+    }
+
+    #[test]
+    fn png_compat_write_lifecycle_writes_image_document_and_indexed_output() {
+        let mut writer = png_compat_create_write_struct();
+        let image = PngImage {
+            width: 1,
+            height: 1,
+            color_type: IhdrColorType::Grayscale,
+            bit_depth: 8,
+            pixels: vec![42],
+        };
+
+        png_compat_write_image(&mut writer, &image).expect("compat image should write");
+        assert_eq!(
+            decode_png_image(png_compat_write_output(&writer)),
+            Ok(image)
+        );
+
+        let document = PngDocument {
+            image: PngImage {
+                width: 1,
+                height: 1,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 8,
+                pixels: vec![64],
+            },
+            metadata: PngMetadata {
+                text_chunks: vec![TextChunk {
+                    keyword: "Title".to_string(),
+                    text: "Compat".to_string(),
+                }],
+                ..PngMetadata::default()
+            },
+            unknown_ancillary_chunks: Vec::new(),
+        };
+
+        png_compat_write_document(&mut writer, &document).expect("compat document should write");
+        assert_eq!(
+            decode_png_document(png_compat_write_output(&writer))
+                .map(|document| document.metadata.text_chunks.len()),
+            Ok(1)
+        );
+
+        let indexed = PngIndexedImage {
+            width: 1,
+            height: 1,
+            bit_depth: 1,
+            palette: vec![PaletteEntry {
+                red: 0,
+                green: 0,
+                blue: 0,
+            }],
+            indices: vec![0],
+            alpha: None,
+        };
+
+        png_compat_write_indexed_image(&mut writer, &indexed)
+            .expect("compat indexed image should write");
+        assert_eq!(
+            decode_png_image(png_compat_write_output(&writer)).map(|image| image.color_type),
+            Ok(IhdrColorType::Indexed)
+        );
+        assert_eq!(
+            png_compat_write_warnings(&writer),
+            &[
+                PngCompatibilityWarning::RustNativeFacadeOnly,
+                PngCompatibilityWarning::CAbiNotProvided,
+            ]
+        );
+
+        png_compat_destroy_write_struct(&mut writer);
+
+        assert!(png_compat_write_output(&writer).is_empty());
     }
 
     #[test]

@@ -74,12 +74,31 @@ Record in `notes/iteration-log.md`:
 - human intervention count
 - shortcut pressure: `clone`, shared mutability, or `unsafe`
 
-## 6. Initial Slice Completion
+## 6. Compatibility Facade Smoke Usage
 
-Phase 2/3 is complete when:
+The current validation crate includes Rust-native libpng-style lifecycle helpers. A caller can exercise the compatibility facade without C ABI assumptions:
 
-- signature and chunk-header crate compiles
-- tests pass
-- JSONL diagnostics are captured under `reports/iteration-001/`
+```rust
+let mut reader = png_compat_create_read_struct();
+png_compat_set_read_buffer(&mut reader, png_bytes);
+let info = png_compat_read_info(&mut reader)?;
+let rows = png_compat_read_image(&mut reader)?;
+png_compat_destroy_read_struct(&mut reader);
+
+let mut writer = png_compat_create_write_struct();
+png_compat_write_image(&mut writer, &image)?;
+let output = png_compat_write_output(&writer);
+png_compat_destroy_write_struct(&mut writer);
+```
+
+The facade intentionally reports `RustNativeFacadeOnly` and `CAbiNotProvided` warnings. C ABI, allocator hooks, and setjmp/longjmp behavior are a separate compatibility track.
+
+## 7. Current Completion Boundary
+
+The Rust-native compatibility boundary is complete when:
+
+- parse/decode/write/document APIs compile
+- compatibility facade tests pass
+- JSONL diagnostics are captured under the active `reports/iteration-NNN/`
 - ownership report JSON and HTML are generated
 - iteration notes record diagnostic counts and whether report feedback was useful

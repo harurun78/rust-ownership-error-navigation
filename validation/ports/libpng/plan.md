@@ -2,7 +2,7 @@
 
 ## Objective
 
-Run libpng as the next C-to-Rust validation target after cJSON and Redis, focusing on byte parser state and chunk metadata ownership.
+Run libpng as the next C-to-Rust validation target after cJSON and Redis, focusing on byte parser state, chunk metadata ownership, image decode/write behavior, and libpng-style lifecycle compatibility.
 
 ## Phase 1: Setup
 
@@ -40,12 +40,26 @@ Run libpng as the next C-to-Rust validation target after cJSON and Redis, focusi
 3. Record whether reports changed the next implementation prompt.
 4. Summarize whether libpng produces more useful ownership-navigation cases than cJSON and Redis.
 
+## Phase 6: Rust-Native PNG Parity
+
+1. Extend decoding to IDAT inflation, filter reconstruction, color types 0/2/3/4/6, packed samples, 16-bit samples, tRNS, PLTE, and Adam7.
+2. Extend metadata support to gAMA, cHRM, sRGB, iCCP, pHYs, tIME, tEXt, zTXt, and iTXt.
+3. Add image/document writing, indexed writing, packed indexed writing, explicit/adaptive filters, and byte-aligned Adam7 output.
+4. Add row callback style decode and unknown ancillary preservation.
+
+## Phase 7: libpng Compatibility Facade
+
+1. Add Rust-native read/write structs that mirror libpng lifecycle concepts.
+2. Add read-info/read-image and write-image/write-document/write-indexed operations.
+3. Expose compatibility warnings for Rust-native facade semantics and missing C ABI behavior.
+4. Keep C ABI, allocator hooks, setjmp/longjmp, and exact warning recovery as a separate compatibility track rather than hidden behavior in the validation crate.
+
 ## Validation Commands
 
 ```bash
 cd validation/ports/libpng/rust-port
 cargo fmt -- --check
-cargo check --message-format=json > ../reports/iteration-001/cargo-check.jsonl
+cargo check --message-format=json > ../reports/iteration-026/cargo-check.jsonl
 cargo test
 ```
 
@@ -53,7 +67,7 @@ cargo test
 cd /workspaces/rust-ownership-error-navigation
 npm run build
 node dist/cli/main.js \
-  --input validation/ports/libpng/reports/iteration-001/cargo-check.jsonl \
-  --json-out validation/ports/libpng/reports/iteration-001/ownership-report.json \
-  --html-out validation/ports/libpng/reports/iteration-001/ownership-report.html
+  --input validation/ports/libpng/reports/iteration-026/cargo-check.jsonl \
+  --json-out validation/ports/libpng/reports/iteration-026/ownership-report.json \
+  --html-out validation/ports/libpng/reports/iteration-026/ownership-report.html
 ```

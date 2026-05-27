@@ -204,3 +204,10 @@
 - [x] L119 Add tests for Adam7 interlaced image output. (iteration-025)
 - [x] L120 Implement byte-aligned Adam7 writer pass emission. (iteration-025)
 - [x] L121 Record iteration-025 diagnostics and ownership report. (iteration-025)
+
+## Phase 29: libpng Compatibility Facade Slice
+
+- [x] L122 Add tests for libpng-style read lifecycle: create reader, set input, read info, read image rows, destroy reader. (iteration-026)
+- [x] L123 Add tests for libpng-style write lifecycle: create writer, write image/document/indexed output, retrieve output, destroy writer. (iteration-026)
+- [x] L124 Implement a Rust-native compatibility facade that mirrors libpng read/write lifecycle concepts without C ABI exposure. (iteration-026)
+- [x] L125 Record iteration-026 diagnostics and ownership report. (iteration-026)

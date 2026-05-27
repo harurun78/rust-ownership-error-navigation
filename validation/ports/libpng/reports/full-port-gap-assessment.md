@@ -33,18 +33,29 @@ The validation port now covers a practical minimal PNG read path:
 - Callback-style row decode over decoded image rows
 - Document-level decode returning image data, metadata, and unknown ancillary chunks as owned records
 - Document-level writing for metadata chunks and safe-to-copy unknown ancillary chunks
+- Rust-native libpng-style read/write lifecycle facade with explicit compatibility warnings
 
 ## Remaining Gaps Versus C libpng Compatibility
 
-The Rust-native validation port is complete for this repository's implementation boundary. Remaining gaps are compatibility with the C library surface rather than missing Rust validation slices:
+The Rust-native validation port now includes a libpng-style lifecycle facade. Remaining gaps are compatibility with the binary C library surface rather than missing Rust validation slices:
 
 - Full color transform behavior from color-management metadata
 - Full unknown ancillary copy policy with exact ordering and transform-aware safe/unsafe handling
 - Error recovery and warning model closer to libpng
 - C ABI, allocator hooks, setjmp/longjmp behavior, and full public API parity
 
+## Proposed C Compatibility Track
+
+If this project needs drop-in libpng compatibility, create a separate C-compatibility layer with these milestones:
+
+1. Map libpng public read/write APIs to the Rust facade and identify unsupported calls explicitly.
+2. Define allocator hook and error callback semantics without relying on hidden panics.
+3. Decide whether to expose `extern "C"` symbols and where `unsafe` is acceptable.
+4. Add C fixture tests that compile a small libpng-style caller against the compatibility layer.
+5. Validate warning/error behavior against selected upstream libpng fixtures.
+
 ## Next Slice Decision
 
-The implementation has now moved past the validation read-path boundary into a complete Rust-native validation target: rich metadata inspection, image/document writing, metadata emission, indexed writing, filter strategy selection, row callbacks, Adam7 output, and ancillary preservation are covered.
+The implementation has now moved past the validation read-path boundary into a complete Rust-native validation target: rich metadata inspection, image/document writing, metadata emission, indexed writing, filter strategy selection, row callbacks, Adam7 output, ancillary preservation, and read/write lifecycle facade coverage are included.
 
-Further work should switch to a different validation target or an intentionally failed libpng branch if the goal is measuring diagnostic navigation effectiveness. C ABI compatibility should be tracked as a separate product, not as continuation of this validation port.
+Further ownership-navigation measurement should switch to a different validation target or an intentionally failed libpng branch. C ABI compatibility can continue, but should be tracked as a separate product track with explicit `unsafe` and ABI decisions.

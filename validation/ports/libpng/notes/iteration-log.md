@@ -572,3 +572,24 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; Adam7 pass rows are emitted from borrowed pixel slices into owned scanline buffers.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: stop this libpng validation port at the Rust-native parity boundary; remaining C ABI/setjmp/allocator behavior is outside the validation crate's architecture.
+
+### iteration-026
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L122-L125 libpng compatibility facade
+- Prompt summary: Broaden the porting range toward libpng compatibility by adding Rust-native read/write lifecycle facade functions that mirror create/read-info/read-image/write/destroy concepts.
+- Human ownership hints before attempt: preserve the existing Rust-native APIs; expose compatibility warnings instead of pretending C ABI/setjmp behavior exists.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-026 && cargo check --message-format=json > ../reports/iteration-026/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-026/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-026/ownership-report.json --html-out validation/ports/libpng/reports/iteration-026/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 75 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-026/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-026/ownership-report.json`
+- Ownership report HTML: `reports/iteration-026/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; read/write lifecycle state owns input/output buffers and exposes borrowed output slices.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: continue compatibility work as a dedicated C ABI/behavioral parity track, starting with explicit API mapping and transform/error policy decisions.
