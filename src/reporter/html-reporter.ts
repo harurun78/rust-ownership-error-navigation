@@ -29,9 +29,11 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 <body>
 	<h1>Rust Ownership Diagnostic Report</h1>
 	${renderSummary(report)}
+  ${renderRecommendedFirstFixes(report)}
 	${renderLearnerSummaries(report.diagnostics)}
 	${renderDiagnosticGroups(report.diagnostics)}
 	${renderDiagnosticsOverview(report.diagnostics)}
+  ${renderFixStrategies(report.diagnostics)}
 	${renderCausalityTimeline(report.diagnostics)}
 	${renderSourceSpans(report.diagnostics)}
 	${renderEvidence(report.diagnostics)}
@@ -40,6 +42,21 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 </body>
 </html>
 `;
+}
+
+function renderRecommendedFirstFixes(report: DiagnosticReport): string {
+  const rows = (report.summary.recommendedFirstFixes ?? []).map(
+    (fix) =>
+      `<tr><td>${fix.priority}</td><td>${escapeHtml(fix.code ?? 'unknown')}</td><td>${escapeHtml(fix.diagnosticId)}</td><td>${escapeHtml(fix.reason)}</td><td>${escapeHtml(fix.nextStep)}</td><td>${escapeHtml(fix.confidence)}</td></tr>`
+  );
+
+  return `<section id="recommended-first-fixes">
+	<h2>Recommended First Fixes</h2>
+	<table>
+		<thead><tr><th>Priority</th><th>Code</th><th>Diagnostic</th><th>Reason</th><th>Next Step</th><th>Confidence</th></tr></thead>
+		<tbody>${rows.join('\n') || '<tr><td colspan="6">No recommended first fixes</td></tr>'}</tbody>
+	</table>
+</section>`;
 }
 
 function renderLearnerSummaries(diagnostics: readonly DiagnosticRecord[]): string {
@@ -109,6 +126,23 @@ function renderDiagnosticsOverview(diagnostics: readonly DiagnosticRecord[]): st
 	<table>
 		<thead><tr><th>ID</th><th>Group</th><th>Code</th><th>Message</th><th>Status</th></tr></thead>
 		<tbody>${rows.join('\n') || '<tr><td colspan="5">No diagnostics</td></tr>'}</tbody>
+	</table>
+</section>`;
+}
+
+function renderFixStrategies(diagnostics: readonly DiagnosticRecord[]): string {
+  const rows = diagnostics.flatMap((diagnostic) =>
+    (diagnostic.fixStrategies ?? []).map(
+      (strategy) =>
+        `<tr><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(strategy.kind)}</td><td>${escapeHtml(strategy.title)}</td><td>${escapeHtml(strategy.rationale)}</td><td>${escapeHtml(strategy.tradeOffs.join(' '))}</td><td>${escapeHtml(strategy.spanId ?? '')}</td><td>${escapeHtml(strategy.confidence)}</td></tr>`
+    )
+  );
+
+  return `<section id="fix-strategies">
+	<h2>Fix Strategies</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Rationale</th><th>Trade-offs</th><th>Span</th><th>Confidence</th></tr></thead>
+		<tbody>${rows.join('\n') || '<tr><td colspan="7">No fix strategies</td></tr>'}</tbody>
 	</table>
 </section>`;
 }
