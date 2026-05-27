@@ -39,6 +39,7 @@ impl RespProtocolVersion {
 #[derive(Debug, PartialEq, Eq)]
 pub enum RespReply {
     SimpleString(&'static str),
+    SimpleStringOwned(String),
     BulkString(Vec<u8>),
     NullBulkString,
     NullArray,
@@ -55,6 +56,7 @@ impl RespReply {
     pub fn encode_with_protocol(&self, protocol_version: RespProtocolVersion) -> Vec<u8> {
         match self {
             Self::SimpleString(value) => encode_prefixed_string(b'+', value.as_bytes()),
+            Self::SimpleStringOwned(value) => encode_prefixed_string(b'+', value.as_bytes()),
             Self::BulkString(value) => encode_bulk_string(value),
             Self::NullBulkString | Self::NullArray
                 if protocol_version == RespProtocolVersion::Resp3 =>
@@ -67,6 +69,39 @@ impl RespReply {
             Self::Array(values) => encode_array(values, protocol_version),
             Self::Error(message) => encode_error(message),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplicationCheckpoint {
+    pub replication_id: String,
+    pub offset: i64,
+}
+
+impl Default for ReplicationCheckpoint {
+    fn default() -> Self {
+        Self {
+            replication_id: "0000000000000000000000000000000000000001".to_string(),
+            offset: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PropagationLogEntry {
+    pub offset: i64,
+    pub command: Vec<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReplicationRole {
+    Master,
+    Replica { host: Vec<u8>, port: u16 },
+}
+
+impl Default for ReplicationRole {
+    fn default() -> Self {
+        Self::Master
     }
 }
 
@@ -83,6 +118,9 @@ pub struct RedisMiniSession {
     client_id: i64,
     client_name: Option<Vec<u8>>,
     slowlog_len: i64,
+    replication_role: ReplicationRole,
+    replication_checkpoint: ReplicationCheckpoint,
+    propagation_log: Vec<PropagationLogEntry>,
 }
 
 impl Default for RedisMiniSession {
@@ -101,6 +139,9 @@ impl Default for RedisMiniSession {
             client_id: 1,
             client_name: None,
             slowlog_len: 0,
+            replication_role: ReplicationRole::default(),
+            replication_checkpoint: ReplicationCheckpoint::default(),
+            propagation_log: Vec::new(),
         }
     }
 }
@@ -112,6 +153,14 @@ impl RedisMiniSession {
 
     pub fn protocol_version(&self) -> RespProtocolVersion {
         self.protocol_version
+    }
+
+    pub fn replication_checkpoint(&self) -> &ReplicationCheckpoint {
+        &self.replication_checkpoint
+    }
+
+    pub fn propagation_log(&self) -> &[PropagationLogEntry] {
+        &self.propagation_log
     }
 
     pub fn set_requirepass(&mut self, password: Vec<u8>) {
@@ -143,6 +192,10 @@ impl RedisMiniSession {
 
         if let Some(kind) = command_kind {
             match kind {
+                CommandKind::Role
+                | CommandKind::ReplicaOf
+                | CommandKind::ReplConf
+                | CommandKind::PSync => return self.execute_replication(kind, command.args),
                 CommandKind::Acl
                 | CommandKind::Config
                 | CommandKind::Info
@@ -152,6 +205,14 @@ impl RedisMiniSession {
                 | CommandKind::SlowLog => return self.execute_session_admin(kind, command.args),
                 _ => {}
             }
+        }
+
+        if matches!(self.replication_role, ReplicationRole::Replica { .. })
+            && command_kind.is_some_and(CommandKind::is_write)
+        {
+            return RespReply::Error(
+                "READONLY You can't write against a read only replica.".to_string(),
+            );
         }
 
         if let Some(reply) = self.check_acl(command_kind) {
@@ -187,7 +248,99 @@ impl RedisMiniSession {
             }
         }
 
-        self.db.execute(command)
+        let propagation_command = if command_kind.is_some_and(CommandKind::is_write) {
+            Some(command.args.iter().map(|arg| arg.to_vec()).collect())
+        } else {
+            None
+        };
+        let reply = self.db.execute(command);
+        if let Some(command_args) = propagation_command {
+            if !matches!(
+                reply,
+                RespReply::Error(_) | RespReply::SimpleString("QUEUED")
+            ) {
+                self.append_propagation_log(command_args);
+            }
+        }
+        reply
+    }
+
+    fn append_propagation_log(&mut self, command: Vec<Vec<u8>>) {
+        self.replication_checkpoint.offset += 1;
+        self.propagation_log.push(PropagationLogEntry {
+            offset: self.replication_checkpoint.offset,
+            command,
+        });
+    }
+
+    fn execute_replication(&mut self, kind: CommandKind, args: Vec<Vec<u8>>) -> RespReply {
+        match kind {
+            CommandKind::Role => self.execute_role(args),
+            CommandKind::ReplicaOf => self.execute_replicaof(args),
+            CommandKind::ReplConf => self.execute_replconf(args),
+            CommandKind::PSync => self.execute_psync(args),
+            _ => RespReply::Error("ERR unsupported replication command".to_string()),
+        }
+    }
+
+    fn execute_role(&self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 1 {
+            return wrong_arity("role");
+        }
+
+        match &self.replication_role {
+            ReplicationRole::Master => RespReply::Array(vec![
+                RespReply::BulkString(b"master".to_vec()),
+                RespReply::Integer(self.replication_checkpoint.offset),
+                RespReply::Array(Vec::new()),
+            ]),
+            ReplicationRole::Replica { host, port } => RespReply::Array(vec![
+                RespReply::BulkString(b"replica".to_vec()),
+                RespReply::BulkString(host.to_vec()),
+                RespReply::Integer(i64::from(*port)),
+                RespReply::BulkString(b"connected".to_vec()),
+                RespReply::Integer(self.replication_checkpoint.offset),
+            ]),
+        }
+    }
+
+    fn execute_replicaof(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("replicaof");
+        }
+        if args[1].eq_ignore_ascii_case(b"NO") && args[2].eq_ignore_ascii_case(b"ONE") {
+            self.replication_role = ReplicationRole::Master;
+            return RespReply::SimpleString("OK");
+        }
+
+        let Some(port) = parse_u16(&args[2]) else {
+            return RespReply::Error("ERR invalid replica port".to_string());
+        };
+        self.replication_role = ReplicationRole::Replica {
+            host: args[1].to_vec(),
+            port,
+        };
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_replconf(&self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("replconf");
+        }
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_psync(&self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 3 {
+            return wrong_arity("psync");
+        }
+        if args[1] == b"?" && args[2] == b"-1" {
+            return RespReply::SimpleStringOwned(format!(
+                "FULLRESYNC {} {}",
+                self.replication_checkpoint.replication_id, self.replication_checkpoint.offset
+            ));
+        }
+        RespReply::Error("ERR unsupported PSYNC form".to_string())
     }
 
     fn subscribed_mode(&self) -> bool {
@@ -569,8 +722,14 @@ impl RedisMiniSession {
         }
         self.db.remove_expired_keys();
         let info = format!(
-            "# Server\r\nredis_version:redis-mini\r\nredis_mode:standalone\r\n# Clients\r\nconnected_clients:1\r\n# Memory\r\nused_memory:0\r\n# Persistence\r\naof_enabled:{}\r\n# Keyspace\r\ndb{}:keys={}\r\n",
+            "# Server\r\nredis_version:redis-mini\r\nredis_mode:standalone\r\n# Clients\r\nconnected_clients:1\r\n# Memory\r\nused_memory:0\r\n# Persistence\r\naof_enabled:{}\r\n# Replication\r\nrole:{}\r\nmaster_replid:{}\r\nmaster_repl_offset:{}\r\n# Keyspace\r\ndb{}:keys={}\r\n",
             if self.config.appendonly { 1 } else { 0 },
+            match self.replication_role {
+                ReplicationRole::Master => "master",
+                ReplicationRole::Replica { .. } => "replica",
+            },
+            self.replication_checkpoint.replication_id,
+            self.replication_checkpoint.offset,
             self.db.selected_db,
             self.db.values.len()
         );
@@ -735,6 +894,7 @@ impl RedisPubSubBroker {
 pub enum CommandCategory {
     Connection,
     PubSub,
+    Replication,
     String,
     List,
     Hash,
@@ -751,6 +911,7 @@ impl CommandCategory {
         match self {
             Self::Connection => "connection",
             Self::PubSub => "pubsub",
+            Self::Replication => "replication",
             Self::String => "string",
             Self::List => "list",
             Self::Hash => "hash",
@@ -991,6 +1152,14 @@ impl RedisMiniDb {
             CommandKind::Keys => self.execute_keys(args),
             CommandKind::Scan => self.execute_scan(args),
             CommandKind::Hello => execute_hello(args),
+            CommandKind::Role => RespReply::Error("ERR ROLE handled by session".to_string()),
+            CommandKind::ReplicaOf => {
+                RespReply::Error("ERR REPLICAOF handled by session".to_string())
+            }
+            CommandKind::ReplConf => {
+                RespReply::Error("ERR REPLCONF handled by session".to_string())
+            }
+            CommandKind::PSync => RespReply::Error("ERR PSYNC handled by session".to_string()),
             CommandKind::Eval => self.execute_eval(args),
             CommandKind::EvalSha => self.execute_evalsha(args),
             CommandKind::Script => self.execute_script(args),
@@ -4547,6 +4716,10 @@ enum CommandKind {
     Discard,
     Watch,
     Unwatch,
+    Role,
+    ReplicaOf,
+    ReplConf,
+    PSync,
 }
 
 impl CommandKind {
@@ -4554,6 +4727,56 @@ impl CommandKind {
         matches!(
             self,
             Self::Multi | Self::Exec | Self::Discard | Self::Watch | Self::Unwatch
+        )
+    }
+
+    fn is_write(self) -> bool {
+        matches!(
+            self,
+            Self::Set
+                | Self::MSet
+                | Self::Append
+                | Self::SetRange
+                | Self::GetSet
+                | Self::Del
+                | Self::Expire
+                | Self::Persist
+                | Self::Incr
+                | Self::Decr
+                | Self::IncrBy
+                | Self::LPush
+                | Self::RPush
+                | Self::LPop
+                | Self::RPop
+                | Self::LSet
+                | Self::LTrim
+                | Self::LRem
+                | Self::RPopLPush
+                | Self::LMove
+                | Self::BLPop
+                | Self::BRPop
+                | Self::BLMove
+                | Self::HSet
+                | Self::HDel
+                | Self::HIncrBy
+                | Self::SAdd
+                | Self::SRem
+                | Self::SPop
+                | Self::SMove
+                | Self::SUnionStore
+                | Self::SInterStore
+                | Self::SDiffStore
+                | Self::ZAdd
+                | Self::ZRem
+                | Self::ZRemRangeByRank
+                | Self::ZRemRangeByScore
+                | Self::ZRemRangeByLex
+                | Self::XAdd
+                | Self::XDel
+                | Self::XTrim
+                | Self::XGroup
+                | Self::Eval
+                | Self::EvalSha
         )
     }
 }
@@ -4567,6 +4790,18 @@ struct CommandSpec {
 static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("PING", CommandCategory::Connection, CommandKind::Ping),
     command_spec("ECHO", CommandCategory::Connection, CommandKind::Echo),
+    command_spec("ROLE", CommandCategory::Replication, CommandKind::Role),
+    command_spec(
+        "REPLICAOF",
+        CommandCategory::Replication,
+        CommandKind::ReplicaOf,
+    ),
+    command_spec(
+        "REPLCONF",
+        CommandCategory::Replication,
+        CommandKind::ReplConf,
+    ),
+    command_spec("PSYNC", CommandCategory::Replication, CommandKind::PSync),
     command_spec("SET", CommandCategory::String, CommandKind::Set),
     command_spec("GET", CommandCategory::String, CommandKind::Get),
     command_spec("MGET", CommandCategory::String, CommandKind::MGet),
@@ -4869,6 +5104,7 @@ fn all_command_categories() -> BTreeSet<CommandCategory> {
     let mut s = BTreeSet::new();
     s.insert(Connection);
     s.insert(PubSub);
+    s.insert(Replication);
     s.insert(String);
     s.insert(List);
     s.insert(Hash);
@@ -4905,8 +5141,13 @@ fn config_pair(name: &str, value: &[u8]) -> Vec<RespReply> {
 fn is_supported_info_section(section: &[u8]) -> bool {
     matches!(
         section.to_ascii_lowercase().as_slice(),
-        b"server" | b"clients" | b"memory" | b"persistence" | b"keyspace"
+        b"server" | b"clients" | b"memory" | b"persistence" | b"replication" | b"keyspace"
     )
+}
+
+fn parse_u16(bytes: &[u8]) -> Option<u16> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    text.parse::<u16>().ok()
 }
 
 fn execute_command(_args: Vec<Vec<u8>>) -> RespReply {

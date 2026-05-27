@@ -27,8 +27,27 @@ Use this log to separate ownership-report effects from human guidance.
 
 ### iteration-001
 
-- Date: 2026-05-26
+### iteration-037
+
+- Date: 2026-05-27
 - Model: GPT-5 mini (copilot)
+- Task slice: R235-R237 Phase 34 Replication smoke slice
+- Prompt summary: Add master/replica role state, `REPLICAOF`/`ROLE`/`REPLCONF`/`PSYNC` stubs, propagation log with monotonic offsets, replica read-only enforcement, partial sync checkpoint model, tests covering role transitions, propagation offsets, replica write rejection, handshake stubs, arity validation, transactions compatibility, and TCP session command handling; capture cargo diagnostics and generate ownership reports under `reports/iteration-037/`.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-037/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-037/cargo-check.jsonl --json-out ../reports/iteration-037/ownership-report.json --html-out ../reports/iteration-037/ownership-report.html`
+- Result: compile success; test success, all tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-037/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-037/ownership-report.json`
+- Ownership report HTML: `reports/iteration-037/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; narrow `to_vec()` copies used for propagation log and replies; no broad clone shortcuts introduced.
+- Did the ownership report change the next fix: not applicable; no ownership diagnostics were emitted
+- Next action: continue with Phase 35 cluster basics or expand replication partial-sync handling and downstream propagation integration.
+- Date: 2026-05-26
 - Task slice: R010-R024 crate skeleton, RESP2 multibulk happy path, diagnostic capture, reports, and ledger updates.
 - Prompt summary: Initialize `validation/ports/redis/rust-port`, expose a complete RESP2 multibulk parser API returning owned command argument bytes, test PING/GET/SET and binary-safe payloads, capture cargo diagnostics, generate ownership reports, and update notes/tasks without committing.
 - Human ownership hints before attempt: none

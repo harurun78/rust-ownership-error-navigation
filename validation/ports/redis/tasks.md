@@ -356,9 +356,9 @@ iteration-036: completed scripting compatibility stubs with deterministic `SCRIP
 
 ## Phase 34: Replication
 
-- [ ] R235 Add master/replica role state and `REPLICAOF`, `ROLE`, and replication handshake smoke tests.
-- [ ] R236 Add command propagation log and partial sync checkpoint model.
-- [ ] R237 Save diagnostics and reports for replication iterations.
+- [x] R235 Add master/replica role state and `REPLICAOF`, `ROLE`, and replication handshake smoke tests.
+- [x] R236 Add command propagation log and partial sync checkpoint model.
+- [x] R237 Save diagnostics and reports for replication iterations.
 
 ## Phase 35: Cluster Basics
 
