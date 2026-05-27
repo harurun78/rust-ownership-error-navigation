@@ -82,7 +82,7 @@ Rust 初学者として、compiler output を見た直後に、何が起きた�
 
 **Why this priority**: Redis validation showed that diagnostic navigation works best when the user can connect spans to a plain-language explanation and a bounded next action.
 
-**Independent Test**: E0382 / E0499 / E0502 fixture を beginner mode で report 生成し、`what_happened` / `why_it_matters` / `next_step` が JSON と HTML の先頭に出ることを確認する。
+**Independent Test**: E0382 / E0499 / E0502 fixture を beginner mode で report 生成し、`whatHappened` / `whyItMatters` / `nextStep` が JSON と HTML の先頭に出ることを確認する。
 
 ### Post-MVP User Story 6 - 複数診断の修正順を見る (Priority: P1)
 
@@ -121,7 +121,7 @@ Rust 中級者として、大きな compiler output に複数の error / warning
 
 ### Post-MVP Functional Requirements
 
-- **FR-013**: System SHOULD emit learner summaries for supported diagnostics with `what_happened`, `why_it_matters`, and `next_step` fields.
+- **FR-013**: System SHOULD emit learner summaries for supported diagnostics with `whatHappened`, `whyItMatters`, and `nextStep` fields.
 - **FR-014**: System SHOULD support `beginner`, `intermediate`, and `agent` audience modes without changing the underlying diagnostic evidence.
 - **FR-015**: System SHOULD classify high-frequency non-ownership diagnostics from validation corpora, starting with E0308, E0004, and E0425.
 - **FR-016**: System SHOULD explain fix strategy trade-offs such as borrow, clone/copy, scope split, move timing, extraction, and ownership redesign.

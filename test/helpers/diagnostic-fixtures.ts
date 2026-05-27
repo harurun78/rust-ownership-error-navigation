@@ -28,7 +28,7 @@ export async function createReportFromDiagnosticFixture(
   return createDiagnosticReport({
     input: {
       path: fileName,
-      audienceMode: options.audienceMode
+      ...(options.audienceMode === undefined ? {} : { audienceMode: options.audienceMode })
     },
     diagnostics
   });

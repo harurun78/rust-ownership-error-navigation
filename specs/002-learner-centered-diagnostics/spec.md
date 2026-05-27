@@ -16,7 +16,7 @@ Rust 初学者として、E0382 / E0499 / E0502 の report を開いたときに
 
 **Why this priority**: MVP は evidence-backed events を持つが、学習者が最初に読む導線が弱い。Redis validation でも report-guided repair は有効だったため、人間向けにも同じ evidence を短く説明する価値が高い。
 
-**Independent Test**: Baseline ownership fixture を beginner mode で report 生成し、JSON と HTML に `what_happened`, `why_it_matters`, `next_step` が含まれることを確認する。
+**Independent Test**: Baseline ownership fixture を beginner mode で report 生成し、JSON と HTML に `whatHappened`, `whyItMatters`, `nextStep` が含まれることを確認する。
 
 **Acceptance Scenarios**:
 
@@ -86,7 +86,7 @@ Rust 学習者として、`clone()`、borrow、scope 分割、move timing、owne
 
 ### Key Entities
 
-- **LearnerSummary**: Audience-specific explanation with `what_happened`, `why_it_matters`, `next_step`, and optional concept terms.
+- **LearnerSummary**: Audience-specific explanation with `whatHappened`, `whyItMatters`, `nextStep`, and optional concept terms.
 - **AudienceMode**: `beginner`, `intermediate`, or `agent` report generation mode.
 - **DiagnosticNavigationRecord**: Generalized navigation record for ownership and non-ownership diagnostics.
 - **FixStrategy**: Explanation of a possible repair approach and trade-off.
