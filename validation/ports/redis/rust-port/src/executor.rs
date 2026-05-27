@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::Command;
 
@@ -70,12 +70,39 @@ impl RespReply {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RedisMiniSession {
     db: RedisMiniDb,
     protocol_version: RespProtocolVersion,
     subscriptions: BTreeSet<Vec<u8>>,
     pattern_subscriptions: BTreeSet<Vec<u8>>,
+    config: RedisMiniConfig,
+    acl_users: BTreeMap<String, AclUser>,
+    current_user: String,
+    authenticated: bool,
+    client_id: i64,
+    client_name: Option<Vec<u8>>,
+    slowlog_len: i64,
+}
+
+impl Default for RedisMiniSession {
+    fn default() -> Self {
+        let mut acl_users = BTreeMap::new();
+        acl_users.insert("default".to_string(), AclUser::default_open());
+        Self {
+            db: RedisMiniDb::default(),
+            protocol_version: RespProtocolVersion::default(),
+            subscriptions: BTreeSet::new(),
+            pattern_subscriptions: BTreeSet::new(),
+            config: RedisMiniConfig::default(),
+            acl_users,
+            current_user: "default".to_string(),
+            authenticated: true,
+            client_id: 1,
+            client_name: None,
+            slowlog_len: 0,
+        }
+    }
 }
 
 impl RedisMiniSession {
@@ -87,16 +114,49 @@ impl RedisMiniSession {
         self.protocol_version
     }
 
-    pub fn execute(&mut self, command: Command) -> RespReply {
-        if is_hello_command(&command.args) {
-            return self.execute_hello(command.args);
+    pub fn set_requirepass(&mut self, password: Vec<u8>) {
+        self.config.requirepass = Some(password.to_vec());
+        if let Some(default_user) = self.acl_users.get_mut("default") {
+            default_user.password = Some(password);
         }
+        self.authenticated = false;
+    }
 
+    pub fn execute(&mut self, command: Command) -> RespReply {
         if command.args.is_empty() {
             return RespReply::Error("ERR unknown command ''".to_string());
         }
 
         let command_kind = find_command_spec(&command.args[0]).map(|spec| spec.kind);
+
+        if command_kind == Some(CommandKind::Auth) {
+            return self.execute_auth(command.args);
+        }
+
+        if self.auth_required() && !self.authenticated {
+            return RespReply::Error("NOAUTH Authentication required.".to_string());
+        }
+
+        if is_hello_command(&command.args) {
+            return self.execute_hello(command.args);
+        }
+
+        if let Some(kind) = command_kind {
+            match kind {
+                CommandKind::Acl
+                | CommandKind::Config
+                | CommandKind::Info
+                | CommandKind::Command
+                | CommandKind::Client
+                | CommandKind::Time
+                | CommandKind::SlowLog => return self.execute_session_admin(kind, command.args),
+                _ => {}
+            }
+        }
+
+        if let Some(reply) = self.check_acl(command_kind) {
+            return reply;
+        }
 
         if self.subscribed_mode() {
             if let Some(kind) = command_kind {
@@ -278,6 +338,315 @@ impl RedisMiniSession {
         self.protocol_version = protocol_version;
         hello_reply(protocol_version)
     }
+
+    fn auth_required(&self) -> bool {
+        self.config.requirepass.is_some()
+    }
+
+    fn check_acl(&self, command_kind: Option<CommandKind>) -> Option<RespReply> {
+        let Some(kind) = command_kind else {
+            return None;
+        };
+        let Some(spec) = find_command_spec_by_kind(kind) else {
+            return None;
+        };
+        let Some(user) = self.acl_users.get(&self.current_user) else {
+            return Some(RespReply::Error(
+                "NOPERM user has no permissions".to_string(),
+            ));
+        };
+        if !user.enabled || !user.allows(spec.metadata.category) {
+            return Some(RespReply::Error(format!(
+                "NOPERM this user has no permissions to run the '{}' command",
+                spec.metadata.name
+            )));
+        }
+        None
+    }
+
+    fn execute_auth(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() != 2 && args.len() != 3 {
+            return wrong_arity("auth");
+        }
+        if !self.auth_required() && args.len() == 2 {
+            return RespReply::Error(
+                "ERR AUTH <password> called without any password configured for the default user"
+                    .to_string(),
+            );
+        }
+
+        let (user_name, password) = if args.len() == 2 {
+            ("default".to_string(), &args[1])
+        } else {
+            (String::from_utf8_lossy(&args[1]).to_string(), &args[2])
+        };
+
+        let Some(user) = self.acl_users.get(&user_name) else {
+            return RespReply::Error("WRONGPASS invalid username-password pair".to_string());
+        };
+        if !user.enabled || user.password.as_deref() != Some(password.as_slice()) {
+            return RespReply::Error("WRONGPASS invalid username-password pair".to_string());
+        }
+
+        self.current_user = user_name;
+        self.authenticated = true;
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_session_admin(&mut self, kind: CommandKind, args: Vec<Vec<u8>>) -> RespReply {
+        match kind {
+            CommandKind::Acl => self.execute_acl(args),
+            CommandKind::Config => self.execute_config(args),
+            CommandKind::Info => self.execute_info(args),
+            CommandKind::Command => execute_command(args),
+            CommandKind::Client => self.execute_client(args),
+            CommandKind::Time => execute_time(args),
+            CommandKind::SlowLog => self.execute_slowlog(args),
+            _ => RespReply::Error("ERR unsupported session admin command".to_string()),
+        }
+    }
+
+    fn execute_acl(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("acl");
+        }
+        if args[1].eq_ignore_ascii_case(b"WHOAMI") {
+            if args.len() != 2 {
+                return wrong_arity("acl|whoami");
+            }
+            return RespReply::BulkString(self.current_user.as_bytes().to_vec());
+        }
+        if args[1].eq_ignore_ascii_case(b"LIST") {
+            if args.len() != 2 {
+                return wrong_arity("acl|list");
+            }
+            return RespReply::Array(
+                self.acl_users
+                    .iter()
+                    .map(|(name, user)| RespReply::BulkString(user.list_line(name).into_bytes()))
+                    .collect(),
+            );
+        }
+        if args[1].eq_ignore_ascii_case(b"SETUSER") {
+            return self.execute_acl_setuser(args);
+        }
+        if args[1].eq_ignore_ascii_case(b"DELUSER") {
+            return self.execute_acl_deluser(args);
+        }
+        RespReply::Error("ERR unsupported ACL subcommand".to_string())
+    }
+
+    fn execute_acl_setuser(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 3 {
+            return wrong_arity("acl|setuser");
+        }
+        let user_name = String::from_utf8_lossy(&args[2]).to_string();
+        let user = self
+            .acl_users
+            .entry(user_name)
+            .or_insert_with(AclUser::default_closed);
+        for rule in args.iter().skip(3) {
+            if rule.eq_ignore_ascii_case(b"on") {
+                user.enabled = true;
+            } else if rule.eq_ignore_ascii_case(b"off") {
+                user.enabled = false;
+            } else if rule.eq_ignore_ascii_case(b"allcommands") {
+                user.allowed_categories = AclCategories::All;
+            } else if rule.eq_ignore_ascii_case(b"nocommands") {
+                user.allowed_categories = AclCategories::Only(BTreeSet::new());
+            } else if let Some(password) = rule.strip_prefix(b">") {
+                user.password = Some(password.to_vec());
+            } else if let Some(category) = parse_acl_category_rule(rule, b"+@") {
+                user.allow_category(category);
+            } else if let Some(category) = parse_acl_category_rule(rule, b"-@") {
+                user.deny_category(category);
+            } else {
+                return RespReply::Error("ERR unsupported ACL SETUSER rule".to_string());
+            }
+        }
+        RespReply::SimpleString("OK")
+    }
+
+    fn execute_acl_deluser(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 3 {
+            return wrong_arity("acl|deluser");
+        }
+        let mut removed = 0i64;
+        for name in args.iter().skip(2) {
+            let user_name = String::from_utf8_lossy(name);
+            if user_name == "default" {
+                continue;
+            }
+            if self.acl_users.remove(user_name.as_ref()).is_some() {
+                removed += 1;
+            }
+        }
+        RespReply::Integer(removed)
+    }
+
+    fn execute_config(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("config");
+        }
+        if args[1].eq_ignore_ascii_case(b"GET") {
+            if args.len() != 3 {
+                return wrong_arity("config|get");
+            }
+            return self.config_get(&args[2]);
+        }
+        if args[1].eq_ignore_ascii_case(b"SET") {
+            if args.len() != 4 {
+                return wrong_arity("config|set");
+            }
+            return self.config_set(&args[2], args[3].to_vec());
+        }
+        RespReply::Error("ERR unsupported CONFIG subcommand".to_string())
+    }
+
+    fn config_get(&self, name: &[u8]) -> RespReply {
+        let mut pairs = Vec::new();
+        if name == b"*" || name.eq_ignore_ascii_case(b"requirepass") {
+            pairs.push(config_pair(
+                "requirepass",
+                self.config.requirepass.as_deref().unwrap_or(b""),
+            ));
+        }
+        if name == b"*" || name.eq_ignore_ascii_case(b"databases") {
+            pairs.push(config_pair(
+                "databases",
+                DATABASE_COUNT.to_string().as_bytes(),
+            ));
+        }
+        if name == b"*" || name.eq_ignore_ascii_case(b"appendonly") {
+            pairs.push(config_pair(
+                "appendonly",
+                if self.config.appendonly {
+                    b"yes"
+                } else {
+                    b"no"
+                },
+            ));
+        }
+        if pairs.is_empty() {
+            return RespReply::Error("ERR Unsupported CONFIG parameter".to_string());
+        }
+        RespReply::Array(pairs.into_iter().flatten().collect())
+    }
+
+    fn config_set(&mut self, name: &[u8], value: Vec<u8>) -> RespReply {
+        if name.eq_ignore_ascii_case(b"requirepass") {
+            if value.is_empty() {
+                self.config.requirepass = None;
+                if let Some(default_user) = self.acl_users.get_mut("default") {
+                    default_user.password = None;
+                }
+                self.authenticated = true;
+            } else {
+                self.set_requirepass(value);
+            }
+            return RespReply::SimpleString("OK");
+        }
+        if name.eq_ignore_ascii_case(b"appendonly") {
+            if value.eq_ignore_ascii_case(b"yes") {
+                self.config.appendonly = true;
+                return RespReply::SimpleString("OK");
+            }
+            if value.eq_ignore_ascii_case(b"no") {
+                self.config.appendonly = false;
+                return RespReply::SimpleString("OK");
+            }
+            return RespReply::Error("ERR argument must be 'yes' or 'no'".to_string());
+        }
+        RespReply::Error("ERR Unsupported CONFIG parameter".to_string())
+    }
+
+    fn execute_info(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() > 2 {
+            return wrong_arity("info");
+        }
+        if args.len() == 2 && !is_supported_info_section(&args[1]) {
+            return RespReply::Error("ERR unsupported INFO section".to_string());
+        }
+        self.db.remove_expired_keys();
+        let info = format!(
+            "# Server\r\nredis_version:redis-mini\r\nredis_mode:standalone\r\n# Clients\r\nconnected_clients:1\r\n# Memory\r\nused_memory:0\r\n# Persistence\r\naof_enabled:{}\r\n# Keyspace\r\ndb{}:keys={}\r\n",
+            if self.config.appendonly { 1 } else { 0 },
+            self.db.selected_db,
+            self.db.values.len()
+        );
+        RespReply::BulkString(info.into_bytes())
+    }
+
+    fn execute_client(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("client");
+        }
+        if args[1].eq_ignore_ascii_case(b"ID") {
+            if args.len() != 2 {
+                return wrong_arity("client|id");
+            }
+            return RespReply::Integer(self.client_id);
+        }
+        if args[1].eq_ignore_ascii_case(b"SETNAME") {
+            if args.len() != 3 {
+                return wrong_arity("client|setname");
+            }
+            self.client_name = Some(args[2].to_vec());
+            return RespReply::SimpleString("OK");
+        }
+        if args[1].eq_ignore_ascii_case(b"GETNAME") {
+            if args.len() != 2 {
+                return wrong_arity("client|getname");
+            }
+            return match &self.client_name {
+                Some(name) => RespReply::BulkString(name.to_vec()),
+                None => RespReply::NullBulkString,
+            };
+        }
+        if args[1].eq_ignore_ascii_case(b"INFO") {
+            if args.len() != 2 {
+                return wrong_arity("client|info");
+            }
+            let name = self.client_name.as_deref().unwrap_or(b"");
+            let info = format!(
+                "id={} name={} db={} flags=N\r\n",
+                self.client_id,
+                String::from_utf8_lossy(name),
+                self.db.selected_db
+            );
+            return RespReply::BulkString(info.into_bytes());
+        }
+        RespReply::Error("ERR unsupported CLIENT subcommand".to_string())
+    }
+
+    fn execute_slowlog(&mut self, args: Vec<Vec<u8>>) -> RespReply {
+        if args.len() < 2 {
+            return wrong_arity("slowlog");
+        }
+        if args[1].eq_ignore_ascii_case(b"LEN") {
+            if args.len() != 2 {
+                return wrong_arity("slowlog|len");
+            }
+            return RespReply::Integer(self.slowlog_len);
+        }
+        if args[1].eq_ignore_ascii_case(b"RESET") {
+            if args.len() != 2 {
+                return wrong_arity("slowlog|reset");
+            }
+            self.slowlog_len = 0;
+            return RespReply::SimpleString("OK");
+        }
+        if args[1].eq_ignore_ascii_case(b"GET") {
+            if args.len() > 3 {
+                return wrong_arity("slowlog|get");
+            }
+            if args.len() == 3 && parse_scan_index(&args[2]).is_none() {
+                return integer_error();
+            }
+            return RespReply::Array(Vec::new());
+        }
+        RespReply::Error("ERR unsupported SLOWLOG subcommand".to_string())
+    }
 }
 
 #[derive(Debug, Default)]
@@ -371,7 +740,7 @@ impl RedisPubSubBroker {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CommandCategory {
     Connection,
     PubSub,
@@ -630,6 +999,14 @@ impl RedisMiniDb {
             CommandKind::Keys => self.execute_keys(args),
             CommandKind::Scan => self.execute_scan(args),
             CommandKind::Hello => execute_hello(args),
+            CommandKind::Auth => RespReply::Error("ERR AUTH handled by session".to_string()),
+            CommandKind::Acl => RespReply::Error("ERR ACL handled by session".to_string()),
+            CommandKind::Config => RespReply::Error("ERR CONFIG handled by session".to_string()),
+            CommandKind::Info => RespReply::Error("ERR INFO handled by session".to_string()),
+            CommandKind::Command => RespReply::Error("ERR COMMAND handled by session".to_string()),
+            CommandKind::Client => RespReply::Error("ERR CLIENT handled by session".to_string()),
+            CommandKind::Time => RespReply::Error("ERR TIME handled by session".to_string()),
+            CommandKind::SlowLog => RespReply::Error("ERR SLOWLOG handled by session".to_string()),
             CommandKind::Select => self.execute_select(args),
             CommandKind::Subscribe => {
                 RespReply::Error("ERR SUBSCRIBE handled by session".to_string())
@@ -4162,6 +4539,14 @@ enum CommandKind {
     Keys,
     Scan,
     Hello,
+    Auth,
+    Acl,
+    Config,
+    Info,
+    Command,
+    Client,
+    Time,
+    SlowLog,
     Select,
     DbSize,
     Subscribe,
@@ -4332,6 +4717,14 @@ static COMMAND_SPECS: &[CommandSpec] = &[
     command_spec("KEYS", CommandCategory::Keyspace, CommandKind::Keys),
     command_spec("SCAN", CommandCategory::Keyspace, CommandKind::Scan),
     command_spec("HELLO", CommandCategory::Connection, CommandKind::Hello),
+    command_spec("AUTH", CommandCategory::Connection, CommandKind::Auth),
+    command_spec("ACL", CommandCategory::Server, CommandKind::Acl),
+    command_spec("CONFIG", CommandCategory::Server, CommandKind::Config),
+    command_spec("INFO", CommandCategory::Server, CommandKind::Info),
+    command_spec("COMMAND", CommandCategory::Server, CommandKind::Command),
+    command_spec("CLIENT", CommandCategory::Server, CommandKind::Client),
+    command_spec("TIME", CommandCategory::Server, CommandKind::Time),
+    command_spec("SLOWLOG", CommandCategory::Server, CommandKind::SlowLog),
     command_spec("SELECT", CommandCategory::Connection, CommandKind::Select),
     command_spec("DBSIZE", CommandCategory::Keyspace, CommandKind::DbSize),
     command_spec("SUBSCRIBE", CommandCategory::PubSub, CommandKind::Subscribe),
@@ -4389,6 +4782,163 @@ fn find_command_spec(command_name: &[u8]) -> Option<&'static CommandSpec> {
     COMMAND_SPECS
         .iter()
         .find(|spec| command_name.eq_ignore_ascii_case(spec.metadata.name.as_bytes()))
+}
+
+fn find_command_spec_by_kind(kind: CommandKind) -> Option<&'static CommandSpec> {
+    COMMAND_SPECS.iter().find(|spec| spec.kind == kind)
+}
+
+#[derive(Debug, Clone)]
+enum AclCategories {
+    All,
+    Only(BTreeSet<CommandCategory>),
+}
+
+impl AclCategories {
+    fn allows(&self, category: CommandCategory) -> bool {
+        match self {
+            AclCategories::All => true,
+            AclCategories::Only(set) => set.contains(&category),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct AclUser {
+    enabled: bool,
+    password: Option<Vec<u8>>,
+    allowed_categories: AclCategories,
+}
+
+impl AclUser {
+    fn default_open() -> Self {
+        Self {
+            enabled: true,
+            password: None,
+            allowed_categories: AclCategories::All,
+        }
+    }
+
+    fn default_closed() -> Self {
+        Self {
+            enabled: true,
+            password: None,
+            allowed_categories: AclCategories::Only(BTreeSet::new()),
+        }
+    }
+
+    fn allows(&self, category: CommandCategory) -> bool {
+        self.allowed_categories.allows(category)
+    }
+
+    fn allow_category(&mut self, category: CommandCategory) {
+        match &mut self.allowed_categories {
+            AclCategories::All => {}
+            AclCategories::Only(set) => {
+                set.insert(category);
+            }
+        }
+    }
+
+    fn deny_category(&mut self, category: CommandCategory) {
+        match &mut self.allowed_categories {
+            AclCategories::All => {
+                let mut set = all_command_categories();
+                set.remove(&category);
+                self.allowed_categories = AclCategories::Only(set);
+            }
+            AclCategories::Only(set) => {
+                set.remove(&category);
+            }
+        }
+    }
+
+    fn list_line(&self, name: &str) -> String {
+        format!("user={} enabled={} categories={}", name, self.enabled, "*")
+    }
+}
+
+#[derive(Debug, Clone)]
+struct RedisMiniConfig {
+    requirepass: Option<Vec<u8>>,
+    appendonly: bool,
+}
+
+impl Default for RedisMiniConfig {
+    fn default() -> Self {
+        Self {
+            requirepass: None,
+            appendonly: false,
+        }
+    }
+}
+
+fn all_command_categories() -> BTreeSet<CommandCategory> {
+    use CommandCategory::*;
+    let mut s = BTreeSet::new();
+    s.insert(Connection);
+    s.insert(PubSub);
+    s.insert(String);
+    s.insert(List);
+    s.insert(Hash);
+    s.insert(Set);
+    s.insert(SortedSet);
+    s.insert(Stream);
+    s.insert(Keyspace);
+    s.insert(Transaction);
+    s.insert(Server);
+    s
+}
+
+fn parse_acl_category_rule(rule: &[u8], prefix: &[u8]) -> Option<CommandCategory> {
+    if !rule.starts_with(prefix) {
+        return None;
+    }
+    let cat = &rule[prefix.len()..];
+    let s = std::str::from_utf8(cat).ok()?;
+    for c in all_command_categories() {
+        if c.as_str().eq_ignore_ascii_case(s) {
+            return Some(c);
+        }
+    }
+    None
+}
+
+fn config_pair(name: &str, value: &[u8]) -> Vec<RespReply> {
+    vec![
+        RespReply::BulkString(name.as_bytes().to_vec()),
+        RespReply::BulkString(value.to_vec()),
+    ]
+}
+
+fn is_supported_info_section(section: &[u8]) -> bool {
+    matches!(
+        section.to_ascii_lowercase().as_slice(),
+        b"server" | b"clients" | b"memory" | b"persistence" | b"keyspace"
+    )
+}
+
+fn execute_command(_args: Vec<Vec<u8>>) -> RespReply {
+    // Return basic COMMAND listing: return implemented command names
+    let mut list = Vec::new();
+    for spec in COMMAND_SPECS.iter() {
+        list.push(RespReply::BulkString(
+            spec.metadata.name.as_bytes().to_vec(),
+        ));
+    }
+    RespReply::Array(list)
+}
+
+fn execute_time(_args: Vec<Vec<u8>>) -> RespReply {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = now.as_secs();
+    let micros = now.subsec_micros();
+    RespReply::Array(vec![
+        RespReply::BulkString(secs.to_string().into_bytes()),
+        RespReply::BulkString(micros.to_string().into_bytes()),
+    ])
 }
 
 #[derive(Debug, Copy, Clone)]

@@ -1209,6 +1209,82 @@ fn select_clears_watches_and_is_rejected_inside_multi() {
 }
 
 #[test]
+fn auth_acl_config_and_introspection_smoke() {
+    let mut session = RedisMiniSession::new();
+
+    // AUTH without a configured password returns an error
+    assert_eq!(
+        session.execute(command(&[b"AUTH", b"pw"])),
+        RespReply::Error(
+            "ERR AUTH <password> called without any password configured for the default user"
+                .to_string()
+        )
+    );
+
+    // Configure requirepass via CONFIG SET
+    assert_eq!(
+        session.execute(command(&[b"CONFIG", b"SET", b"requirepass", b"secret"])),
+        RespReply::SimpleString("OK")
+    );
+
+    // After setting requirepass, commands require authentication
+    assert_eq!(
+        session.execute(command(&[b"GET", b"missing"])),
+        RespReply::Error("NOAUTH Authentication required.".to_string())
+    );
+
+    // Authenticate with default user password
+    assert_eq!(
+        session.execute(command(&[b"AUTH", b"secret"])),
+        RespReply::SimpleString("OK")
+    );
+
+    // INFO returns a bulk string containing server name
+    match session.execute(command(&[b"INFO"])) {
+        RespReply::BulkString(buf) => assert!(String::from_utf8_lossy(&buf).contains("redis-mini")),
+        other => panic!("expected bulkstring INFO, got {other:?}"),
+    }
+
+    // CLIENT ID and NAME
+    match session.execute(command(&[b"CLIENT", b"ID"])) {
+        RespReply::Integer(id) => assert!(id >= 1),
+        other => panic!("expected integer client id, got {other:?}"),
+    }
+    assert_eq!(
+        session.execute(command(&[b"CLIENT", b"SETNAME", b"me"])),
+        RespReply::SimpleString("OK")
+    );
+    match session.execute(command(&[b"CLIENT", b"GETNAME"])) {
+        RespReply::BulkString(name) => assert_eq!(name, b"me".to_vec()),
+        _ => panic!("expected client getname bulkstring"),
+    }
+
+    // SLOWLOG basic ops
+    assert_eq!(
+        session.execute(command(&[b"SLOWLOG", b"LEN"])),
+        RespReply::Integer(0)
+    );
+    assert_eq!(
+        session.execute(command(&[b"SLOWLOG", b"RESET"])),
+        RespReply::SimpleString("OK")
+    );
+
+    // ACL WHOAMI and simple SETUSER / AUTH with new user
+    match session.execute(command(&[b"ACL", b"WHOAMI"])) {
+        RespReply::BulkString(u) => assert_eq!(u, b"default".to_vec()),
+        _ => panic!("expected ACL WHOAMI bulkstring"),
+    }
+    assert_eq!(
+        session.execute(command(&[b"ACL", b"SETUSER", b"bob", b">hunter2"])),
+        RespReply::SimpleString("OK")
+    );
+    assert_eq!(
+        session.execute(command(&[b"AUTH", b"bob", b"hunter2"])),
+        RespReply::SimpleString("OK")
+    );
+}
+
+#[test]
 fn executes_incr_decr_and_incrby_on_missing_keys() {
     let mut db = RedisMiniDb::new();
 

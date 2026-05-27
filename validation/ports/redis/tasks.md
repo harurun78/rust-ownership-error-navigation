@@ -339,10 +339,12 @@ iteration-033: completed minimal compatible Pub/Sub with Redis-like subscription
 
 ## Phase 32: ACL, Auth, Config, And Introspection
 
-- [ ] R228 Add `AUTH`, `ACL` subset, user permissions, and command-category checks.
-- [ ] R229 Add `CONFIG GET/SET` subset for implemented configuration values.
-- [ ] R230 Add `INFO`, `COMMAND`, `CLIENT`, `TIME`, and `SLOWLOG`/latency placeholders where useful.
-- [ ] R231 Save diagnostics and reports for admin-command iterations.
+- [x] R228 Add `AUTH`, `ACL` subset, user permissions, and command-category checks.
+- [x] R229 Add `CONFIG GET/SET` subset for implemented configuration values.
+- [x] R230 Add `INFO`, `COMMAND`, `CLIENT`, `TIME`, and `SLOWLOG`/latency placeholders where useful.
+- [x] R231 Save diagnostics and reports for admin-command iterations.
+
+iteration-035: completed minimal ACL/auth/config/introspection surface with `AUTH`, `ACL WHOAMI/LIST/SETUSER/DELUSER`, category permission checks, `CONFIG GET/SET`, deterministic `INFO`/`COMMAND`, `CLIENT` identity/name commands, `TIME`, and empty `SLOWLOG` placeholders. Final ownership report is clean with zero supported or unsupported diagnostics after warning cleanup.
 
 ## Phase 33: Scripting And Functions
 

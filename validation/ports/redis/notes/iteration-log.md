@@ -301,6 +301,28 @@ Notes:
 - Final diagnostic count: total 0, supported 0, unsupported 0.
 - Next action: consider RDB extension for groups/pending stream consumer metadata and optional fsync semantics for AOF.
 
+### iteration-035
+
+- Date: 2026-05-26
+- Model: GPT-5 mini (copilot)
+- Task slice: R228-R231 Phase 32 ACL/Auth/Config/Introspection
+- Prompt summary: Implement minimal deterministic `AUTH`, `ACL`, `CONFIG`, `INFO`, `COMMAND`, `CLIENT`, `TIME`, and `SLOWLOG` surfaces, add auth/category permission checks and tests, generate cargo and ownership reports, and update task/report notes.
+- Human ownership hints before attempt: none
+- Command: `mkdir -p ../reports/iteration-035 && cargo fmt && cargo check --message-format=json > ../reports/iteration-035/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-035/cargo-check.jsonl --json-out ../reports/iteration-035/ownership-report.json --html-out ../reports/iteration-035/ownership-report.html`
+- Result: compile success; test success, 140 passed in low-cost run; main verification fixed one unsupported unused-parameter warning and regenerated a clean report
+- Diagnostics file: `reports/iteration-035/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-035/ownership-report.json`
+- Ownership report HTML: `reports/iteration-035/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 1 main-side quality fix for non-ownership warning and ledger/report notes
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>` introduced; narrow copies remain for binary-safe command args and replies.
+- Did the ownership report change the next fix: yes, but only for report cleanliness; the unsupported `unused_variables` warning prompted a main-side cleanup. No ownership-navigation repair was needed.
+- Final diagnostic count: total 0, supported 0, unsupported 0.
+- Next action: iteration-036 can start Phase 33 scripting boundary and compatibility stubs.
+
 ### iteration-032
 
 - Date: 2026-05-26
