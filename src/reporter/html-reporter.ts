@@ -4,7 +4,12 @@ import type {
   OwnershipEvent
 } from '../mapper/ownership-event.js';
 import { createBorrowSheetRows } from './borrow-sheet.js';
-import { escapeHtml, stableId } from './reporter-utils.js';
+import {
+  escapeHtml,
+  isNonOwnershipDiagnosticCode,
+  isOwnershipDiagnosticCode,
+  stableId
+} from './reporter-utils.js';
 
 export function renderHtmlReport(report: DiagnosticReport): string {
   return `<!doctype html>
@@ -25,6 +30,7 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 	<h1>Rust Ownership Diagnostic Report</h1>
 	${renderSummary(report)}
 	${renderLearnerSummaries(report.diagnostics)}
+	${renderDiagnosticGroups(report.diagnostics)}
 	${renderDiagnosticsOverview(report.diagnostics)}
 	${renderCausalityTimeline(report.diagnostics)}
 	${renderSourceSpans(report.diagnostics)}
@@ -63,19 +69,60 @@ function renderLearnerSummaries(diagnostics: readonly DiagnosticRecord[]): strin
 </section>`;
 }
 
+function renderDiagnosticGroups(diagnostics: readonly DiagnosticRecord[]): string {
+  const groups = [
+    {
+      label: 'Ownership',
+      diagnostics: diagnostics.filter((diagnostic) => isOwnershipDiagnosticCode(diagnostic.code))
+    },
+    {
+      label: 'Non-Ownership',
+      diagnostics: diagnostics.filter((diagnostic) => isNonOwnershipDiagnosticCode(diagnostic.code))
+    },
+    {
+      label: 'Unsupported',
+      diagnostics: diagnostics.filter((diagnostic) => !diagnostic.supported)
+    }
+  ];
+  const rows = groups.map(
+    (group) =>
+      `<tr><td>${escapeHtml(group.label)}</td><td>${group.diagnostics.length}</td><td>${escapeHtml(group.diagnostics.map((diagnostic) => diagnostic.code ?? 'unknown').join(', ') || 'none')}</td></tr>`
+  );
+
+  return `<section id="diagnostic-groups">
+	<h2>Diagnostic Groups</h2>
+	<table>
+		<thead><tr><th>Group</th><th>Count</th><th>Codes</th></tr></thead>
+		<tbody>${rows.join('\n')}</tbody>
+	</table>
+</section>`;
+}
+
 function renderDiagnosticsOverview(diagnostics: readonly DiagnosticRecord[]): string {
   const rows = diagnostics.map(
     (diagnostic) =>
-      `<tr><td>${escapeHtml(diagnostic.id)}</td><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(diagnostic.message)}</td><td>${diagnostic.supported ? 'supported' : 'unsupported'}</td></tr>`
+      `<tr><td>${escapeHtml(diagnostic.id)}</td><td>${escapeHtml(diagnosticGroupLabel(diagnostic))}</td><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(diagnostic.message)}</td><td>${diagnostic.supported ? 'supported' : 'unsupported'}</td></tr>`
   );
 
   return `<section id="diagnostics">
 	<h2>Diagnostics</h2>
 	<table>
-		<thead><tr><th>ID</th><th>Code</th><th>Message</th><th>Status</th></tr></thead>
-		<tbody>${rows.join('\n') || '<tr><td colspan="4">No diagnostics</td></tr>'}</tbody>
+		<thead><tr><th>ID</th><th>Group</th><th>Code</th><th>Message</th><th>Status</th></tr></thead>
+		<tbody>${rows.join('\n') || '<tr><td colspan="5">No diagnostics</td></tr>'}</tbody>
 	</table>
 </section>`;
+}
+
+function diagnosticGroupLabel(diagnostic: DiagnosticRecord): string {
+  if (isOwnershipDiagnosticCode(diagnostic.code)) {
+    return 'ownership';
+  }
+
+  if (isNonOwnershipDiagnosticCode(diagnostic.code)) {
+    return 'non-ownership';
+  }
+
+  return diagnostic.supported ? 'supported' : 'unsupported';
 }
 
 function renderSummary(report: DiagnosticReport): string {

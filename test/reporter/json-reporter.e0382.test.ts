@@ -19,7 +19,9 @@ describe('E0382 JSON reporter', () => {
     expect(report.summary).toEqual({
       totalDiagnostics: 1,
       supportedDiagnostics: 1,
-      unsupportedDiagnostics: 0
+      unsupportedDiagnostics: 0,
+      ownershipDiagnostics: 1,
+      nonOwnershipDiagnostics: 0
     });
     expect(JSON.parse(renderJsonReport(report))).toMatchObject({
       schemaVersion: '0.1.0',

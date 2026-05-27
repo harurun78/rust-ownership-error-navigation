@@ -14,6 +14,12 @@
 | [ownership-followup-2026-05-25.jsonl](ownership-followup-2026-05-25.jsonl)               | E0373 / E0505 / E0506 / E0507 / E0596 / E0597 / E0716 / E0515 / E0521 follow-up fixture |    13 | 45049 | `1CF5F5802DB893842F33BF12218BDEB33657F326F5E692D273B81DFFF4C73BD1` |
 | [ownership-advanced-2026-05-25.jsonl](ownership-advanced-2026-05-25.jsonl)               | no code async Send / E0597 / E0382 / E0277 advanced fixture                             |    11 | 52183 | `14EA1F7A37D7544C1A4200EC0DD2AB8BFA393BB56132A4BCA632D936791D2BD8` |
 | [rustc-non-ownership-smoke-2026-05-25.jsonl](rustc-non-ownership-smoke-2026-05-25.jsonl) | E0603 / E0277 / E0282 / E0599 / E0308 / E0004 non-ownership compiler smoke fixture      |     9 | 21643 | `FA35F62F60284AD3DF91123E8463BADFADB2189A6414571A30A227831E5465CC` |
+| [porting/non-ownership-navigation-2026-05-25.jsonl](porting/non-ownership-navigation-2026-05-25.jsonl) | Reduced porting navigation fixture for E0308 / E0004 / E0425                            |     3 |  3224 | `FBF25A533610FEF1A57071BFE93DF812D1AC7B7DA20FF8EC17B60937D3A01859` |
+
+## Porting fixture provenance
+
+- `porting/non-ownership-navigation-2026-05-25.jsonl` keeps E0308 and E0004 coverage aligned with the Redis validation notes that identified non-ownership compiler blockers.
+- E0425 was not present in the saved Redis JSONL corpus, so the E0425 row is a reduced rustc reproduction fixture for the same high-frequency navigation category.
 
 ## 採取条件
 
