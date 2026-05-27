@@ -2,6 +2,28 @@
 
 ## Decisions
 
+## Post-Redis Validation Product Direction
+
+### Decision
+
+Keep Rust beginners and intermediate users as the primary audience for post-MVP work. Use low-cost agents as a validation consumer, not as the only target user.
+
+### Rationale
+
+The Redis porting validation confirmed that E0382 ownership navigation can help an agent repair code, but it also showed that human learners need explanations, vocabulary, trade-offs, and diagnostic prioritization. Many blockers were not ownership diagnostics: E0308 type mismatches, E0004 non-exhaustive patterns, E0425 unresolved names, E0596 mutability issues, and warning cleanup repeatedly affected progress.
+
+### Alternatives Considered
+
+- Agent-only repair packets: useful but too narrow for the original learning-oriented specification.
+- Ownership-only expansion: insufficient for real project work where non-ownership diagnostics often block progress first.
+- Automatic fix application: deferred because the current product contract is diagnostic navigation and explanation, not source modification.
+
+### 受け入れ条件
+
+- [ ] Post-MVP tasks include learner summaries and audience modes.
+- [ ] Post-MVP tasks include high-frequency non-ownership diagnostics from validation.
+- [ ] Repair packet export remains optional and secondary to human-readable reports.
+
 ## TypeScript / Node.js CLI
 
 ### Decision

@@ -6,9 +6,13 @@
 
 **Note**: This plan targets the current repository as both the specification repository and the Phase 1 implementation repository.
 
+**Implementation Status**: Phase 1 MVP is complete. Post-MVP planning now targets learner-centered diagnostics based on Redis porting validation.
+
 ## Summary
 
 Build a TypeScript / Node.js CLI that reads Cargo JSONL diagnostics, maps Phase 1 Rust ownership errors E0382 / E0499 / E0502 into evidence-backed ownership events, and emits both JSON and static HTML reports. Future diagnostics are included as compatibility corpus and must be parsed/displayed without requiring Phase 1 event mapping.
+
+The implemented MVP satisfies this plan. The next implementation slice extends the report into a learning surface: learner summary cards, audience modes, high-frequency non-ownership diagnostic coverage, fix strategy trade-offs, and multi-diagnostic first-fix ordering.
 
 ## Technical Context
 
@@ -66,15 +70,20 @@ src/
 ├── parser/
 │   └── cargo-message-parser.ts
 ├── diagnostics/
-│   ├── rustc-diagnostic.ts
-│   └── diagnostic-span.ts
+│   ├── diagnostic-span.ts
+│   ├── normalizer.ts
+│   └── rustc-diagnostic.ts
 ├── mapper/
 │   ├── ownership-event.ts
 │   ├── e0382.ts
 │   ├── e0499.ts
-│   └── e0502.ts
+│   ├── e0502.ts
+│   ├── rustc-suggestions.ts
+│   └── unsupported.ts
 └── reporter/
+    ├── borrow-sheet.ts
     ├── json-reporter.ts
+    ├── reporter-utils.ts
     └── html-reporter.ts
 
 test/
@@ -87,6 +96,8 @@ test/
 **Structure Decision**: Keep implementation modular so that future VS Code extension can reuse parser, diagnostic model, and event model without depending on HTML reporter.
 
 ## Phase Plan
+
+The original Phase 1 plan below is complete. It remains as historical implementation design and regression scope. New work should use the post-MVP speckit slice under `specs/002-learner-centered-diagnostics/` and the roadmap in `tasks/application-roadmap-from-redis-validation.md`.
 
 ## Cargo JSONL Parser
 
@@ -212,6 +223,24 @@ Generate a static HTML report for supported and unsupported diagnostics.
 ### 検証方法
 
 - HTML snapshot tests for required section headings and representative rows.
+
+## Post-MVP Implementation Direction
+
+### Learner Summary And Audience Modes
+
+Add learner-oriented summaries to the JSON report and HTML report without removing the existing evidence-backed event model.
+
+### Broader Diagnostic Triage
+
+Add first-class non-ownership diagnostic navigation for high-frequency Redis validation blockers: E0308, E0004, and E0425.
+
+### Fix Strategy Guidance
+
+Explain trade-offs between borrow, clone/copy, scope split, move timing, extraction, and ownership redesign. Automatic fix application remains out of scope.
+
+### Cargo Wrapper Workflow
+
+Add a convenience mode that runs `cargo check --message-format=json`, saves raw JSONL, and generates reports in one command while retaining file-input compatibility.
 
 ## Complexity Tracking
 

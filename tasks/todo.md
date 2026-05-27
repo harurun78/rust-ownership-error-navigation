@@ -158,3 +158,9 @@
 - 作成: [application-roadmap-from-redis-validation.md](application-roadmap-from-redis-validation.md)
 - 方針: Redis porting 検証結果を、低コスト agent 専用ではなく Rust 初学者・中級者に有用な学習支援アプリの実装タスクへ変換。
 - 重点: learner summary、beginner/intermediate 表示、E0308/E0004/E0425 など高頻度 non-ownership diagnostics、fix strategy trade-off、cargo wrapper、porting fixture corpus。
+
+## 2026-05-27 Speckit issue creation
+
+- 作成: `specs/002-learner-centered-diagnostics/` に post-MVP speckit spec / plan / tasks を追加。
+- Issue 化: #48 learner model foundation、#49 learner summary cards、#50 audience modes、#51 non-ownership diagnostics、#52 first-fix order / fix strategy guidance。
+- 着手順: #48 を最初の実装ブランチとして開始する。
