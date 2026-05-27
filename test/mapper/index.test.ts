@@ -12,6 +12,9 @@ describe('ownership mapper registry', () => {
     expect(isSupportedDiagnosticCode('E0382')).toBe(true);
     expect(isSupportedDiagnosticCode('E0499')).toBe(true);
     expect(isSupportedDiagnosticCode('E0502')).toBe(true);
+    expect(isSupportedDiagnosticCode('E0308')).toBe(true);
+    expect(isSupportedDiagnosticCode('E0004')).toBe(true);
+    expect(isSupportedDiagnosticCode('E0425')).toBe(true);
     expect(isSupportedDiagnosticCode('E0597')).toBe(false);
     expect(isSupportedDiagnosticCode(null)).toBe(false);
   });
@@ -21,7 +24,10 @@ describe('ownership mapper registry', () => {
     const mapped = mapDiagnostic(diagnostic, {
       E0382: (record) => ({ ...record, supported: true, message: 'mapped E0382' }),
       E0499: (record) => record,
-      E0502: (record) => record
+      E0502: (record) => record,
+      E0308: (record) => record,
+      E0004: (record) => record,
+      E0425: (record) => record
     });
 
     expect(mapped).toMatchObject({

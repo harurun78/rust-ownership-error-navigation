@@ -92,19 +92,19 @@
 
 ### Tests for User Story 3
 
-- [ ] T020 [P] [US3] Add selected Redis validation JSONL fixtures under `test/fixtures/diagnostics/porting/`
-- [ ] T021 [P] [US3] Add E0308 mapper tests in `test/mapper/e0308.test.ts`
-- [ ] T022 [P] [US3] Add E0004 mapper tests in `test/mapper/e0004.test.ts`
-- [ ] T023 [P] [US3] Add E0425 mapper tests in `test/mapper/e0425.test.ts`
-- [ ] T024 [P] [US3] Add reporter snapshot tests for non-ownership diagnostic grouping in `test/reporter/non-ownership-diagnostics.test.ts`
+- [x] T020 [P] [US3] Add selected Redis validation JSONL fixtures under `test/fixtures/diagnostics/porting/`
+- [x] T021 [P] [US3] Add E0308 mapper tests in `test/mapper/e0308.test.ts`
+- [x] T022 [P] [US3] Add E0004 mapper tests in `test/mapper/e0004.test.ts`
+- [x] T023 [P] [US3] Add E0425 mapper tests in `test/mapper/e0425.test.ts`
+- [x] T024 [P] [US3] Add reporter snapshot tests for non-ownership diagnostic grouping in `test/reporter/non-ownership-diagnostics.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Implement E0308 type mismatch navigation in `src/mapper/e0308.ts`
-- [ ] T026 [US3] Implement E0004 non-exhaustive pattern navigation in `src/mapper/e0004.ts`
-- [ ] T027 [US3] Implement E0425 unresolved name navigation in `src/mapper/e0425.ts`
-- [ ] T028 [US3] Register non-ownership mappers in `src/mapper/index.ts`
-- [ ] T029 [US3] Render ownership and non-ownership diagnostic groups in `src/reporter/html-reporter.ts`
+- [x] T025 [US3] Implement E0308 type mismatch navigation in `src/mapper/e0308.ts`
+- [x] T026 [US3] Implement E0004 non-exhaustive pattern navigation in `src/mapper/e0004.ts`
+- [x] T027 [US3] Implement E0425 unresolved name navigation in `src/mapper/e0425.ts`
+- [x] T028 [US3] Register non-ownership mappers in `src/mapper/index.ts`
+- [x] T029 [US3] Render ownership and non-ownership diagnostic groups in `src/reporter/html-reporter.ts`
 
 **Checkpoint**: Redis-derived non-ownership blockers are no longer only unsupported display records.
 

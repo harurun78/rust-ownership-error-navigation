@@ -34,7 +34,9 @@ describe('reporter utilities', () => {
     expect(createDiagnosticReportSummary(diagnostics)).toEqual({
       totalDiagnostics: 3,
       supportedDiagnostics: 2,
-      unsupportedDiagnostics: 1
+      unsupportedDiagnostics: 1,
+      ownershipDiagnostics: 2,
+      nonOwnershipDiagnostics: 0
     });
   });
 });

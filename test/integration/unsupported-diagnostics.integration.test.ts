@@ -20,7 +20,7 @@ describe('unsupported diagnostics CLI compatibility', () => {
   it.each([
     ['ownership-followup-2026-05-25.jsonl', 12, 0, 12],
     ['ownership-advanced-2026-05-25.jsonl', 10, 5, 5],
-    ['rustc-non-ownership-smoke-2026-05-25.jsonl', 8, 0, 8]
+    ['rustc-non-ownership-smoke-2026-05-25.jsonl', 8, 2, 6]
   ])('retains unsupported diagnostics from %s', async (fixture, total, supported, unsupported) => {
     outputDirectory = await mkdtemp(join(tmpdir(), 'unsupported-diagnostics-'));
     const jsonOut = join(outputDirectory, `${fixture}.json`);
