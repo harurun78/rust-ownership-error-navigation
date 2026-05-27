@@ -33,7 +33,10 @@ Implement a Rust validation port in small compile-checkable slices. The scope no
 ### Compatibility Slice
 
 - `png_compat_create_read_struct` / `png_compat_set_read_buffer` / `png_compat_read_info` / `png_compat_read_image` / `png_compat_destroy_read_struct` lifecycle coverage.
+- `png_compat_set_strip_16` / `png_compat_set_expand_gray_1_2_4_to_8` / `png_compat_set_palette_to_rgb` / `png_compat_set_trns_to_alpha` transform coverage.
+- Rust-native warning callback hook for compatibility warnings.
 - `png_compat_create_write_struct` / `png_compat_write_image` / `png_compat_write_document` / `png_compat_write_indexed_image` / `png_compat_write_output` / `png_compat_destroy_write_struct` lifecycle coverage.
+- Writer unknown ancillary copy policy controls for safe-to-copy, all ancillary, and none.
 - Explicit compatibility warnings for Rust-native facade semantics and missing C ABI behavior.
 - Documentation that separates Rust-native compatibility from true C ABI/setjmp/allocator compatibility.
 

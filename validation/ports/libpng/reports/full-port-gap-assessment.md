@@ -34,14 +34,17 @@ The validation port now covers a practical minimal PNG read path:
 - Document-level decode returning image data, metadata, and unknown ancillary chunks as owned records
 - Document-level writing for metadata chunks and safe-to-copy unknown ancillary chunks
 - Rust-native libpng-style read/write lifecycle facade with explicit compatibility warnings
+- Read transform controls for strip-16, low-bit grayscale expansion, palette-to-RGB, and tRNS-to-alpha compatibility behavior
+- Rust-native warning callback hook for compatibility warnings
+- Writer unknown ancillary copy policy controls for safe-only, all ancillary, and none
 
 ## Remaining Gaps Versus C libpng Compatibility
 
 The Rust-native validation port now includes a libpng-style lifecycle facade. Remaining gaps are compatibility with the binary C library surface rather than missing Rust validation slices:
 
 - Full color transform behavior from color-management metadata
-- Full unknown ancillary copy policy with exact ordering and transform-aware safe/unsafe handling
-- Error recovery and warning model closer to libpng
+- Exact transform-aware unknown ancillary ordering in every libpng edge case
+- Error recovery model closer to libpng's setjmp/longjmp path
 - C ABI, allocator hooks, setjmp/longjmp behavior, and full public API parity
 
 ## Proposed C Compatibility Track
@@ -56,6 +59,6 @@ If this project needs drop-in libpng compatibility, create a separate C-compatib
 
 ## Next Slice Decision
 
-The implementation has now moved past the validation read-path boundary into a complete Rust-native validation target: rich metadata inspection, image/document writing, metadata emission, indexed writing, filter strategy selection, row callbacks, Adam7 output, ancillary preservation, and read/write lifecycle facade coverage are included.
+The implementation has now moved past the validation read-path boundary into a complete Rust-native validation target: rich metadata inspection, image/document writing, metadata emission, indexed writing, filter strategy selection, row callbacks, Adam7 output, ancillary preservation, read/write lifecycle facade coverage, transform controls, warning callbacks, and writer unknown chunk copy policy controls are included.
 
 Further ownership-navigation measurement should switch to a different validation target or an intentionally failed libpng branch. C ABI compatibility can continue, but should be tracked as a separate product track with explicit `unsafe` and ABI decisions.

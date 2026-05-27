@@ -80,18 +80,21 @@ The current validation crate includes Rust-native libpng-style lifecycle helpers
 
 ```rust
 let mut reader = png_compat_create_read_struct();
+png_compat_set_strip_16(&mut reader);
+png_compat_set_palette_to_rgb(&mut reader);
 png_compat_set_read_buffer(&mut reader, png_bytes);
 let info = png_compat_read_info(&mut reader)?;
 let rows = png_compat_read_image(&mut reader)?;
 png_compat_destroy_read_struct(&mut reader);
 
 let mut writer = png_compat_create_write_struct();
+png_compat_set_unknown_chunk_policy(&mut writer, PngCompatUnknownChunkPolicy::SafeToCopy);
 png_compat_write_image(&mut writer, &image)?;
 let output = png_compat_write_output(&writer);
 png_compat_destroy_write_struct(&mut writer);
 ```
 
-The facade intentionally reports `RustNativeFacadeOnly` and `CAbiNotProvided` warnings. C ABI, allocator hooks, and setjmp/longjmp behavior are a separate compatibility track.
+The facade intentionally reports `RustNativeFacadeOnly` and `CAbiNotProvided` warnings. Transform application and all-ancillary copy policy also emit compatibility warnings. C ABI, allocator hooks, and setjmp/longjmp behavior are a separate compatibility track.
 
 ## 7. Current Completion Boundary
 

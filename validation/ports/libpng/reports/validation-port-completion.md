@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Decision
 
-The libpng validation port reached the practical Rust read-path boundary at iteration-014. Iterations 015-026 deliberately broadened the scope toward Rust-native libpng parity and lifecycle compatibility while keeping the work compile-checkable and suitable for ownership-navigation validation.
+The libpng validation port reached the practical Rust read-path boundary at iteration-014. Iterations 015-027 deliberately broadened the scope toward Rust-native libpng parity and lifecycle compatibility while keeping the work compile-checkable and suitable for ownership-navigation validation.
 
 Completed capabilities:
 
@@ -32,6 +32,7 @@ Completed capabilities:
 - Document-level decode with unknown ancillary chunk preservation
 - Document-level writing with metadata emission and safe-to-copy unknown ancillary chunk preservation
 - Rust-native libpng-style read/write lifecycle facade with create/read/write/destroy concepts
+- Read transform controls, Rust-native warning callback hook, and writer unknown ancillary copy policy controls
 
 ## Compatibility Surface Still Out Of Scope
 
@@ -46,7 +47,7 @@ The following are intentionally outside this Rust-native validation port boundar
 
 ## Navigation App Effect
 
-Across libpng iterations 001-026, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
+Across libpng iterations 001-027, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
 
 The feature improvements remain verified through fixture smoke reports, but libpng itself did not provide a measurable before/after diagnostic-reduction signal.
 

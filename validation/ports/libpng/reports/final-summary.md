@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Boundary
 
-This validation target has moved beyond the original structure-only slice into a practical Rust-native PNG implementation subset: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, Adam7 pass reconstruction for byte-aligned decoded samples, common and rich metadata extraction, basic PNG writing, packed indexed palette writing, explicit and adaptive writer filter strategies, byte-aligned Adam7 output, callback-style row decode, document-level metadata emission, safe unknown ancillary preservation, and a libpng-style read/write lifecycle facade.
+This validation target has moved beyond the original structure-only slice into a practical Rust-native PNG implementation subset: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, Adam7 pass reconstruction for byte-aligned decoded samples, common and rich metadata extraction, basic PNG writing, packed indexed palette writing, explicit and adaptive writer filter strategies, byte-aligned Adam7 output, callback-style row decode, document-level metadata emission, safe unknown ancillary preservation, a libpng-style read/write lifecycle facade, read transform controls, warning callbacks, and writer unknown ancillary copy policy controls.
 
 This is still not full libpng parity. Remaining gaps are tracked in `reports/full-port-gap-assessment.md`.
 
@@ -38,6 +38,7 @@ This is still not full libpng parity. Remaining gaps are tracked in `reports/ful
 | iteration-024 | Adaptive writer filters | compile/test pass | 73 | 0 | 0 | 0 | Select row-local filter strategy by filtered-byte score |
 | iteration-025 | Adam7 interlaced writer | compile/test pass | 73 | 0 | 0 | 0 | Write byte-aligned Adam7 interlaced image data |
 | iteration-026 | libpng compatibility facade | compile/test pass | 75 | 0 | 0 | 0 | Mirror read/write lifecycle concepts with explicit compatibility warnings |
+| iteration-027 | compatibility transforms and copy policy | compile/test pass | 79 | 0 | 0 | 0 | Add read transform setters, warning callback hook, and writer unknown ancillary copy controls |
 
 ## Shortcut Pressure
 
@@ -65,6 +66,6 @@ Interpretation:
 
 ## Completion Boundary
 
-This libpng validation crate is complete for the Rust-native compatibility boundary used by this repository: parse/decode/write/document APIs, metadata, filters, indexed color, Adam7 decode, byte-aligned Adam7 write, and libpng-style lifecycle facade APIs are covered with regression tests and validation reports.
+This libpng validation crate is complete for the Rust-native compatibility boundary used by this repository: parse/decode/write/document APIs, metadata, filters, indexed color, Adam7 decode, byte-aligned Adam7 write, libpng-style lifecycle facade APIs, read transform controls, warning callbacks, and writer unknown ancillary copy policy controls are covered with regression tests and validation reports.
 
-The remaining libpng surface is binary C library compatibility rather than Rust porting validation: C ABI entry points, setjmp/longjmp error semantics, allocator hooks, exact warning recovery behavior, and complete transform pipeline parity. Those should be tracked as a dedicated compatibility layer, not hidden inside the current safe Rust facade.
+The remaining libpng surface is binary C library compatibility rather than Rust porting validation: C ABI entry points, setjmp/longjmp error semantics, allocator hooks, and exact warning recovery behavior. Those should be tracked as a dedicated compatibility layer, not hidden inside the current safe Rust facade.

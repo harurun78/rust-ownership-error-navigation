@@ -377,6 +377,23 @@ impl PngFilterStrategy {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PngCompatTransform {
+    Strip16,
+    ExpandGrayTo8,
+    PaletteToRgb,
+    TrnsToAlpha,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PngCompatUnknownChunkPolicy {
+    SafeToCopy,
+    AllAncillary,
+    None,
+}
+
+pub type PngCompatWarningHandler = fn(PngCompatibilityWarning);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct DecodedRow<'a> {
     pub row_index: usize,
     pub pixels: &'a [u8],
@@ -496,6 +513,9 @@ pub struct PngDocument {
 pub enum PngCompatibilityWarning {
     RustNativeFacadeOnly,
     CAbiNotProvided,
+    WarningCallbackRustOnly,
+    TransformApplied { transform: PngCompatTransform },
+    UnsafeAncillaryCopyAllowed,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -509,17 +529,26 @@ pub struct PngCompatInfo {
     pub unknown_ancillary_count: usize,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default)]
 pub struct PngCompatReadStruct {
     input: Vec<u8>,
     document: Option<PngDocument>,
+    transforms: Vec<PngCompatTransform>,
+    warnings: Vec<PngCompatibilityWarning>,
+    warning_handler: Option<PngCompatWarningHandler>,
+}
+
+#[derive(Debug, Default)]
+pub struct PngCompatWriteStruct {
+    output: Vec<u8>,
+    unknown_chunk_policy: PngCompatUnknownChunkPolicy,
     warnings: Vec<PngCompatibilityWarning>,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct PngCompatWriteStruct {
-    output: Vec<u8>,
-    warnings: Vec<PngCompatibilityWarning>,
+impl Default for PngCompatUnknownChunkPolicy {
+    fn default() -> Self {
+        Self::SafeToCopy
+    }
 }
 
 impl Ihdr {
@@ -1057,10 +1086,12 @@ pub fn png_compat_create_read_struct() -> PngCompatReadStruct {
     PngCompatReadStruct {
         input: Vec::new(),
         document: None,
+        transforms: Vec::new(),
         warnings: vec![
             PngCompatibilityWarning::RustNativeFacadeOnly,
             PngCompatibilityWarning::CAbiNotProvided,
         ],
+        warning_handler: None,
     }
 }
 
@@ -1070,10 +1101,38 @@ pub fn png_compat_set_read_buffer(reader: &mut PngCompatReadStruct, input: &[u8]
     reader.document = None;
 }
 
+pub fn png_compat_set_strip_16(reader: &mut PngCompatReadStruct) {
+    png_compat_add_transform(reader, PngCompatTransform::Strip16);
+}
+
+pub fn png_compat_set_expand_gray_1_2_4_to_8(reader: &mut PngCompatReadStruct) {
+    png_compat_add_transform(reader, PngCompatTransform::ExpandGrayTo8);
+}
+
+pub fn png_compat_set_palette_to_rgb(reader: &mut PngCompatReadStruct) {
+    png_compat_add_transform(reader, PngCompatTransform::PaletteToRgb);
+}
+
+pub fn png_compat_set_trns_to_alpha(reader: &mut PngCompatReadStruct) {
+    png_compat_add_transform(reader, PngCompatTransform::TrnsToAlpha);
+}
+
+pub fn png_compat_set_warning_handler(
+    reader: &mut PngCompatReadStruct,
+    handler: PngCompatWarningHandler,
+) {
+    reader.warning_handler = Some(handler);
+    push_compat_warning(reader, PngCompatibilityWarning::WarningCallbackRustOnly);
+}
+
 pub fn png_compat_read_info(
     reader: &mut PngCompatReadStruct,
 ) -> Result<PngCompatInfo, PngParseError> {
-    let document = decode_png_document(&reader.input)?;
+    let mut document = decode_png_document(&reader.input)?;
+    for warning in apply_compat_transforms(&mut document, &reader.transforms) {
+        push_compat_warning(reader, warning);
+    }
+
     let info = png_compat_info_from_document(&document);
     reader.document = Some(document);
 
@@ -1108,16 +1167,29 @@ pub fn png_compat_read_warnings(reader: &PngCompatReadStruct) -> &[PngCompatibil
 pub fn png_compat_destroy_read_struct(reader: &mut PngCompatReadStruct) {
     reader.input.clear();
     reader.document = None;
+    reader.transforms.clear();
     reader.warnings.clear();
+    reader.warning_handler = None;
 }
 
 pub fn png_compat_create_write_struct() -> PngCompatWriteStruct {
     PngCompatWriteStruct {
         output: Vec::new(),
+        unknown_chunk_policy: PngCompatUnknownChunkPolicy::SafeToCopy,
         warnings: vec![
             PngCompatibilityWarning::RustNativeFacadeOnly,
             PngCompatibilityWarning::CAbiNotProvided,
         ],
+    }
+}
+
+pub fn png_compat_set_unknown_chunk_policy(
+    writer: &mut PngCompatWriteStruct,
+    policy: PngCompatUnknownChunkPolicy,
+) {
+    writer.unknown_chunk_policy = policy;
+    if policy == PngCompatUnknownChunkPolicy::AllAncillary {
+        push_write_compat_warning(writer, PngCompatibilityWarning::UnsafeAncillaryCopyAllowed);
     }
 }
 
@@ -1134,7 +1206,7 @@ pub fn png_compat_write_document(
     writer: &mut PngCompatWriteStruct,
     document: &PngDocument,
 ) -> Result<(), PngParseError> {
-    writer.output = encode_png_document(document)?;
+    writer.output = encode_png_document_with_unknown_policy(document, writer.unknown_chunk_policy)?;
 
     Ok(())
 }
@@ -1158,6 +1230,7 @@ pub fn png_compat_write_warnings(writer: &PngCompatWriteStruct) -> &[PngCompatib
 
 pub fn png_compat_destroy_write_struct(writer: &mut PngCompatWriteStruct) {
     writer.output.clear();
+    writer.unknown_chunk_policy = PngCompatUnknownChunkPolicy::SafeToCopy;
     writer.warnings.clear();
 }
 
@@ -1175,7 +1248,121 @@ fn png_compat_info_from_document(document: &PngDocument) -> PngCompatInfo {
     }
 }
 
+fn png_compat_add_transform(reader: &mut PngCompatReadStruct, transform: PngCompatTransform) {
+    if !reader.transforms.contains(&transform) {
+        reader.transforms.push(transform);
+    }
+    reader.document = None;
+}
+
+fn push_compat_warning(reader: &mut PngCompatReadStruct, warning: PngCompatibilityWarning) {
+    if !reader.warnings.contains(&warning) {
+        reader.warnings.push(warning);
+        if let Some(handler) = reader.warning_handler {
+            handler(warning);
+        }
+    }
+}
+
+fn push_write_compat_warning(writer: &mut PngCompatWriteStruct, warning: PngCompatibilityWarning) {
+    if !writer.warnings.contains(&warning) {
+        writer.warnings.push(warning);
+    }
+}
+
+fn apply_compat_transforms(
+    document: &mut PngDocument,
+    transforms: &[PngCompatTransform],
+) -> Vec<PngCompatibilityWarning> {
+    let mut warnings = Vec::new();
+
+    for transform in transforms {
+        let applied = match transform {
+            PngCompatTransform::Strip16 => strip_16_bit_compat_samples(&mut document.image),
+            PngCompatTransform::ExpandGrayTo8 => expand_gray_compat_info_to_8(&mut document.image),
+            PngCompatTransform::PaletteToRgb => palette_compat_info_to_rgb(&mut document.image),
+            PngCompatTransform::TrnsToAlpha => trns_compat_info_to_alpha(&mut document.image),
+        };
+
+        if applied {
+            warnings.push(PngCompatibilityWarning::TransformApplied {
+                transform: *transform,
+            });
+        }
+    }
+
+    warnings
+}
+
+fn strip_16_bit_compat_samples(image: &mut PngImage) -> bool {
+    if image.bit_depth != 16 {
+        return false;
+    }
+
+    image.pixels = image
+        .pixels
+        .chunks_exact(2)
+        .map(|sample| sample[0])
+        .collect();
+    image.bit_depth = 8;
+    true
+}
+
+fn expand_gray_compat_info_to_8(image: &mut PngImage) -> bool {
+    if image.color_type != IhdrColorType::Grayscale || image.bit_depth >= 8 {
+        return false;
+    }
+
+    image.bit_depth = 8;
+    true
+}
+
+fn palette_compat_info_to_rgb(image: &mut PngImage) -> bool {
+    if image.color_type != IhdrColorType::Indexed {
+        return false;
+    }
+
+    let pixel_count = image.width as usize * image.height as usize;
+    image.color_type = if pixel_count > 0 && image.pixels.len() == pixel_count * 4 {
+        IhdrColorType::TruecolorAlpha
+    } else {
+        IhdrColorType::Truecolor
+    };
+    image.bit_depth = 8;
+    true
+}
+
+fn trns_compat_info_to_alpha(image: &mut PngImage) -> bool {
+    let pixel_count = image.width as usize * image.height as usize;
+
+    match image.color_type {
+        IhdrColorType::Grayscale if image.pixels.len() == pixel_count * 2 => {
+            image.color_type = IhdrColorType::GrayscaleAlpha;
+            image.bit_depth = 8;
+            true
+        }
+        IhdrColorType::Truecolor if image.pixels.len() == pixel_count * 4 => {
+            image.color_type = IhdrColorType::TruecolorAlpha;
+            image.bit_depth = 8;
+            true
+        }
+        IhdrColorType::Indexed if image.pixels.len() == pixel_count * 4 => {
+            image.color_type = IhdrColorType::TruecolorAlpha;
+            image.bit_depth = 8;
+            true
+        }
+        _ => false,
+    }
+}
+
 pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseError> {
+    encode_png_document_with_unknown_policy(document, PngCompatUnknownChunkPolicy::SafeToCopy)
+}
+
+fn encode_png_document_with_unknown_policy(
+    document: &PngDocument,
+    unknown_chunk_policy: PngCompatUnknownChunkPolicy,
+) -> Result<Vec<u8>, PngParseError> {
     let mut output = PNG_SIGNATURE.to_vec();
     append_png_chunk(
         &mut output,
@@ -1185,8 +1372,7 @@ pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseEr
     append_metadata_chunks(&mut output, &document.metadata)?;
 
     for chunk in &document.unknown_ancillary_chunks {
-        let chunk_type = ChunkType::from_bytes(chunk.chunk_type)?;
-        if chunk_type.is_safe_to_copy() {
+        if should_copy_unknown_chunk(chunk, unknown_chunk_policy)? {
             append_png_chunk(&mut output, chunk.chunk_type, &chunk.payload)?;
         }
     }
@@ -1199,6 +1385,19 @@ pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseEr
     append_png_chunk(&mut output, *b"IEND", &[])?;
 
     Ok(output)
+}
+
+fn should_copy_unknown_chunk(
+    chunk: &UnknownAncillaryChunk,
+    policy: PngCompatUnknownChunkPolicy,
+) -> Result<bool, PngParseError> {
+    let chunk_type = ChunkType::from_bytes(chunk.chunk_type)?;
+
+    Ok(match policy {
+        PngCompatUnknownChunkPolicy::SafeToCopy => chunk_type.is_safe_to_copy(),
+        PngCompatUnknownChunkPolicy::AllAncillary => chunk_type.is_ancillary(),
+        PngCompatUnknownChunkPolicy::None => false,
+    })
 }
 
 pub fn encode_indexed_png_image(image: &PngIndexedImage) -> Result<Vec<u8>, PngParseError> {
@@ -2366,6 +2565,13 @@ fn is_ascii_letter(byte: u8) -> bool {
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static COMPAT_WARNING_CALLBACK_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    fn count_compat_warning(_: PngCompatibilityWarning) {
+        COMPAT_WARNING_CALLBACK_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
 
     fn ihdr_payload(
         width: u32,
@@ -3598,6 +3804,95 @@ mod tests {
     }
 
     #[test]
+    fn png_compat_read_transforms_strip_16_samples_and_warns() {
+        let input = image_png_bytes_with_bit_depth(2, 1, 16, 0, &[0, 0x12, 0x34, 0xab, 0xcd]);
+        let mut reader = png_compat_create_read_struct();
+        COMPAT_WARNING_CALLBACK_COUNT.store(0, Ordering::SeqCst);
+
+        png_compat_set_warning_handler(&mut reader, count_compat_warning);
+        png_compat_set_strip_16(&mut reader);
+        png_compat_set_read_buffer(&mut reader, &input);
+
+        assert_eq!(
+            png_compat_read_info(&mut reader),
+            Ok(PngCompatInfo {
+                width: 2,
+                height: 1,
+                bit_depth: 8,
+                color_type: IhdrColorType::Grayscale,
+                rowbytes: 2,
+                text_chunk_count: 0,
+                unknown_ancillary_count: 0,
+            })
+        );
+        assert_eq!(
+            png_compat_read_image(&mut reader),
+            Ok(vec![vec![0x12, 0xab]])
+        );
+        assert!(png_compat_read_warnings(&reader).contains(
+            &PngCompatibilityWarning::TransformApplied {
+                transform: PngCompatTransform::Strip16,
+            }
+        ));
+        assert_eq!(COMPAT_WARNING_CALLBACK_COUNT.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn png_compat_read_transforms_expand_gray_to_eight_bit_info() {
+        let input = image_png_bytes_with_bit_depth(2, 1, 4, 0, &[0, 0x0f]);
+        let mut reader = png_compat_create_read_struct();
+
+        png_compat_set_expand_gray_1_2_4_to_8(&mut reader);
+        png_compat_set_read_buffer(&mut reader, &input);
+
+        assert_eq!(
+            png_compat_read_info(&mut reader).map(|info| (info.bit_depth, info.rowbytes)),
+            Ok((8, 2))
+        );
+        assert_eq!(png_compat_read_image(&mut reader), Ok(vec![vec![0, 255]]));
+    }
+
+    #[test]
+    fn png_compat_read_transforms_palette_and_trns_outputs() {
+        let input = indexed_png_bytes(2, 1, vec![255, 0, 0, 0, 0, 255], &[0, 0, 1]);
+        let mut reader = png_compat_create_read_struct();
+
+        png_compat_set_palette_to_rgb(&mut reader);
+        png_compat_set_read_buffer(&mut reader, &input);
+
+        assert_eq!(
+            png_compat_read_info(&mut reader).map(|info| (info.color_type, info.rowbytes)),
+            Ok((IhdrColorType::Truecolor, 6))
+        );
+        assert_eq!(
+            png_compat_read_image(&mut reader),
+            Ok(vec![vec![255, 0, 0, 0, 0, 255]])
+        );
+
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(2, 1, 8, 3, 0, 0, 0).to_vec()),
+            chunk(*b"PLTE", vec![255, 0, 0, 0, 0, 255]),
+            chunk(*b"tRNS", vec![0, 128]),
+            chunk(*b"IDAT", zlib_compress(&[0, 0, 1])),
+            chunk(*b"IEND", Vec::new()),
+        ];
+        let input = png_bytes_from_chunks(&chunks);
+        let mut reader = png_compat_create_read_struct();
+
+        png_compat_set_trns_to_alpha(&mut reader);
+        png_compat_set_read_buffer(&mut reader, &input);
+
+        assert_eq!(
+            png_compat_read_info(&mut reader).map(|info| (info.color_type, info.rowbytes)),
+            Ok((IhdrColorType::TruecolorAlpha, 8))
+        );
+        assert_eq!(
+            png_compat_read_image(&mut reader),
+            Ok(vec![vec![255, 0, 0, 0, 0, 0, 255, 128]])
+        );
+    }
+
+    #[test]
     fn png_compat_write_lifecycle_writes_image_document_and_indexed_output() {
         let mut writer = png_compat_create_write_struct();
         let image = PngImage {
@@ -3669,6 +3964,63 @@ mod tests {
         png_compat_destroy_write_struct(&mut writer);
 
         assert!(png_compat_write_output(&writer).is_empty());
+    }
+
+    #[test]
+    fn png_compat_write_unknown_chunk_policy_controls_copying() {
+        let document = PngDocument {
+            image: PngImage {
+                width: 1,
+                height: 1,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 8,
+                pixels: vec![7],
+            },
+            metadata: PngMetadata::default(),
+            unknown_ancillary_chunks: vec![
+                UnknownAncillaryChunk {
+                    chunk_type: *b"vpAg",
+                    payload: vec![1],
+                },
+                UnknownAncillaryChunk {
+                    chunk_type: *b"vpAG",
+                    payload: vec![2],
+                },
+            ],
+        };
+        let mut writer = png_compat_create_write_struct();
+
+        png_compat_write_document(&mut writer, &document)
+            .expect("default safe-copy policy should write");
+        assert_eq!(
+            decode_png_document(png_compat_write_output(&writer))
+                .map(|document| document.unknown_ancillary_chunks),
+            Ok(vec![UnknownAncillaryChunk {
+                chunk_type: *b"vpAg",
+                payload: vec![1],
+            }])
+        );
+
+        png_compat_set_unknown_chunk_policy(&mut writer, PngCompatUnknownChunkPolicy::None);
+        png_compat_write_document(&mut writer, &document).expect("none-copy policy should write");
+        assert_eq!(
+            decode_png_document(png_compat_write_output(&writer))
+                .map(|document| document.unknown_ancillary_chunks),
+            Ok(Vec::new())
+        );
+
+        png_compat_set_unknown_chunk_policy(&mut writer, PngCompatUnknownChunkPolicy::AllAncillary);
+        png_compat_write_document(&mut writer, &document)
+            .expect("all ancillary copy policy should write");
+        assert_eq!(
+            decode_png_document(png_compat_write_output(&writer))
+                .map(|document| document.unknown_ancillary_chunks),
+            Ok(document.unknown_ancillary_chunks)
+        );
+        assert!(
+            png_compat_write_warnings(&writer)
+                .contains(&PngCompatibilityWarning::UnsafeAncillaryCopyAllowed)
+        );
     }
 
     #[test]

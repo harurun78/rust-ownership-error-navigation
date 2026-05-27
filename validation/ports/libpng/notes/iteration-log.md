@@ -593,3 +593,24 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; read/write lifecycle state owns input/output buffers and exposes borrowed output slices.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: continue compatibility work as a dedicated C ABI/behavioral parity track, starting with explicit API mapping and transform/error policy decisions.
+
+### iteration-027
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L126-L130 compatibility transforms, warning callback, and unknown chunk copy policy
+- Prompt summary: Continue toward full libpng compatibility by adding Rust-native read transform setters, compatibility warning callback support, writer unknown ancillary copy policy controls, tests, diagnostics, and report artifacts.
+- Human ownership hints before attempt: keep this as safe Rust compatibility behavior; do not introduce C ABI, `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo test`; report command `mkdir -p validation/ports/libpng/reports/iteration-027 && cargo check --message-format=json > ../reports/iteration-027/cargo-check.jsonl && npm run build && node dist/cli/main.js --input validation/ports/libpng/reports/iteration-027/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-027/ownership-report.json --html-out validation/ports/libpng/reports/iteration-027/ownership-report.html`
+- Result: compile success; test success, 79 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-027/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-027/ownership-report.json`
+- Ownership report HTML: `reports/iteration-027/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; compatibility transforms mutate owned document/image buffers and warning callbacks use a plain function pointer.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: Rust-native compatibility is complete through transform, warning, lifecycle, and copy-policy behavior. True drop-in compatibility now requires a separate C ABI layer with explicit `unsafe`, allocator, and setjmp/longjmp decisions.

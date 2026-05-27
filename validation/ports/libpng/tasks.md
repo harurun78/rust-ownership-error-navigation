@@ -211,3 +211,11 @@
 - [x] L123 Add tests for libpng-style write lifecycle: create writer, write image/document/indexed output, retrieve output, destroy writer. (iteration-026)
 - [x] L124 Implement a Rust-native compatibility facade that mirrors libpng read/write lifecycle concepts without C ABI exposure. (iteration-026)
 - [x] L125 Record iteration-026 diagnostics and ownership report. (iteration-026)
+
+## Phase 30: Compatibility Transform And Copy Policy Slice
+
+- [x] L126 Add tests for libpng-style read transforms: strip 16-bit samples, expand low-bit grayscale info to 8-bit, palette-to-RGB, and tRNS-to-alpha. (iteration-027)
+- [x] L127 Add a Rust-native warning callback hook for compatibility warnings. (iteration-027)
+- [x] L128 Add writer unknown ancillary copy policy controls for safe-only, all ancillary, and none. (iteration-027)
+- [x] L129 Implement compatibility warnings for transform application and unsafe ancillary copy policy. (iteration-027)
+- [x] L130 Record iteration-027 diagnostics and ownership report. (iteration-027)

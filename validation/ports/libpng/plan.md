@@ -54,6 +54,13 @@ Run libpng as the next C-to-Rust validation target after cJSON and Redis, focusi
 3. Expose compatibility warnings for Rust-native facade semantics and missing C ABI behavior.
 4. Keep C ABI, allocator hooks, setjmp/longjmp, and exact warning recovery as a separate compatibility track rather than hidden behavior in the validation crate.
 
+## Phase 8: Compatibility Behavior Controls
+
+1. Add libpng-style read transform setters for 16-bit stripping, low-bit grayscale expansion, palette-to-RGB, and tRNS-to-alpha behavior.
+2. Add a Rust-native warning callback hook so callers can observe compatibility warnings without C longjmp semantics.
+3. Add writer unknown ancillary copy policy controls for safe-only, all ancillary, and none.
+4. Record which compatibility behaviors are implemented in safe Rust and which remain true C ABI concerns.
+
 ## Validation Commands
 
 ```bash
