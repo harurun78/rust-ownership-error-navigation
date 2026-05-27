@@ -123,6 +123,10 @@ pub enum PngParseError {
         chunk_type: [u8; 4],
         length: usize,
     },
+    InvalidMetadataCompressionMethod {
+        chunk_type: [u8; 4],
+        method: u8,
+    },
     InvalidTextChunk,
     InvalidFilterType {
         row: usize,
@@ -396,13 +400,44 @@ pub struct TextChunk {
     pub text: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InternationalTextChunk {
+    pub keyword: String,
+    pub language_tag: String,
+    pub translated_keyword: String,
+    pub text: String,
+    pub compressed: bool,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct PngChromaticities {
+    pub white_x: u32,
+    pub white_y: u32,
+    pub red_x: u32,
+    pub red_y: u32,
+    pub green_x: u32,
+    pub green_y: u32,
+    pub blue_x: u32,
+    pub blue_y: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IccProfile {
+    pub name: String,
+    pub profile: Vec<u8>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PngMetadata {
     pub gamma_scaled: Option<u32>,
+    pub chromaticities: Option<PngChromaticities>,
     pub srgb_rendering_intent: Option<SrgbRenderingIntent>,
+    pub icc_profile: Option<IccProfile>,
     pub physical_pixel_dimensions: Option<PhysicalPixelDimensions>,
     pub timestamp: Option<PngTimestamp>,
     pub text_chunks: Vec<TextChunk>,
+    pub compressed_text_chunks: Vec<TextChunk>,
+    pub international_text_chunks: Vec<InternationalTextChunk>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -798,10 +833,18 @@ pub fn extract_png_metadata(chunks: &[Chunk]) -> Result<PngMetadata, PngParseErr
     for chunk in chunks {
         match &chunk.header.chunk_type.bytes() {
             b"gAMA" => metadata.gamma_scaled = Some(parse_gama(&chunk.payload)?),
+            b"cHRM" => metadata.chromaticities = Some(parse_chrm(&chunk.payload)?),
             b"sRGB" => metadata.srgb_rendering_intent = Some(parse_srgb(&chunk.payload)?),
+            b"iCCP" => metadata.icc_profile = Some(parse_iccp(&chunk.payload)?),
             b"pHYs" => metadata.physical_pixel_dimensions = Some(parse_phys(&chunk.payload)?),
             b"tIME" => metadata.timestamp = Some(parse_time(&chunk.payload)?),
             b"tEXt" => metadata.text_chunks.push(parse_text(&chunk.payload)?),
+            b"zTXt" => metadata
+                .compressed_text_chunks
+                .push(parse_ztxt(&chunk.payload)?),
+            b"iTXt" => metadata
+                .international_text_chunks
+                .push(parse_itxt(&chunk.payload)?),
             _ => {}
         }
     }
@@ -895,6 +938,41 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
 }
 
 pub fn encode_png_image(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
+    let mut output = PNG_SIGNATURE.to_vec();
+    append_png_chunk(&mut output, *b"IHDR", &encode_ihdr_payload(image)?)?;
+    append_png_chunk(&mut output, *b"IDAT", &encode_idat_payload(image)?)?;
+    append_png_chunk(&mut output, *b"IEND", &[])?;
+
+    Ok(output)
+}
+
+pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseError> {
+    let mut output = PNG_SIGNATURE.to_vec();
+    append_png_chunk(
+        &mut output,
+        *b"IHDR",
+        &encode_ihdr_payload(&document.image)?,
+    )?;
+    append_metadata_chunks(&mut output, &document.metadata)?;
+
+    for chunk in &document.unknown_ancillary_chunks {
+        let chunk_type = ChunkType::from_bytes(chunk.chunk_type)?;
+        if chunk_type.is_safe_to_copy() {
+            append_png_chunk(&mut output, chunk.chunk_type, &chunk.payload)?;
+        }
+    }
+
+    append_png_chunk(
+        &mut output,
+        *b"IDAT",
+        &encode_idat_payload(&document.image)?,
+    )?;
+    append_png_chunk(&mut output, *b"IEND", &[])?;
+
+    Ok(output)
+}
+
+fn encode_idat_payload(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
     if image.width == 0 || image.height == 0 {
         return Err(PngParseError::InvalidIhdrDimensions {
             width: image.width,
@@ -940,9 +1018,6 @@ pub fn encode_png_image(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
         });
     }
 
-    let mut output = PNG_SIGNATURE.to_vec();
-    append_png_chunk(&mut output, *b"IHDR", &encode_ihdr_payload(image)?)?;
-
     let mut scanlines = Vec::with_capacity(expected + image.height as usize);
     for row in image.pixels.chunks_exact(row_len) {
         scanlines.push(0);
@@ -953,12 +1028,7 @@ pub fn encode_png_image(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
     encoder
         .write_all(&scanlines)
         .map_err(|_| PngParseError::DeflateFailed)?;
-    let idat_payload = encoder.finish().map_err(|_| PngParseError::DeflateFailed)?;
-
-    append_png_chunk(&mut output, *b"IDAT", &idat_payload)?;
-    append_png_chunk(&mut output, *b"IEND", &[])?;
-
-    Ok(output)
+    encoder.finish().map_err(|_| PngParseError::DeflateFailed)
 }
 
 fn encode_ihdr_payload(image: &PngImage) -> Result<[u8; IHDR_PAYLOAD_LEN], PngParseError> {
@@ -1002,6 +1072,152 @@ fn append_png_chunk(
     output.extend_from_slice(&crc.to_be_bytes());
 
     Ok(())
+}
+
+fn append_metadata_chunks(
+    output: &mut Vec<u8>,
+    metadata: &PngMetadata,
+) -> Result<(), PngParseError> {
+    if let Some(gamma_scaled) = metadata.gamma_scaled {
+        append_png_chunk(output, *b"gAMA", &gamma_scaled.to_be_bytes())?;
+    }
+    if let Some(chromaticities) = metadata.chromaticities {
+        append_png_chunk(output, *b"cHRM", &encode_chrm_payload(chromaticities))?;
+    }
+    if let Some(intent) = metadata.srgb_rendering_intent {
+        append_png_chunk(output, *b"sRGB", &[encode_srgb_intent(intent)])?;
+    }
+    if let Some(profile) = &metadata.icc_profile {
+        append_png_chunk(output, *b"iCCP", &encode_iccp_payload(profile)?)?;
+    }
+    if let Some(physical) = metadata.physical_pixel_dimensions {
+        append_png_chunk(output, *b"pHYs", &encode_phys_payload(physical))?;
+    }
+    if let Some(timestamp) = metadata.timestamp {
+        append_png_chunk(output, *b"tIME", &encode_time_payload(timestamp))?;
+    }
+
+    for text in &metadata.text_chunks {
+        append_png_chunk(output, *b"tEXt", &encode_text_payload(text)?)?;
+    }
+    for text in &metadata.compressed_text_chunks {
+        append_png_chunk(output, *b"zTXt", &encode_ztxt_payload(text)?)?;
+    }
+    for text in &metadata.international_text_chunks {
+        append_png_chunk(output, *b"iTXt", &encode_itxt_payload(text)?)?;
+    }
+
+    Ok(())
+}
+
+fn encode_chrm_payload(chromaticities: PngChromaticities) -> Vec<u8> {
+    let values = [
+        chromaticities.white_x,
+        chromaticities.white_y,
+        chromaticities.red_x,
+        chromaticities.red_y,
+        chromaticities.green_x,
+        chromaticities.green_y,
+        chromaticities.blue_x,
+        chromaticities.blue_y,
+    ];
+    let mut payload = Vec::with_capacity(32);
+
+    for value in values {
+        payload.extend_from_slice(&value.to_be_bytes());
+    }
+
+    payload
+}
+
+fn encode_srgb_intent(intent: SrgbRenderingIntent) -> u8 {
+    match intent {
+        SrgbRenderingIntent::Perceptual => 0,
+        SrgbRenderingIntent::RelativeColorimetric => 1,
+        SrgbRenderingIntent::Saturation => 2,
+        SrgbRenderingIntent::AbsoluteColorimetric => 3,
+    }
+}
+
+fn encode_phys_payload(physical: PhysicalPixelDimensions) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(9);
+    payload.extend_from_slice(&physical.pixels_per_unit_x.to_be_bytes());
+    payload.extend_from_slice(&physical.pixels_per_unit_y.to_be_bytes());
+    payload.push(match physical.unit {
+        PhysicalPixelUnit::Unknown => 0,
+        PhysicalPixelUnit::Meter => 1,
+    });
+    payload
+}
+
+fn encode_time_payload(timestamp: PngTimestamp) -> [u8; 7] {
+    let year = timestamp.year.to_be_bytes();
+    [
+        year[0],
+        year[1],
+        timestamp.month,
+        timestamp.day,
+        timestamp.hour,
+        timestamp.minute,
+        timestamp.second,
+    ]
+}
+
+fn encode_text_payload(text: &TextChunk) -> Result<Vec<u8>, PngParseError> {
+    let mut payload = encode_text_keyword(&text.keyword)?;
+    payload.extend_from_slice(text.text.as_bytes());
+    Ok(payload)
+}
+
+fn encode_ztxt_payload(text: &TextChunk) -> Result<Vec<u8>, PngParseError> {
+    let mut payload = encode_text_keyword(&text.keyword)?;
+    payload.push(0);
+    payload.extend_from_slice(&deflate_zlib_payload(text.text.as_bytes())?);
+    Ok(payload)
+}
+
+fn encode_itxt_payload(text: &InternationalTextChunk) -> Result<Vec<u8>, PngParseError> {
+    let mut payload = encode_text_keyword(&text.keyword)?;
+    payload.push(u8::from(text.compressed));
+    payload.push(0);
+    payload.extend_from_slice(text.language_tag.as_bytes());
+    payload.push(0);
+    payload.extend_from_slice(text.translated_keyword.as_bytes());
+    payload.push(0);
+
+    if text.compressed {
+        payload.extend_from_slice(&deflate_zlib_payload(text.text.as_bytes())?);
+    } else {
+        payload.extend_from_slice(text.text.as_bytes());
+    }
+
+    Ok(payload)
+}
+
+fn encode_iccp_payload(profile: &IccProfile) -> Result<Vec<u8>, PngParseError> {
+    let mut payload = encode_text_keyword(&profile.name)?;
+    payload.push(0);
+    payload.extend_from_slice(&deflate_zlib_payload(&profile.profile)?);
+    Ok(payload)
+}
+
+fn encode_text_keyword(keyword: &str) -> Result<Vec<u8>, PngParseError> {
+    if keyword.is_empty() || keyword.len() > 79 || keyword.as_bytes().contains(&0) {
+        return Err(PngParseError::InvalidTextChunk);
+    }
+
+    let mut payload = Vec::with_capacity(keyword.len() + 1);
+    payload.extend_from_slice(keyword.as_bytes());
+    payload.push(0);
+    Ok(payload)
+}
+
+fn deflate_zlib_payload(payload: &[u8]) -> Result<Vec<u8>, PngParseError> {
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder
+        .write_all(payload)
+        .map_err(|_| PngParseError::DeflateFailed)?;
+    encoder.finish().map_err(|_| PngParseError::DeflateFailed)
 }
 
 fn decode_layout(ihdr: Ihdr) -> Result<DecodeLayout, PngParseError> {
@@ -1125,6 +1341,31 @@ fn parse_gama(payload: &[u8]) -> Result<u32, PngParseError> {
     ]))
 }
 
+fn parse_chrm(payload: &[u8]) -> Result<PngChromaticities, PngParseError> {
+    if payload.len() != 32 {
+        return Err(PngParseError::InvalidMetadataLength {
+            chunk_type: *b"cHRM",
+            length: payload.len(),
+        });
+    }
+
+    let mut values = [0_u32; 8];
+    for (index, chunk) in payload.chunks_exact(4).enumerate() {
+        values[index] = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+    }
+
+    Ok(PngChromaticities {
+        white_x: values[0],
+        white_y: values[1],
+        red_x: values[2],
+        red_y: values[3],
+        green_x: values[4],
+        green_y: values[5],
+        blue_x: values[6],
+        blue_y: values[7],
+    })
+}
+
 fn parse_srgb(payload: &[u8]) -> Result<SrgbRenderingIntent, PngParseError> {
     if payload.len() != 1 {
         return Err(PngParseError::InvalidMetadataLength {
@@ -1188,20 +1429,116 @@ fn parse_time(payload: &[u8]) -> Result<PngTimestamp, PngParseError> {
 }
 
 fn parse_text(payload: &[u8]) -> Result<TextChunk, PngParseError> {
-    let Some(separator) = payload.iter().position(|byte| *byte == 0) else {
+    let (keyword, text_payload) = split_keyword_payload(payload)?;
+    let text =
+        String::from_utf8(Vec::from(text_payload)).map_err(|_| PngParseError::InvalidTextChunk)?;
+
+    Ok(TextChunk { keyword, text })
+}
+
+fn parse_ztxt(payload: &[u8]) -> Result<TextChunk, PngParseError> {
+    let (keyword, compressed_payload) = split_keyword_payload(payload)?;
+    let Some((&method, compressed_text)) = compressed_payload.split_first() else {
         return Err(PngParseError::InvalidTextChunk);
     };
 
-    if separator == 0 || separator > 79 {
-        return Err(PngParseError::InvalidTextChunk);
+    if method != 0 {
+        return Err(PngParseError::InvalidMetadataCompressionMethod {
+            chunk_type: *b"zTXt",
+            method,
+        });
     }
 
-    let keyword = String::from_utf8(payload[..separator].to_vec())
-        .map_err(|_| PngParseError::InvalidTextChunk)?;
-    let text = String::from_utf8(payload[separator + 1..].to_vec())
+    let text = String::from_utf8(inflate_zlib_payload(compressed_text)?)
         .map_err(|_| PngParseError::InvalidTextChunk)?;
 
     Ok(TextChunk { keyword, text })
+}
+
+fn parse_itxt(payload: &[u8]) -> Result<InternationalTextChunk, PngParseError> {
+    let (keyword, remainder) = split_keyword_payload(payload)?;
+    if remainder.len() < 2 {
+        return Err(PngParseError::InvalidTextChunk);
+    }
+
+    let compression_flag = remainder[0];
+    let compression_method = remainder[1];
+    if compression_flag > 1 {
+        return Err(PngParseError::InvalidTextChunk);
+    }
+    if compression_method != 0 {
+        return Err(PngParseError::InvalidMetadataCompressionMethod {
+            chunk_type: *b"iTXt",
+            method: compression_method,
+        });
+    }
+
+    let (language_tag_bytes, after_language) = split_null_terminated(&remainder[2..])?;
+    let (translated_keyword_bytes, text_payload) = split_null_terminated(after_language)?;
+    let text_bytes = if compression_flag == 1 {
+        inflate_zlib_payload(text_payload)?
+    } else {
+        Vec::from(text_payload)
+    };
+
+    Ok(InternationalTextChunk {
+        keyword,
+        language_tag: String::from_utf8(Vec::from(language_tag_bytes))
+            .map_err(|_| PngParseError::InvalidTextChunk)?,
+        translated_keyword: String::from_utf8(Vec::from(translated_keyword_bytes))
+            .map_err(|_| PngParseError::InvalidTextChunk)?,
+        text: String::from_utf8(text_bytes).map_err(|_| PngParseError::InvalidTextChunk)?,
+        compressed: compression_flag == 1,
+    })
+}
+
+fn parse_iccp(payload: &[u8]) -> Result<IccProfile, PngParseError> {
+    let (name, compressed_payload) = split_keyword_payload(payload)?;
+    let Some((&method, compressed_profile)) = compressed_payload.split_first() else {
+        return Err(PngParseError::InvalidTextChunk);
+    };
+
+    if method != 0 {
+        return Err(PngParseError::InvalidMetadataCompressionMethod {
+            chunk_type: *b"iCCP",
+            method,
+        });
+    }
+
+    Ok(IccProfile {
+        name,
+        profile: inflate_zlib_payload(compressed_profile)?,
+    })
+}
+
+fn split_keyword_payload(payload: &[u8]) -> Result<(String, &[u8]), PngParseError> {
+    let (keyword, remainder) = split_null_terminated(payload)?;
+    if keyword.is_empty() || keyword.len() > 79 {
+        return Err(PngParseError::InvalidTextChunk);
+    }
+
+    Ok((
+        String::from_utf8(Vec::from(keyword)).map_err(|_| PngParseError::InvalidTextChunk)?,
+        remainder,
+    ))
+}
+
+fn split_null_terminated(input: &[u8]) -> Result<(&[u8], &[u8]), PngParseError> {
+    let Some(separator) = input.iter().position(|byte| *byte == 0) else {
+        return Err(PngParseError::InvalidTextChunk);
+    };
+
+    Ok((&input[..separator], &input[separator + 1..]))
+}
+
+fn inflate_zlib_payload(payload: &[u8]) -> Result<Vec<u8>, PngParseError> {
+    let mut decoder = flate2::read::ZlibDecoder::new(payload);
+    let mut inflated = Vec::new();
+    decoder
+        .read_to_end(&mut inflated)
+        .map_err(|_| PngParseError::InflateFailed)?;
+
+    Ok(inflated)
 }
 
 fn preserve_unknown_ancillary_chunks(chunks: &[Chunk]) -> Vec<UnknownAncillaryChunk> {
@@ -1221,7 +1558,17 @@ fn preserve_unknown_ancillary_chunks(chunks: &[Chunk]) -> Vec<UnknownAncillaryCh
 fn is_known_ancillary_chunk(chunk_type: [u8; 4]) -> bool {
     matches!(
         &chunk_type,
-        b"gAMA" | b"sRGB" | b"pHYs" | b"tIME" | b"tEXt" | b"PLTE" | b"tRNS"
+        b"gAMA"
+            | b"cHRM"
+            | b"sRGB"
+            | b"iCCP"
+            | b"pHYs"
+            | b"tIME"
+            | b"tEXt"
+            | b"zTXt"
+            | b"iTXt"
+            | b"PLTE"
+            | b"tRNS"
     )
 }
 
@@ -1567,6 +1914,14 @@ mod tests {
         payload.extend_from_slice(&pixels_per_unit_x.to_be_bytes());
         payload.extend_from_slice(&pixels_per_unit_y.to_be_bytes());
         payload.push(unit);
+        payload
+    }
+
+    fn chrm_payload(values: [u32; 8]) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(32);
+        for value in values {
+            payload.extend_from_slice(&value.to_be_bytes());
+        }
         payload
     }
 
@@ -2271,6 +2626,88 @@ mod tests {
                     keyword: "Title".to_string(),
                     text: "Tiny PNG".to_string(),
                 }],
+                ..PngMetadata::default()
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_inspection_collects_rich_metadata_chunks() {
+        let mut ztxt_payload = b"Comment\0".to_vec();
+        ztxt_payload.push(0);
+        ztxt_payload.extend_from_slice(&zlib_compress(b"compressed note"));
+
+        let mut itxt_payload = b"Description\0".to_vec();
+        itxt_payload.extend_from_slice(&[1, 0]);
+        itxt_payload.extend_from_slice(b"en\0Description\0");
+        itxt_payload.extend_from_slice(&zlib_compress(b"international note"));
+
+        let mut iccp_payload = b"Display\0".to_vec();
+        iccp_payload.push(0);
+        iccp_payload.extend_from_slice(&zlib_compress(&[1, 2, 3, 4]));
+
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 2, 0, 0, 0).to_vec()),
+            chunk(
+                *b"cHRM",
+                chrm_payload([
+                    31_270, 32_900, 64_000, 33_000, 30_000, 60_000, 15_000, 6_000,
+                ]),
+            ),
+            chunk(*b"zTXt", ztxt_payload),
+            chunk(*b"iTXt", itxt_payload),
+            chunk(*b"iCCP", iccp_payload),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            extract_png_metadata(&chunks),
+            Ok(PngMetadata {
+                chromaticities: Some(PngChromaticities {
+                    white_x: 31_270,
+                    white_y: 32_900,
+                    red_x: 64_000,
+                    red_y: 33_000,
+                    green_x: 30_000,
+                    green_y: 60_000,
+                    blue_x: 15_000,
+                    blue_y: 6_000,
+                }),
+                icc_profile: Some(IccProfile {
+                    name: "Display".to_string(),
+                    profile: vec![1, 2, 3, 4],
+                }),
+                compressed_text_chunks: vec![TextChunk {
+                    keyword: "Comment".to_string(),
+                    text: "compressed note".to_string(),
+                }],
+                international_text_chunks: vec![InternationalTextChunk {
+                    keyword: "Description".to_string(),
+                    language_tag: "en".to_string(),
+                    translated_keyword: "Description".to_string(),
+                    text: "international note".to_string(),
+                    compressed: true,
+                }],
+                ..PngMetadata::default()
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_inspection_rejects_unsupported_compression_method() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 2, 0, 0, 0).to_vec()),
+            chunk(*b"zTXt", b"Comment\0\x01bad".to_vec()),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            extract_png_metadata(&chunks),
+            Err(PngParseError::InvalidMetadataCompressionMethod {
+                chunk_type: *b"zTXt",
+                method: 1,
             })
         );
     }
@@ -2398,18 +2835,107 @@ mod tests {
                     pixels: vec![42],
                 },
                 metadata: PngMetadata {
-                    gamma_scaled: None,
-                    srgb_rendering_intent: None,
-                    physical_pixel_dimensions: None,
-                    timestamp: None,
                     text_chunks: vec![TextChunk {
                         keyword: "Title".to_string(),
                         text: "Document".to_string(),
                     }],
+                    ..PngMetadata::default()
                 },
                 unknown_ancillary_chunks: vec![UnknownAncillaryChunk {
                     chunk_type: *b"vpAg",
                     payload: vec![9, 8, 7],
+                }],
+            })
+        );
+    }
+
+    #[test]
+    fn encode_png_document_writes_metadata_and_safe_unknown_chunks() {
+        let document = PngDocument {
+            image: PngImage {
+                width: 1,
+                height: 1,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 8,
+                pixels: vec![77],
+            },
+            metadata: PngMetadata {
+                gamma_scaled: Some(45_455),
+                text_chunks: vec![TextChunk {
+                    keyword: "Title".to_string(),
+                    text: "Encoded".to_string(),
+                }],
+                compressed_text_chunks: vec![TextChunk {
+                    keyword: "Comment".to_string(),
+                    text: "stored compressed".to_string(),
+                }],
+                international_text_chunks: vec![InternationalTextChunk {
+                    keyword: "Description".to_string(),
+                    language_tag: "en".to_string(),
+                    translated_keyword: "Description".to_string(),
+                    text: "encoded document".to_string(),
+                    compressed: false,
+                }],
+                ..PngMetadata::default()
+            },
+            unknown_ancillary_chunks: vec![
+                UnknownAncillaryChunk {
+                    chunk_type: *b"vpAg",
+                    payload: vec![1, 2, 3],
+                },
+                UnknownAncillaryChunk {
+                    chunk_type: *b"vpAG",
+                    payload: vec![4, 5, 6],
+                },
+            ],
+        };
+
+        let encoded = encode_png_document(&document).expect("document should encode");
+        let chunks = parse_png_chunks(&encoded).expect("encoded chunks should parse");
+
+        assert!(
+            chunks
+                .iter()
+                .any(|chunk| chunk.header.chunk_type.bytes() == *b"vpAg")
+        );
+        assert!(
+            !chunks
+                .iter()
+                .any(|chunk| chunk.header.chunk_type.bytes() == *b"vpAG")
+        );
+
+        assert_eq!(
+            decode_png_document(&encoded),
+            Ok(PngDocument {
+                image: PngImage {
+                    width: 1,
+                    height: 1,
+                    color_type: IhdrColorType::Grayscale,
+                    bit_depth: 8,
+                    pixels: vec![77],
+                },
+                metadata: PngMetadata {
+                    gamma_scaled: Some(45_455),
+                    text_chunks: vec![TextChunk {
+                        keyword: "Title".to_string(),
+                        text: "Encoded".to_string(),
+                    }],
+                    compressed_text_chunks: vec![TextChunk {
+                        keyword: "Comment".to_string(),
+                        text: "stored compressed".to_string(),
+                    }],
+                    international_text_chunks: vec![InternationalTextChunk {
+                        keyword: "Description".to_string(),
+                        language_tag: "en".to_string(),
+                        translated_keyword: "Description".to_string(),
+                        text: "encoded document".to_string(),
+                        compressed: false,
+                    }],
+                    ..PngMetadata::default()
+                },
+                unknown_ancillary_chunks: vec![UnknownAncillaryChunk {
+                    chunk_type: *b"vpAg",
+                    payload: vec![1, 2, 3],
                 }],
             })
         );

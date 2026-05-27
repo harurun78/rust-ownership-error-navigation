@@ -23,23 +23,24 @@ The validation port now covers a practical minimal PNG read path:
 - tRNS transparency expansion for grayscale, truecolor, and indexed-color images
 - Adam7 pass reconstruction for byte-aligned decoded samples
 - Metadata extraction for gAMA, sRGB, pHYs, tIME, and tEXt chunks
+- Rich metadata extraction for cHRM, zTXt, iTXt, and iCCP chunks
 - Basic PNG writing for non-interlaced grayscale, truecolor, grayscale-alpha, and truecolor-alpha images at 8/16-bit depths
 - Document-level decode returning image data, metadata, and unknown ancillary chunks as owned records
+- Document-level writing for metadata chunks and safe-to-copy unknown ancillary chunks
 
 ## Remaining Gaps Versus Full libpng Parity
 
 This is not a full libpng replacement. Major remaining gaps include:
 
 - Progressive row callbacks and true streaming row decode
-- Remaining color management chunks: cHRM, iCCP, and full color transform behavior
-- Remaining text metadata chunks: zTXt and iTXt
-- Full unknown ancillary copy policy during writing
+- Full color transform behavior from color-management metadata
+- Full unknown ancillary copy policy with exact ordering and transform-aware safe/unsafe handling
 - Error recovery and warning model closer to libpng
-- Broader write/encode APIs, including indexed palette output, metadata emission, filtering choices, and interlaced output
+- Broader write/encode APIs, including indexed palette output, filtering choices, and interlaced output
 - C ABI, allocator hooks, setjmp/longjmp behavior, and full public API parity
 
 ## Next Slice Decision
 
-The implementation has now moved past the validation read-path boundary into selected full-parity gaps: metadata inspection, basic writing, and ancillary preservation. Remaining items are still broad libpng API parity work rather than ownership-navigation validation blockers.
+The implementation has now moved past the validation read-path boundary into selected full-parity gaps: rich metadata inspection, basic writing, metadata emission, and ancillary preservation. Remaining items are still broad libpng API parity work rather than ownership-navigation validation blockers.
 
 Further work should switch to a different validation target or an intentionally failed libpng branch if the goal is measuring diagnostic navigation effectiveness.

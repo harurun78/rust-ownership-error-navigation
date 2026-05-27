@@ -404,3 +404,45 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; unknown ancillary payloads are preserved as owned `Vec<u8>` records.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: remaining full-parity gaps are progressive callbacks, richer color management, compressed/international text chunks, and broader write support.
+
+### iteration-018
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L095-L098 rich metadata chunk parsing
+- Prompt summary: Expand metadata support to cHRM, zTXt, iTXt, and iCCP, including zlib decompression and deterministic errors for unsupported compression methods.
+- Human ownership hints before attempt: preserve current document and image APIs; avoid `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-018 && cargo check --message-format=json > ../reports/iteration-018/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-018/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-018/ownership-report.json --html-out validation/ports/libpng/reports/iteration-018/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 65 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-018/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-018/ownership-report.json`
+- Ownership report HTML: `reports/iteration-018/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; rich metadata payloads are decoded into owned strings and byte buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: add document-level writing for metadata and safe-to-copy unknown ancillary chunks.
+
+### iteration-019
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L099-L102 document write and copy policy
+- Prompt summary: Add `encode_png_document` to emit metadata chunks, safe-to-copy unknown ancillary chunks, IDAT, and IEND, with document encode/decode round-trip coverage.
+- Human ownership hints before attempt: keep output ordering simple and Rust-native; skip unsafe-to-copy unknown chunks during write.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-019 && cargo check --message-format=json > ../reports/iteration-019/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-019/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-019/ownership-report.json --html-out validation/ports/libpng/reports/iteration-019/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 65 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-019/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-019/ownership-report.json`
+- Ownership report HTML: `reports/iteration-019/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; document output is assembled from borrowed metadata into owned chunk payload buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: remaining full-parity work is progressive row callbacks, palette/interlace writer support, configurable filter strategies, and C ABI behavior.

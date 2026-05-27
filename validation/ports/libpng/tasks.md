@@ -153,3 +153,17 @@
 - [x] L092 Add tests for preserving unknown ancillary chunk payloads. (iteration-017)
 - [x] L093 Implement document-level decode that returns image data, metadata, and unknown ancillary chunks. (iteration-017)
 - [x] L094 Record iteration-017 diagnostics and ownership report. (iteration-017)
+
+## Phase 21: Rich Metadata Chunk Slice
+
+- [x] L095 Add tests for cHRM, zTXt, iTXt, and iCCP metadata chunks. (iteration-018)
+- [x] L096 Implement owned parsing for chromaticities, compressed text, international text, and ICC profile payloads. (iteration-018)
+- [x] L097 Add deterministic errors for unsupported metadata compression methods and malformed rich metadata payloads. (iteration-018)
+- [x] L098 Record iteration-018 diagnostics and ownership report. (iteration-018)
+
+## Phase 22: Document Write and Copy Policy Slice
+
+- [x] L099 Add tests for writing document metadata and unknown ancillary chunks. (iteration-019)
+- [x] L100 Implement document-level encoder that writes metadata, safe ancillary chunks, IDAT, and IEND. (iteration-019)
+- [x] L101 Add encode/decode document round-trip coverage. (iteration-019)
+- [x] L102 Record iteration-019 diagnostics and ownership report. (iteration-019)
