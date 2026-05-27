@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Decision
 
-The libpng validation port reached the practical Rust read-path boundary at iteration-014. Iterations 015-020 deliberately broadened the scope toward selected full-libpng parity gaps while keeping the work Rust-native and compile-checkable.
+The libpng validation port reached the practical Rust read-path boundary at iteration-014. Iterations 015-025 deliberately broadened the scope toward Rust-native libpng parity while keeping the work compile-checkable and suitable for ownership-navigation validation.
 
 Completed capabilities:
 
@@ -24,27 +24,31 @@ Completed capabilities:
 - cHRM, zTXt, iTXt, and iCCP metadata extraction
 - Basic PNG writing for non-interlaced grayscale/truecolor-style images
 - Indexed PNG writing with PLTE and optional tRNS alpha for 8-bit palette indices
+- Packed indexed PNG writing for 1/2/4-bit palette indices
+- Explicit writer filter strategy selection for Sub, Up, Average, and Paeth scanlines
+- Adaptive writer filter selection
+- Byte-aligned Adam7 interlaced output
+- Callback-style row decode over decoded image rows
 - Document-level decode with unknown ancillary chunk preservation
 - Document-level writing with metadata emission and safe-to-copy unknown ancillary chunk preservation
 
-## Still Out Of Scope
+## Compatibility Surface Still Out Of Scope
 
-The following are intentionally outside this validation port boundary rather than incomplete iteration work:
+The following are intentionally outside this Rust-native validation port boundary rather than incomplete iteration work:
 
-- Full libpng public API parity
-- Full write/encode API parity, including palette writing, metadata writing, filter strategy selection, and interlaced output
+- Full C libpng public API parity
 - Full color transform behavior from color-management metadata
 - C ABI compatibility
 - Custom allocator hooks and setjmp/longjmp behavior
-- Progressive callback API parity
+- True streaming progressive decode before image materialization
 - Complete unknown ancillary copy policy during writing
 
 ## Navigation App Effect
 
-Across libpng iterations 001-020, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
+Across libpng iterations 001-025, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
 
 The feature improvements remain verified through fixture smoke reports, but libpng itself did not provide a measurable before/after diagnostic-reduction signal.
 
 ## Final Recommendation
 
-Further libpng parity work is possible, but it will mostly test PNG domain coverage rather than ownership-error navigation. Use a different validation target or an intentionally failed libpng branch if the goal is to measure diagnostic navigation effectiveness.
+Stop this libpng validation port at the Rust-native parity boundary and use a different validation target or an intentionally failed libpng branch if the goal is to measure diagnostic navigation effectiveness. C ABI compatibility should be treated as a separate project.

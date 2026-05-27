@@ -354,6 +354,35 @@ pub struct PngIndexedImage {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PngFilterStrategy {
+    None,
+    Sub,
+    Up,
+    Average,
+    Paeth,
+    Adaptive,
+}
+
+impl PngFilterStrategy {
+    fn byte(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Sub => 1,
+            Self::Up => 2,
+            Self::Average => 3,
+            Self::Paeth => 4,
+            Self::Adaptive => 0,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct DecodedRow<'a> {
+    pub row_index: usize,
+    pub pixels: &'a [u8],
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct PaletteEntry {
     pub red: u8,
     pub green: u8,
@@ -948,12 +977,50 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
 }
 
 pub fn encode_png_image(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
+    encode_png_image_with_filter_strategy(image, PngFilterStrategy::None)
+}
+
+pub fn encode_png_image_with_filter_strategy(
+    image: &PngImage,
+    filter_strategy: PngFilterStrategy,
+) -> Result<Vec<u8>, PngParseError> {
     let mut output = PNG_SIGNATURE.to_vec();
     append_png_chunk(&mut output, *b"IHDR", &encode_ihdr_payload(image)?)?;
-    append_png_chunk(&mut output, *b"IDAT", &encode_idat_payload(image)?)?;
+    append_png_chunk(
+        &mut output,
+        *b"IDAT",
+        &encode_idat_payload(image, filter_strategy)?,
+    )?;
     append_png_chunk(&mut output, *b"IEND", &[])?;
 
     Ok(output)
+}
+
+pub fn encode_adam7_png_image(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
+    let mut output = PNG_SIGNATURE.to_vec();
+    append_png_chunk(
+        &mut output,
+        *b"IHDR",
+        &encode_ihdr_payload_with_interlace(image, PngInterlaceMethod::Adam7)?,
+    )?;
+    append_png_chunk(&mut output, *b"IDAT", &encode_adam7_idat_payload(image)?)?;
+    append_png_chunk(&mut output, *b"IEND", &[])?;
+
+    Ok(output)
+}
+
+pub fn decode_png_rows<F>(input: &[u8], mut on_row: F) -> Result<(), PngParseError>
+where
+    F: FnMut(DecodedRow<'_>),
+{
+    let image = decode_png_image(input)?;
+    let row_len = image.pixels.len() / image.height as usize;
+
+    for (row_index, pixels) in image.pixels.chunks_exact(row_len).enumerate() {
+        on_row(DecodedRow { row_index, pixels });
+    }
+
+    Ok(())
 }
 
 pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseError> {
@@ -975,7 +1042,7 @@ pub fn encode_png_document(document: &PngDocument) -> Result<Vec<u8>, PngParseEr
     append_png_chunk(
         &mut output,
         *b"IDAT",
-        &encode_idat_payload(&document.image)?,
+        &encode_idat_payload(&document.image, PngFilterStrategy::None)?,
     )?;
     append_png_chunk(&mut output, *b"IEND", &[])?;
 
@@ -1001,7 +1068,35 @@ pub fn encode_indexed_png_image(image: &PngIndexedImage) -> Result<Vec<u8>, PngP
     Ok(output)
 }
 
-fn encode_idat_payload(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
+fn encode_idat_payload(
+    image: &PngImage,
+    filter_strategy: PngFilterStrategy,
+) -> Result<Vec<u8>, PngParseError> {
+    let (bytes_per_pixel, row_len, expected) = encode_image_layout(image)?;
+
+    if image.pixels.len() != expected {
+        return Err(PngParseError::InvalidImageDataLength {
+            expected,
+            actual: image.pixels.len(),
+        });
+    }
+
+    let scanlines = filter_scanlines(
+        &image.pixels,
+        image.height as usize,
+        row_len,
+        bytes_per_pixel,
+        filter_strategy,
+    );
+
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder
+        .write_all(&scanlines)
+        .map_err(|_| PngParseError::DeflateFailed)?;
+    encoder.finish().map_err(|_| PngParseError::DeflateFailed)
+}
+
+fn encode_image_layout(image: &PngImage) -> Result<(usize, usize, usize), PngParseError> {
     if image.width == 0 || image.height == 0 {
         return Err(PngParseError::InvalidIhdrDimensions {
             width: image.width,
@@ -1040,6 +1135,102 @@ fn encode_idat_payload(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
     let row_len = image.width as usize * samples_per_pixel * bytes_per_sample;
     let expected = row_len * image.height as usize;
 
+    Ok((samples_per_pixel * bytes_per_sample, row_len, expected))
+}
+
+fn filter_scanlines(
+    pixels: &[u8],
+    height: usize,
+    row_len: usize,
+    filter_bytes_per_pixel: usize,
+    filter_strategy: PngFilterStrategy,
+) -> Vec<u8> {
+    let mut scanlines = Vec::with_capacity(pixels.len() + height);
+    let mut previous_row = vec![0; row_len];
+
+    for row in pixels.chunks_exact(row_len) {
+        let (filter_type, filtered_row) =
+            filter_row(row, &previous_row, filter_bytes_per_pixel, filter_strategy);
+        scanlines.push(filter_type);
+        scanlines.extend_from_slice(&filtered_row);
+
+        previous_row.copy_from_slice(row);
+    }
+
+    scanlines
+}
+
+fn filter_row(
+    row: &[u8],
+    previous_row: &[u8],
+    filter_bytes_per_pixel: usize,
+    filter_strategy: PngFilterStrategy,
+) -> (u8, Vec<u8>) {
+    if filter_strategy == PngFilterStrategy::Adaptive {
+        let mut best_filter = 0;
+        let mut best_row = Vec::new();
+        let mut best_score = u64::MAX;
+
+        for strategy in [
+            PngFilterStrategy::None,
+            PngFilterStrategy::Sub,
+            PngFilterStrategy::Up,
+            PngFilterStrategy::Average,
+            PngFilterStrategy::Paeth,
+        ] {
+            let (filter_type, filtered_row) =
+                filter_row(row, previous_row, filter_bytes_per_pixel, strategy);
+            let score = filtered_row
+                .iter()
+                .map(|byte| i16::from(*byte as i8).unsigned_abs() as u64)
+                .sum();
+
+            if score < best_score {
+                best_filter = filter_type;
+                best_score = score;
+                best_row = filtered_row;
+            }
+        }
+
+        return (best_filter, best_row);
+    }
+
+    let mut filtered_row = Vec::with_capacity(row.len());
+    for column in 0..row.len() {
+        let raw = row[column];
+        let left = if column >= filter_bytes_per_pixel {
+            row[column - filter_bytes_per_pixel]
+        } else {
+            0
+        };
+        let up = previous_row[column];
+        let up_left = if column >= filter_bytes_per_pixel {
+            previous_row[column - filter_bytes_per_pixel]
+        } else {
+            0
+        };
+        let predicted = match filter_strategy {
+            PngFilterStrategy::None | PngFilterStrategy::Adaptive => 0,
+            PngFilterStrategy::Sub => left,
+            PngFilterStrategy::Up => up,
+            PngFilterStrategy::Average => ((u16::from(left) + u16::from(up)) / 2) as u8,
+            PngFilterStrategy::Paeth => paeth_predictor(left, up, up_left),
+        };
+
+        filtered_row.push(raw.wrapping_sub(predicted));
+    }
+
+    (filter_strategy.byte(), filtered_row)
+}
+
+fn encode_adam7_idat_payload(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
+    let (bytes_per_pixel, row_len, expected) = encode_image_layout(image)?;
+    if image.bit_depth < 8 {
+        return Err(PngParseError::UnsupportedEncodeFormat {
+            bit_depth: image.bit_depth,
+            color_type: image.color_type.byte(),
+        });
+    }
     if image.pixels.len() != expected {
         return Err(PngParseError::InvalidImageDataLength {
             expected,
@@ -1047,20 +1238,37 @@ fn encode_idat_payload(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
         });
     }
 
-    let mut scanlines = Vec::with_capacity(expected + image.height as usize);
-    for row in image.pixels.chunks_exact(row_len) {
-        scanlines.push(0);
-        scanlines.extend_from_slice(row);
+    let mut scanlines = Vec::new();
+    for (start_x, start_y, step_x, step_y) in ADAM7_PASSES {
+        let pass_width = adam7_pass_size(image.width, start_x, step_x);
+        let pass_height = adam7_pass_size(image.height, start_y, step_y);
+        if pass_width == 0 || pass_height == 0 {
+            continue;
+        }
+
+        for pass_y in 0..pass_height as usize {
+            scanlines.push(0);
+            let image_y = start_y as usize + pass_y * step_y as usize;
+            for pass_x in 0..pass_width as usize {
+                let image_x = start_x as usize + pass_x * step_x as usize;
+                let source_start = image_y * row_len + image_x * bytes_per_pixel;
+                scanlines
+                    .extend_from_slice(&image.pixels[source_start..source_start + bytes_per_pixel]);
+            }
+        }
     }
 
-    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder
-        .write_all(&scanlines)
-        .map_err(|_| PngParseError::DeflateFailed)?;
-    encoder.finish().map_err(|_| PngParseError::DeflateFailed)
+    deflate_zlib_payload(&scanlines)
 }
 
 fn encode_ihdr_payload(image: &PngImage) -> Result<[u8; IHDR_PAYLOAD_LEN], PngParseError> {
+    encode_ihdr_payload_with_interlace(image, PngInterlaceMethod::None)
+}
+
+fn encode_ihdr_payload_with_interlace(
+    image: &PngImage,
+    interlace_method: PngInterlaceMethod,
+) -> Result<[u8; IHDR_PAYLOAD_LEN], PngParseError> {
     let width = image.width.to_be_bytes();
     let height = image.height.to_be_bytes();
 
@@ -1077,7 +1285,7 @@ fn encode_ihdr_payload(image: &PngImage) -> Result<[u8; IHDR_PAYLOAD_LEN], PngPa
         image.color_type.byte(),
         PngCompressionMethod::Deflate.byte(),
         PngFilterMethod::Adaptive.byte(),
-        PngInterlaceMethod::None.byte(),
+        interlace_method.byte(),
     ])
 }
 
@@ -1090,10 +1298,16 @@ fn encode_indexed_ihdr_payload(
             height: image.height,
         });
     }
-    if image.bit_depth != 8 {
+    if !matches!(image.bit_depth, 1 | 2 | 4 | 8) {
         return Err(PngParseError::UnsupportedEncodeFormat {
             bit_depth: image.bit_depth,
             color_type: IhdrColorType::Indexed.byte(),
+        });
+    }
+    let max_entries = 1_usize << image.bit_depth;
+    if image.palette.is_empty() || image.palette.len() > max_entries {
+        return Err(PngParseError::InvalidPlteLength {
+            length: image.palette.len() * 3,
         });
     }
 
@@ -1144,8 +1358,8 @@ fn encode_indexed_trns_payload(alpha: &[u8], palette_len: usize) -> Result<Vec<u
 }
 
 fn encode_indexed_idat_payload(image: &PngIndexedImage) -> Result<Vec<u8>, PngParseError> {
-    let row_len = image.width as usize;
-    let expected = row_len * image.height as usize;
+    let row_index_count = image.width as usize;
+    let expected = row_index_count * image.height as usize;
 
     if image.indices.len() != expected {
         return Err(PngParseError::InvalidImageDataLength {
@@ -1154,8 +1368,9 @@ fn encode_indexed_idat_payload(image: &PngIndexedImage) -> Result<Vec<u8>, PngPa
         });
     }
 
+    let max_index_value = 1_usize << image.bit_depth;
     for index in &image.indices {
-        if *index as usize >= image.palette.len() {
+        if *index as usize >= image.palette.len() || *index as usize >= max_index_value {
             return Err(PngParseError::InvalidPaletteIndex {
                 index: *index,
                 palette_len: image.palette.len(),
@@ -1163,13 +1378,35 @@ fn encode_indexed_idat_payload(image: &PngIndexedImage) -> Result<Vec<u8>, PngPa
         }
     }
 
-    let mut scanlines = Vec::with_capacity(expected + image.height as usize);
-    for row in image.indices.chunks_exact(row_len) {
+    let packed_row_len = (row_index_count * image.bit_depth as usize).div_ceil(8);
+    let mut scanlines =
+        Vec::with_capacity(packed_row_len * image.height as usize + image.height as usize);
+    for row in image.indices.chunks_exact(row_index_count) {
         scanlines.push(0);
-        scanlines.extend_from_slice(row);
+        if image.bit_depth == 8 {
+            scanlines.extend_from_slice(row);
+        } else {
+            scanlines.extend_from_slice(&pack_indexed_row(row, image.bit_depth));
+        }
     }
 
     deflate_zlib_payload(&scanlines)
+}
+
+fn pack_indexed_row(indices: &[u8], bit_depth: u8) -> Vec<u8> {
+    let samples_per_byte = 8 / bit_depth as usize;
+    let mut packed = Vec::with_capacity((indices.len() * bit_depth as usize).div_ceil(8));
+
+    for chunk in indices.chunks(samples_per_byte) {
+        let mut byte = 0_u8;
+        for (offset, index) in chunk.iter().enumerate() {
+            let shift = 8 - bit_depth as usize * (offset + 1);
+            byte |= *index << shift;
+        }
+        packed.push(byte);
+    }
+
+    packed
 }
 
 fn append_png_chunk(
@@ -3006,6 +3243,52 @@ mod tests {
     }
 
     #[test]
+    fn encode_indexed_png_image_writes_packed_two_bit_rows() {
+        let image = PngIndexedImage {
+            width: 4,
+            height: 1,
+            bit_depth: 2,
+            palette: vec![
+                PaletteEntry {
+                    red: 0,
+                    green: 0,
+                    blue: 0,
+                },
+                PaletteEntry {
+                    red: 85,
+                    green: 0,
+                    blue: 0,
+                },
+                PaletteEntry {
+                    red: 170,
+                    green: 0,
+                    blue: 0,
+                },
+                PaletteEntry {
+                    red: 255,
+                    green: 0,
+                    blue: 0,
+                },
+            ],
+            indices: vec![0, 1, 2, 3],
+            alpha: None,
+        };
+
+        let encoded = encode_indexed_png_image(&image).expect("packed indexed image should encode");
+
+        assert_eq!(
+            decode_png_image(&encoded),
+            Ok(PngImage {
+                width: 4,
+                height: 1,
+                color_type: IhdrColorType::Indexed,
+                bit_depth: 2,
+                pixels: vec![0, 0, 0, 85, 0, 0, 170, 0, 0, 255, 0, 0],
+            })
+        );
+    }
+
+    #[test]
     fn encode_indexed_png_image_rejects_invalid_palette_index() {
         let image = PngIndexedImage {
             width: 1,
@@ -3027,6 +3310,99 @@ mod tests {
                 palette_len: 1,
             })
         );
+    }
+
+    #[test]
+    fn encode_png_image_supports_explicit_filter_strategies() {
+        let image = PngImage {
+            width: 3,
+            height: 2,
+            color_type: IhdrColorType::Grayscale,
+            bit_depth: 8,
+            pixels: vec![10, 20, 35, 35, 40, 80],
+        };
+
+        for strategy in [
+            PngFilterStrategy::Sub,
+            PngFilterStrategy::Up,
+            PngFilterStrategy::Average,
+            PngFilterStrategy::Paeth,
+        ] {
+            let encoded = encode_png_image_with_filter_strategy(&image, strategy)
+                .expect("filtered image should encode");
+
+            assert_eq!(
+                decode_png_image(&encoded),
+                Ok(PngImage {
+                    width: image.width,
+                    height: image.height,
+                    color_type: image.color_type,
+                    bit_depth: image.bit_depth,
+                    pixels: Vec::from(image.pixels.as_slice()),
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn encode_png_image_supports_adaptive_filter_strategy() {
+        let image = PngImage {
+            width: 3,
+            height: 2,
+            color_type: IhdrColorType::Grayscale,
+            bit_depth: 8,
+            pixels: vec![10, 20, 35, 35, 40, 80],
+        };
+
+        let encoded = encode_png_image_with_filter_strategy(&image, PngFilterStrategy::Adaptive)
+            .expect("adaptive filtered image should encode");
+
+        assert_eq!(
+            decode_png_image(&encoded),
+            Ok(PngImage {
+                width: image.width,
+                height: image.height,
+                color_type: image.color_type,
+                bit_depth: image.bit_depth,
+                pixels: Vec::from(image.pixels.as_slice()),
+            })
+        );
+    }
+
+    #[test]
+    fn encode_adam7_png_image_writes_interlaced_round_trip_png() {
+        let image = PngImage {
+            width: 2,
+            height: 2,
+            color_type: IhdrColorType::Grayscale,
+            bit_depth: 8,
+            pixels: vec![10, 20, 30, 40],
+        };
+
+        let encoded = encode_adam7_png_image(&image).expect("Adam7 image should encode");
+        let chunks = parse_png_chunks(&encoded).expect("encoded Adam7 chunks should parse");
+        let ihdr = chunks
+            .iter()
+            .find(|chunk| chunk.header.chunk_type.bytes() == *b"IHDR")
+            .map(|chunk| Ihdr::parse(&chunk.payload))
+            .expect("IHDR should be present")
+            .expect("IHDR should parse");
+
+        assert_eq!(ihdr.interlace_method, PngInterlaceMethod::Adam7);
+        assert_eq!(decode_png_image(&encoded), Ok(image));
+    }
+
+    #[test]
+    fn decode_png_rows_invokes_callback_for_each_row() {
+        let input = image_png_bytes(2, 2, 0, &[0, 10, 20, 0, 30, 40]);
+        let mut rows = Vec::new();
+
+        decode_png_rows(&input, |row| {
+            rows.push((row.row_index, Vec::from(row.pixels)));
+        })
+        .expect("rows should decode");
+
+        assert_eq!(rows, vec![(0, vec![10, 20]), (1, vec![30, 40])]);
     }
 
     #[test]

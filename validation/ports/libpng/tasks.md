@@ -174,3 +174,33 @@
 - [x] L104 Add tests for optional indexed tRNS alpha output. (iteration-020)
 - [x] L105 Implement indexed PNG writer with palette/index validation. (iteration-020)
 - [x] L106 Record iteration-020 diagnostics and ownership report. (iteration-020)
+
+## Phase 24: Packed Indexed Write Slice
+
+- [x] L107 Add tests for encoding packed 1/2/4-bit indexed PNG rows. (iteration-021)
+- [x] L108 Implement packed palette index row emission and palette cardinality validation. (iteration-021)
+- [x] L109 Record iteration-021 diagnostics and ownership report. (iteration-021)
+
+## Phase 25: Writer Filter Strategy Slice
+
+- [x] L110 Add tests for explicit Sub/Up/Average/Paeth writer filter strategies. (iteration-022)
+- [x] L111 Implement filter-strategy IDAT emission for non-interlaced image writing. (iteration-022)
+- [x] L112 Record iteration-022 diagnostics and ownership report. (iteration-022)
+
+## Phase 26: Row Callback API Slice
+
+- [x] L113 Add tests for row callback style decode. (iteration-023)
+- [x] L114 Implement row callback API over decoded image rows. (iteration-023)
+- [x] L115 Record iteration-023 diagnostics and ownership report. (iteration-023)
+
+## Phase 27: Adaptive Writer Filter Slice
+
+- [x] L116 Add tests for adaptive writer filter selection. (iteration-024)
+- [x] L117 Implement row-local adaptive filter heuristic over None/Sub/Up/Average/Paeth. (iteration-024)
+- [x] L118 Record iteration-024 diagnostics and ownership report. (iteration-024)
+
+## Phase 28: Adam7 Interlaced Writer Slice
+
+- [x] L119 Add tests for Adam7 interlaced image output. (iteration-025)
+- [x] L120 Implement byte-aligned Adam7 writer pass emission. (iteration-025)
+- [x] L121 Record iteration-025 diagnostics and ownership report. (iteration-025)

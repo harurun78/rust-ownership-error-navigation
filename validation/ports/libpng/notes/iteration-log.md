@@ -467,3 +467,108 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; indexed scanlines and palette chunks are assembled as owned payload buffers.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: remaining full-parity work is progressive callbacks, packed indexed writer support, interlaced output, filter strategy selection, and C ABI behavior.
+
+### iteration-021
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L107-L109 packed indexed write support
+- Prompt summary: Extend indexed PNG writing from 8-bit indices to packed 1/2/4-bit palette rows with palette cardinality and index validation.
+- Human ownership hints before attempt: preserve existing indexed writer API; no `unsafe`, shared mutability shortcuts, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-021 && cargo check --message-format=json > ../reports/iteration-021/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-021/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-021/ownership-report.json --html-out validation/ports/libpng/reports/iteration-021/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 71 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-021/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-021/ownership-report.json`
+- Ownership report HTML: `reports/iteration-021/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; packed index rows are assembled into owned scanline buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: add explicit writer filter strategies.
+
+### iteration-022
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L110-L112 writer filter strategy selection
+- Prompt summary: Add explicit Sub, Up, Average, and Paeth filter strategies for non-interlaced image writing, with decode round-trip coverage.
+- Human ownership hints before attempt: keep strategy selection deterministic and simple; no adaptive heuristic in this slice.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-022 && cargo check --message-format=json > ../reports/iteration-022/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-022/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-022/ownership-report.json --html-out validation/ports/libpng/reports/iteration-022/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 71 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-022/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-022/ownership-report.json`
+- Ownership report HTML: `reports/iteration-022/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; filter rows use owned working buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: add a row callback decode API.
+
+### iteration-023
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L113-L115 row callback API
+- Prompt summary: Add row callback style decode API that invokes a caller-provided closure with decoded row slices.
+- Human ownership hints before attempt: expose borrowed row slices without storing callback-owned references; keep true streaming decode out of this slice.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-023 && cargo check --message-format=json > ../reports/iteration-023/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-023/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-023/ownership-report.json --html-out validation/ports/libpng/reports/iteration-023/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 71 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-023/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-023/ownership-report.json`
+- Ownership report HTML: `reports/iteration-023/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; decoded rows are borrowed from the owned image buffer during callback invocation.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: remaining full-parity work is interlaced output, adaptive filtering heuristics, exact streaming behavior, and C ABI compatibility.
+
+### iteration-024
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L116-L118 adaptive writer filter heuristic
+- Prompt summary: Add row-local adaptive filter selection over None, Sub, Up, Average, and Paeth, preserving decode round-trip behavior.
+- Human ownership hints before attempt: prefer deterministic row-local scoring over broader compression tuning; avoid `unsafe`, shared mutability shortcuts, and broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-024 && cargo check --message-format=json > ../reports/iteration-024/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-024/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-024/ownership-report.json --html-out validation/ports/libpng/reports/iteration-024/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 73 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-024/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-024/ownership-report.json`
+- Ownership report HTML: `reports/iteration-024/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; candidate filtered rows are scored as owned temporary buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: add Adam7 interlaced output for byte-aligned images.
+
+### iteration-025
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L119-L121 Adam7 interlaced writer
+- Prompt summary: Add Adam7 pass emission for byte-aligned images and verify encoded interlaced PNGs decode back to the original image.
+- Human ownership hints before attempt: keep packed-bit Adam7 writing out of scope; reuse the existing Adam7 decode validation path.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-025 && cargo check --message-format=json > ../reports/iteration-025/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-025/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-025/ownership-report.json --html-out validation/ports/libpng/reports/iteration-025/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 73 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-025/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-025/ownership-report.json`
+- Ownership report HTML: `reports/iteration-025/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; Adam7 pass rows are emitted from borrowed pixel slices into owned scanline buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: stop this libpng validation port at the Rust-native parity boundary; remaining C ABI/setjmp/allocator behavior is outside the validation crate's architecture.

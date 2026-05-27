@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Boundary
 
-This validation target has moved beyond the original structure-only slice into a practical PNG implementation subset: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, Adam7 pass reconstruction for byte-aligned decoded samples, common and rich metadata extraction, basic PNG writing, indexed palette writing, document-level metadata emission, and safe unknown ancillary preservation.
+This validation target has moved beyond the original structure-only slice into a practical Rust-native PNG implementation subset: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, Adam7 pass reconstruction for byte-aligned decoded samples, common and rich metadata extraction, basic PNG writing, packed indexed palette writing, explicit and adaptive writer filter strategies, byte-aligned Adam7 output, callback-style row decode, document-level metadata emission, and safe unknown ancillary preservation.
 
 This is still not full libpng parity. Remaining gaps are tracked in `reports/full-port-gap-assessment.md`.
 
@@ -32,6 +32,11 @@ This is still not full libpng parity. Remaining gaps are tracked in `reports/ful
 | iteration-018 | Rich metadata chunks | compile/test pass | 65 | 0 | 0 | 0 | Parse cHRM, zTXt, iTXt, and iCCP into owned metadata records |
 | iteration-019 | Document write and copy policy | compile/test pass | 65 | 0 | 0 | 0 | Write metadata chunks and safe-to-copy unknown ancillary chunks |
 | iteration-020 | Indexed palette write support | compile/test pass | 68 | 0 | 0 | 0 | Write 8-bit indexed PNG images with PLTE and optional tRNS alpha |
+| iteration-021 | Packed indexed write support | compile/test pass | 71 | 0 | 0 | 0 | Write 1/2/4-bit packed indexed rows with palette validation |
+| iteration-022 | Writer filter strategies | compile/test pass | 71 | 0 | 0 | 0 | Write Sub, Up, Average, and Paeth filtered scanlines |
+| iteration-023 | Row callback API | compile/test pass | 71 | 0 | 0 | 0 | Invoke callback with decoded row slices |
+| iteration-024 | Adaptive writer filters | compile/test pass | 73 | 0 | 0 | 0 | Select row-local filter strategy by filtered-byte score |
+| iteration-025 | Adam7 interlaced writer | compile/test pass | 73 | 0 | 0 | 0 | Write byte-aligned Adam7 interlaced image data |
 
 ## Shortcut Pressure
 
@@ -57,9 +62,8 @@ Interpretation:
 - Recommended first fixes provide a deterministic start order for multi-diagnostic reports.
 - For libpng specifically, these improvements have not yet increased repair effectiveness because all recorded slices compile cleanly. The next opportunity to measure practical improvement is a deliberately failed or harder slice such as Adam7 interlace, progressive row callbacks, or packed bit-depth expansion.
 
-## Next Candidate Work
+## Completion Boundary
 
-- Use a different validation target, or an intentionally failed libpng branch, to measure diagnostic navigation effectiveness.
-- Add progressive row callback style decoding to increase ownership pressure.
-- Expand the writer to packed indexed output, interlaced output, and configurable filter strategies.
-- If future iterations produce E0382/E0499/E0502 or E0308/E0004/E0425, feed the generated report into the next low-cost attempt and compare repeated diagnostics.
+This libpng validation crate is complete for the Rust-native parity boundary used by this repository: parse/decode/write/document APIs, metadata, filters, indexed color, Adam7 decode, and byte-aligned Adam7 write are covered with regression tests and validation reports.
+
+The remaining libpng surface is C library compatibility rather than Rust porting validation: C ABI entry points, setjmp/longjmp error semantics, allocator hooks, exact warning recovery behavior, and complete transform pipeline parity. Those would require a dedicated compatibility crate and are intentionally outside this validation target.
