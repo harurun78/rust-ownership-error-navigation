@@ -17,3 +17,19 @@
 - Compatibility track intentionally preserves long-lived input/output buffer fields.
 - Rust-native track intentionally uses owned output and short borrow scopes.
 - The first paired slice already validates the comparison design: compatibility preservation produced E0502, while Rust-native design avoided it without shortcuts.
+
+## Paired Slice 002 - zlib Stored Block Decode
+
+| Metric                          |      Compatibility |    Rust-Native | Interpretation                                                                     |
+| ------------------------------- | -----------------: | -------------: | ---------------------------------------------------------------------------------- |
+| first cargo-check diagnostics   |                  0 |              0 | After the iteration-001 fix, both tracks handled stored-block decoding cleanly.    |
+| ownership diagnostics           |                  0 |              0 | No new E0382/E0499/E0502 emerged in the stored-block slice.                        |
+| non-ownership diagnostics       |                  0 |              0 | No type/name/control-flow blockers.                                                |
+| repair iterations to pass tests |                  0 |              0 | Both tracks passed after implementation.                                           |
+| shortcut pressure events        |                  0 |              0 | No `unsafe`, shared mutability wrappers, or broad clone shortcuts.                 |
+| tests passed                    |                  5 |              5 | Both tracks decode single and multiple stored blocks and reject checksum failures. |
+| navigation changed next action  | no new diagnostics | no diagnostics | Prevention remains the main signal in iteration-002.                               |
+
+## Completion Note
+
+The target is complete for minimal miniz/zlib streaming comparison. Iteration-001 provided repair evidence; iteration-002 showed both designs can implement stored-block behavior without additional ownership diagnostics once the compatibility borrow-order issue is fixed.

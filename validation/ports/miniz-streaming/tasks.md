@@ -18,3 +18,15 @@
 ## Phase 3: Next Slice Selection
 
 - [x] M010 Select the next paired slice based on ownership pressure: stored deflate block decode with incremental input/output pressure.
+
+## Phase 4: Paired Slice 002 - zlib Stored Block Decode
+
+- [x] M011 Implement zlib header validation, DEFLATE stored block decode, LEN/NLEN validation, and Adler-32 validation in the compatibility track.
+- [x] M012 Implement the same stored-block behavior with owned outputs and deterministic errors in the Rust-native track.
+- [x] M013 Add tests for valid stored blocks, multiple blocks, output/buffer pressure, invalid lifecycle, and checksum failure.
+- [x] M014 Save cargo diagnostics and navigation reports for both tracks.
+- [x] M015 Update iteration log, comparison matrix, and comparison summary with iteration-002 results.
+
+## Phase 5: Completion
+
+- [x] M016 Mark the miniz-streaming comparison target complete at the stored-block zlib decode boundary.

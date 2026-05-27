@@ -48,11 +48,25 @@ The first paired slice implements a pass-through streaming transform:
 
 This slice intentionally avoids full deflate decoding so the comparison starts with ownership/API pressure rather than compression algorithm complexity.
 
+## Stored-Block Completion Slice
+
+The completion slice adds minimal real zlib/DEFLATE behavior while staying focused on ownership/API pressure:
+
+- zlib header validation for deflate streams without preset dictionaries.
+- DEFLATE stored block decoding for one or more blocks.
+- LEN/NLEN validation.
+- Adler-32 checksum validation.
+- Compatibility track output-buffer pressure through caller-provided buffers.
+- Rust-native track owned output and deterministic error values.
+
+This is the completion boundary for the current comparison target. Full compressed Huffman block decoding, compression, preset dictionaries, and bit-level performance tuning are outside this target because they primarily measure algorithm implementation rather than ownership navigation.
+
 ## Acceptance Criteria
 
 - Both tracks compile and test independently.
-- Each track writes `reports/<track>/iteration-001/cargo-check.jsonl`.
+- Each track writes `reports/<track>/iteration-NNN/cargo-check.jsonl`.
 - Each track generates `ownership-report.json` and `ownership-report.html`.
 - `notes/iteration-log.md` records diagnostics, shortcut pressure, and navigation effect.
 - `notes/comparison-matrix.md` compares first cargo-check diagnostics, ownership diagnostics, shortcut pressure, and prevention/repair value.
 - No external LLM API call is required for any suggestion or evaluation step.
+- Stored-block completion reports compare repair value and prevention value across both tracks.

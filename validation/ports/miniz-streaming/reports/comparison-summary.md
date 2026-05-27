@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Status
 
-Paired slice 001 is complete.
+Paired slices 001 and 002 are complete. The target is complete at the zlib stored-block decode boundary.
 
 ## Hypothesis
 
@@ -39,4 +39,34 @@ Prevention value is visible in the Rust-native track: owned output and short bor
 
 ## Next Slice
 
-Use stored deflate block decode with incremental input/output pressure. This should preserve the fair comparison while adding enough parser state to test whether compatibility pressure grows beyond simple borrow ordering.
+No further slice is required for this target. Full Huffman-coded deflate, compression, preset dictionaries, and performance tuning are intentionally outside scope because they would mostly measure compression algorithm implementation rather than ownership-navigation value.
+
+## Iteration 002 Result
+
+The second slice added minimal real zlib/DEFLATE behavior:
+
+- zlib header validation
+- DEFLATE stored block decoding
+- LEN/NLEN validation
+- Adler-32 validation
+- single and multiple stored-block tests
+- compatibility output-buffer pressure
+- Rust-native output-limit errors
+
+Both tracks compiled and passed tests with zero diagnostics.
+
+| Metric | Compatibility | Rust-Native |
+| --- | ---: | ---: |
+| iteration-002 cargo-check diagnostics | 0 | 0 |
+| iteration-002 ownership diagnostics | 0 | 0 |
+| tests passed | 5 | 5 |
+| shortcut pressure events | 0 | 0 |
+
+## Final Assessment
+
+The comparison validated both dimensions of the new evaluation design:
+
+- **Repair value**: compatibility-preserving shape produced E0502 in iteration-001, and the navigation report directly guided the fix.
+- **Prevention value**: Rust-native shape avoided that borrow conflict from the start by using owned output and short borrow scopes.
+
+The stored-block completion slice showed that once the compatibility borrow-order issue is resolved, both tracks can implement a small real streaming decode behavior without shortcuts. This supports the product direction: navigation should keep local repair guidance, but it should also surface Rust-native design suggestions as prevention guidance.

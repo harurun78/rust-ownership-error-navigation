@@ -49,3 +49,13 @@ Update:
 - `reports/comparison-summary.md`
 
 Record both repair value and prevention value. Clean Rust-native compilation is prevention evidence, not an empty result.
+
+## Completion Boundary
+
+This target is complete when iteration-002 passes in both tracks:
+
+- compatibility track decodes zlib stored blocks into caller-provided output buffers
+- Rust-native track decodes zlib stored blocks into owned outputs
+- both tracks validate Adler-32 and LEN/NLEN stored block metadata
+- both tracks save cargo-check JSONL and ownership reports
+- comparison summary separates repair value from prevention value

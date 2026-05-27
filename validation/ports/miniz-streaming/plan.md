@@ -27,6 +27,20 @@ The goal is to test whether navigation reports provide repair value under compat
 - Record whether Rust-native design avoided ownership pressure.
 - Select next slice: stored deflate block decode, allocator hook behavior, or callback/user-data pressure.
 
+## Phase 4: Paired Slice 002 - zlib Stored Block Decode
+
+- Add zlib header validation, stored block LEN/NLEN validation, payload extraction, and Adler-32 validation.
+- Keep compatibility track stateful with caller-provided output buffer and status-code errors.
+- Keep Rust-native track owned-output based with deterministic `Result` errors.
+- Add tests for valid stored blocks, multiple stored blocks, output limit/buffer pressure, invalid lifecycle, and checksum failure.
+- Generate iteration-002 reports for both tracks.
+
+## Phase 5: Completion Assessment
+
+- Treat stored-block zlib decode as the completion boundary for this target.
+- Record that full Huffman/deflate compression is out of scope for ownership-navigation validation.
+- Use future work for allocator hook pressure or callback/user-data state only if a new comparison target is needed.
+
 ## Verification Commands
 
 From each track crate:
