@@ -22,7 +22,9 @@ export async function createReportFromDiagnosticFixture(
   const diagnostics = mapDiagnostics(
     cargoMessages.map((message, index) =>
       normalizeRustcDiagnostic(message.message!, { diagnosticIndex: index })
-    )
+    ),
+    undefined,
+    { audienceMode: options.audienceMode }
   );
 
   return createDiagnosticReport({

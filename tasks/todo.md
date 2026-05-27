@@ -178,3 +178,10 @@
 - 実装: E0382 / E0499 / E0502 learner summary generation、supported diagnostic への summary attachment、HTML learner summary cards、JSON/HTML/mapper tests を追加。
 - 対象 speckit tasks: T005-T012。
 - 検証: lint / format:check / type-check / test:run 26 files・50 tests / test:integration 4 files・7 tests / build 成功。security-auditor 再監査 PASS。
+
+## 2026-05-27 Issue #50 implementation
+
+- ブランチ: `feature/50-audience-modes`
+- 実装: `--audience beginner|intermediate|agent` CLI option、audience mode threading、mode-specific learner summary wording、README / quickstart usage、CLI/reporter/integration tests を追加。
+- 対象 speckit tasks: T013-T019。
+- 検証: `npm: verify` 成功（lint / format:check / type-check / test:run 28 files・54 tests / test:integration 5 files・8 tests）、`npm: build` 成功。security-auditor PASS。

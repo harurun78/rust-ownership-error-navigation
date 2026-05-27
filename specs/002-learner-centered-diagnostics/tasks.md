@@ -69,16 +69,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T013 [P] [US2] Add CLI option parsing tests for `--audience` in `test/cli/main.test.ts`
-- [ ] T014 [P] [US2] Add audience mode snapshot tests in `test/reporter/audience-modes.test.ts`
-- [ ] T015 [P] [US2] Add integration test for beginner/intermediate/agent output in `test/integration/audience-modes.integration.test.ts`
+- [x] T013 [P] [US2] Add CLI option parsing tests for `--audience` in `test/cli/main.test.ts`
+- [x] T014 [P] [US2] Add audience mode snapshot tests in `test/reporter/audience-modes.test.ts`
+- [x] T015 [P] [US2] Add integration test for beginner/intermediate/agent output in `test/integration/audience-modes.integration.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Add `--audience beginner|intermediate|agent` CLI parsing and default behavior in `src/cli/main.ts`
-- [ ] T017 [US2] Thread `AudienceMode` through mapper/reporter generation in `src/cli/main.ts` and reporter APIs
-- [ ] T018 [US2] Add audience-specific summary wording in `src/mapper/learner-summary.ts`
-- [ ] T019 [US2] Document audience mode usage in `docs/quickstart.md` and `README.md`
+- [x] T016 [US2] Add `--audience beginner|intermediate|agent` CLI parsing and default behavior in `src/cli/main.ts`
+- [x] T017 [US2] Thread `AudienceMode` through mapper/reporter generation in `src/cli/main.ts` and reporter APIs
+- [x] T018 [US2] Add audience-specific summary wording in `src/mapper/learner-summary.ts`
+- [x] T019 [US2] Document audience mode usage in `docs/quickstart.md` and `README.md`
 
 **Checkpoint**: Audience mode is selectable from CLI and produces stable learner/agent surfaces.
 

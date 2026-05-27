@@ -1,4 +1,4 @@
-import type { DiagnosticRecord } from './ownership-event.js';
+import type { AudienceMode, DiagnosticRecord } from './ownership-event.js';
 import { mapE0382Diagnostic } from './e0382.js';
 import { mapE0499Diagnostic } from './e0499.js';
 import { mapE0502Diagnostic } from './e0502.js';
@@ -12,6 +12,10 @@ export type SupportedDiagnosticCode = (typeof SUPPORTED_DIAGNOSTIC_CODES)[number
 export type DiagnosticMapper = (diagnostic: DiagnosticRecord) => DiagnosticRecord;
 
 export type MapperRegistry = Record<SupportedDiagnosticCode, DiagnosticMapper>;
+
+export interface MapDiagnosticOptions {
+  audienceMode?: AudienceMode;
+}
 
 export function isSupportedDiagnosticCode(
   code: string | null | undefined
@@ -27,18 +31,20 @@ export const defaultMapperRegistry: MapperRegistry = {
 
 export function mapDiagnostic(
   diagnostic: DiagnosticRecord,
-  registry: MapperRegistry = defaultMapperRegistry
+  registry: MapperRegistry = defaultMapperRegistry,
+  options: MapDiagnosticOptions = {}
 ): DiagnosticRecord {
   if (!isSupportedDiagnosticCode(diagnostic.code)) {
     return createUnsupportedDiagnosticRecord(diagnostic);
   }
 
-  return attachLearnerSummary(registry[diagnostic.code](diagnostic));
+  return attachLearnerSummary(registry[diagnostic.code](diagnostic), options.audienceMode);
 }
 
 export function mapDiagnostics(
   diagnostics: readonly DiagnosticRecord[],
-  registry: MapperRegistry = defaultMapperRegistry
+  registry: MapperRegistry = defaultMapperRegistry,
+  options: MapDiagnosticOptions = {}
 ): DiagnosticRecord[] {
-  return diagnostics.map((diagnostic) => mapDiagnostic(diagnostic, registry));
+  return diagnostics.map((diagnostic) => mapDiagnostic(diagnostic, registry, options));
 }
