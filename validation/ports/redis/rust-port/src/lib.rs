@@ -15,9 +15,9 @@ mod server;
 pub use command::Command;
 pub use error::RespError;
 pub use executor::{
-    CommandCategory, CommandMetadata, PropagationLogEntry, RedisMiniDb, RedisMiniSession,
-    RedisPubSubBroker, ReplicationCheckpoint, RespProtocolVersion, RespReply, command_metadata,
-    normalize_command_name, redis_cluster_hash_slot,
+    command_metadata, normalize_command_name, redis_cluster_hash_slot, CommandCategory,
+    CommandMetadata, PropagationLogEntry, RedisMiniDb, RedisMiniSession, RedisPubSubBroker,
+    ReplicationCheckpoint, RespProtocolVersion, RespReply,
 };
 pub use parser::{ParseOutcome, RespCommandParser};
 pub use persistence::{AofFsyncPolicy, PersistenceError};

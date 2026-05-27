@@ -1,7 +1,7 @@
 use rust_port::{
-    Command, CommandCategory, CommandMetadata, ParseOutcome, RedisMiniDb, RedisMiniServer,
-    RedisMiniSession, RedisPubSubBroker, RespCommandParser, RespError, RespProtocolVersion,
-    RespReply, command_metadata, normalize_command_name,
+    command_metadata, normalize_command_name, Command, CommandCategory, CommandMetadata,
+    ParseOutcome, RedisMiniDb, RedisMiniServer, RedisMiniSession, RedisPubSubBroker,
+    RespCommandParser, RespError, RespProtocolVersion, RespReply,
 };
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -3056,9 +3056,7 @@ fn executes_zrange_with_score_member_ordering_and_negative_indexes() {
     assert_eq!(
         execute(
             &mut db,
-            &[
-                b"ZADD", b"z", b"2", b"c", b"1", b"b", b"1", b"a", b"3", b"d"
-            ]
+            &[b"ZADD", b"z", b"2", b"c", b"1", b"b", b"1", b"a", b"3", b"d"]
         ),
         RespReply::Integer(4)
     );
@@ -3303,9 +3301,7 @@ fn xread_reads_one_or_more_streams_without_blocking() {
     assert_eq!(
         execute(
             &mut db,
-            &[
-                b"XREAD", b"COUNT", b"1", b"STREAMS", b"a", b"b", b"1-0", b"0-0",
-            ]
+            &[b"XREAD", b"COUNT", b"1", b"STREAMS", b"a", b"b", b"1-0", b"0-0",]
         ),
         RespReply::Array(vec![
             RespReply::Array(vec![
@@ -5233,9 +5229,7 @@ fn sorted_set_additional_behavior_zrangebyscore_rank_removals_lex_and_zscan() {
     assert_eq!(
         execute(
             &mut db,
-            &[
-                b"ZADD", b"myz", b"1", b"a", b"2", b"b\0x", b"2", b"c", b"3", b"d", b"4", b"e"
-            ]
+            &[b"ZADD", b"myz", b"1", b"a", b"2", b"b\0x", b"2", b"c", b"3", b"d", b"4", b"e"]
         ),
         RespReply::Integer(5)
     );
@@ -5296,9 +5290,7 @@ fn sorted_set_additional_behavior_zrangebyscore_rank_removals_lex_and_zscan() {
     assert_eq!(
         execute(
             &mut db,
-            &[
-                b"ZADD", b"scanz", b"1", b"m1", b"1", b"m2", b"1", b"m3", b"1", b"m4"
-            ]
+            &[b"ZADD", b"scanz", b"1", b"m1", b"1", b"m2", b"1", b"m3", b"1", b"m4"]
         ),
         RespReply::Integer(4)
     );
@@ -5336,9 +5328,7 @@ fn zlex_equal_score_subset_and_removals() {
     assert_eq!(
         execute(
             &mut db,
-            &[
-                b"ZADD", b"lexz", b"1", b"a", b"1", b"b", b"1", b"c", b"1", b"d"
-            ],
+            &[b"ZADD", b"lexz", b"1", b"a", b"1", b"b", b"1", b"c", b"1", b"d"],
         ),
         RespReply::Integer(4)
     );
