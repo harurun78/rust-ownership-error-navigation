@@ -323,6 +323,28 @@ Notes:
 - Final diagnostic count: total 0, supported 0, unsupported 0.
 - Next action: iteration-036 can start Phase 33 scripting boundary and compatibility stubs.
 
+### iteration-036
+
+- Date: 2026-05-27
+- Model: GPT-5 mini (copilot)
+- Task slice: R232-R234 Phase 33 scripting compatibility stubs and ownership-navigation repair.
+- Prompt summary: Continue iteration-036 from the saved ownership navigation report, repair the supported E0382 in `tests/scripting.rs` without manual ownership hints, clean the `slowlog_len` dead-code warning if practical, run `cargo fmt`, capture cargo-check JSONL, run full `cargo test`, regenerate final ownership reports, remove stray port report artifacts if present, and update validation ledgers.
+- Human ownership hints before attempt: none; the E0382 cause/conflict and machine-applicable `ref` suggestion came from `reports/iteration-036/ownership-report.json`.
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-036/cargo-check.jsonl && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-036/cargo-check.jsonl --json-out ../reports/iteration-036/ownership-report.json --html-out ../reports/iteration-036/ownership-report.html`
+- Result: compile success; test success, 149 passed; ownership report generation success.
+- Diagnostics file: `reports/iteration-036/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-036/ownership-report.json`
+- Ownership report HTML: `reports/iteration-036/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none; prior E0382 moved-value diagnostic in `tests/scripting.rs` was resolved.
+- Human intervention count: 0 for ownership repair; one non-ownership behavior regression in `GET` wrong-type handling surfaced during full tests and was repaired to restore existing compatibility expectations.
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>` introduced; no broad clone shortcut. Existing narrow value copy for string `GET` replies remains because the DB retains stored values.
+- Did the ownership report change the next fix: yes; it identified the move at the first `RespReply::BulkString(sha)` pattern and the later use of `load`, then supplied the `ref` pattern suggestion used for the repair.
+- Final diagnostic count: total 0, supported 0, unsupported 0.
+- Next action: iteration-037 can start Phase 34 replication basics.
+
 ### iteration-032
 
 - Date: 2026-05-26

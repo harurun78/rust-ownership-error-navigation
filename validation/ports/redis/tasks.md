@@ -348,9 +348,11 @@ iteration-035: completed minimal ACL/auth/config/introspection surface with `AUT
 
 ## Phase 33: Scripting And Functions
 
-- [ ] R232 Add a scripting boundary and decide whether to embed a maintained Lua engine or provide compatibility stubs first.
-- [ ] R233 Add `EVAL`, `EVALSHA`, `SCRIPT LOAD/EXISTS/FLUSH`, and deterministic tests for key access.
-- [ ] R234 Save diagnostics and reports for scripting iterations.
+- [x] R232 Add a scripting boundary and decide whether to embed a maintained Lua engine or provide compatibility stubs first.
+- [x] R233 Add `EVAL`, `EVALSHA`, `SCRIPT LOAD/EXISTS/FLUSH`, and deterministic tests for key access.
+- [x] R234 Save diagnostics and reports for scripting iterations.
+
+iteration-036: completed scripting compatibility stubs with deterministic `SCRIPT LOAD/EXISTS/FLUSH`, `EVAL`, and `EVALSHA` tests. The generated ownership report guided the E0382 repair in `tests/scripting.rs`; final cargo check ownership report is clean with zero diagnostics.
 
 ## Phase 34: Replication
 
