@@ -4,7 +4,7 @@
 //! the 8-byte PNG signature, validating 4-byte chunk type names, and extracting
 //! owned chunk-header metadata from progressive input.
 
-use std::io::Read;
+use std::io::{Read, Write};
 
 pub const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
@@ -85,8 +85,17 @@ pub enum PngParseError {
         color_type: u8,
         interlace_method: u8,
     },
+    UnsupportedEncodeFormat {
+        bit_depth: u8,
+        color_type: u8,
+    },
     InflateFailed,
+    DeflateFailed,
     InvalidInflatedDataLength {
+        expected: usize,
+        actual: usize,
+    },
+    InvalidImageDataLength {
         expected: usize,
         actual: usize,
     },
@@ -110,6 +119,11 @@ pub enum PngParseError {
     TrnsNotAllowed {
         color_type: u8,
     },
+    InvalidMetadataLength {
+        chunk_type: [u8; 4],
+        length: usize,
+    },
+    InvalidTextChunk,
     InvalidFilterType {
         row: usize,
         filter_type: u8,
@@ -246,6 +260,12 @@ impl PngCompressionMethod {
             _ => Err(PngParseError::InvalidIhdrCompressionMethod { method: byte }),
         }
     }
+
+    fn byte(self) -> u8 {
+        match self {
+            Self::Deflate => 0,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -258,6 +278,12 @@ impl PngFilterMethod {
         match byte {
             0 => Ok(Self::Adaptive),
             _ => Err(PngParseError::InvalidIhdrFilterMethod { method: byte }),
+        }
+    }
+
+    fn byte(self) -> u8 {
+        match self {
+            Self::Adaptive => 0,
         }
     }
 }
@@ -331,6 +357,65 @@ pub enum Transparency {
     Grayscale { sample: u8 },
     Truecolor { red: u8, green: u8, blue: u8 },
     Indexed { alpha: Vec<u8> },
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SrgbRenderingIntent {
+    Perceptual,
+    RelativeColorimetric,
+    Saturation,
+    AbsoluteColorimetric,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PhysicalPixelUnit {
+    Unknown,
+    Meter,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct PhysicalPixelDimensions {
+    pub pixels_per_unit_x: u32,
+    pub pixels_per_unit_y: u32,
+    pub unit: PhysicalPixelUnit,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct PngTimestamp {
+    pub year: u16,
+    pub month: u8,
+    pub day: u8,
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextChunk {
+    pub keyword: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PngMetadata {
+    pub gamma_scaled: Option<u32>,
+    pub srgb_rendering_intent: Option<SrgbRenderingIntent>,
+    pub physical_pixel_dimensions: Option<PhysicalPixelDimensions>,
+    pub timestamp: Option<PngTimestamp>,
+    pub text_chunks: Vec<TextChunk>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnknownAncillaryChunk {
+    pub chunk_type: [u8; 4],
+    pub payload: Vec<u8>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct PngDocument {
+    pub image: PngImage,
+    pub metadata: PngMetadata,
+    pub unknown_ancillary_chunks: Vec<UnknownAncillaryChunk>,
 }
 
 impl Ihdr {
@@ -689,6 +774,41 @@ pub fn validate_png_structure(input: &[u8]) -> Result<PngStructureSummary, PngPa
     validate_png_chunks(&chunks)
 }
 
+pub fn inspect_png_metadata(input: &[u8]) -> Result<PngMetadata, PngParseError> {
+    let chunks = parse_png_chunks(input)?;
+    validate_png_chunks(&chunks)?;
+
+    extract_png_metadata(&chunks)
+}
+
+pub fn decode_png_document(input: &[u8]) -> Result<PngDocument, PngParseError> {
+    let chunks = parse_png_chunks(input)?;
+    validate_png_chunks(&chunks)?;
+
+    Ok(PngDocument {
+        image: decode_png_image(input)?,
+        metadata: extract_png_metadata(&chunks)?,
+        unknown_ancillary_chunks: preserve_unknown_ancillary_chunks(&chunks),
+    })
+}
+
+pub fn extract_png_metadata(chunks: &[Chunk]) -> Result<PngMetadata, PngParseError> {
+    let mut metadata = PngMetadata::default();
+
+    for chunk in chunks {
+        match &chunk.header.chunk_type.bytes() {
+            b"gAMA" => metadata.gamma_scaled = Some(parse_gama(&chunk.payload)?),
+            b"sRGB" => metadata.srgb_rendering_intent = Some(parse_srgb(&chunk.payload)?),
+            b"pHYs" => metadata.physical_pixel_dimensions = Some(parse_phys(&chunk.payload)?),
+            b"tIME" => metadata.timestamp = Some(parse_time(&chunk.payload)?),
+            b"tEXt" => metadata.text_chunks.push(parse_text(&chunk.payload)?),
+            _ => {}
+        }
+    }
+
+    Ok(metadata)
+}
+
 pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
     let chunks = parse_png_chunks(input)?;
     validate_png_chunks(&chunks)?;
@@ -772,6 +892,116 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
         bit_depth: ihdr.bit_depth,
         pixels,
     })
+}
+
+pub fn encode_png_image(image: &PngImage) -> Result<Vec<u8>, PngParseError> {
+    if image.width == 0 || image.height == 0 {
+        return Err(PngParseError::InvalidIhdrDimensions {
+            width: image.width,
+            height: image.height,
+        });
+    }
+
+    if !image.color_type.allows_bit_depth(image.bit_depth) {
+        return Err(PngParseError::InvalidIhdrBitDepthColorType {
+            bit_depth: image.bit_depth,
+            color_type: image.color_type.byte(),
+        });
+    }
+
+    let samples_per_pixel = match image.color_type {
+        IhdrColorType::Grayscale => 1,
+        IhdrColorType::Truecolor => 3,
+        IhdrColorType::GrayscaleAlpha => 2,
+        IhdrColorType::TruecolorAlpha => 4,
+        IhdrColorType::Indexed => {
+            return Err(PngParseError::UnsupportedEncodeFormat {
+                bit_depth: image.bit_depth,
+                color_type: image.color_type.byte(),
+            });
+        }
+    };
+
+    if !matches!(image.bit_depth, 8 | 16) {
+        return Err(PngParseError::UnsupportedEncodeFormat {
+            bit_depth: image.bit_depth,
+            color_type: image.color_type.byte(),
+        });
+    }
+
+    let bytes_per_sample = usize::from(image.bit_depth / 8);
+    let row_len = image.width as usize * samples_per_pixel * bytes_per_sample;
+    let expected = row_len * image.height as usize;
+
+    if image.pixels.len() != expected {
+        return Err(PngParseError::InvalidImageDataLength {
+            expected,
+            actual: image.pixels.len(),
+        });
+    }
+
+    let mut output = PNG_SIGNATURE.to_vec();
+    append_png_chunk(&mut output, *b"IHDR", &encode_ihdr_payload(image)?)?;
+
+    let mut scanlines = Vec::with_capacity(expected + image.height as usize);
+    for row in image.pixels.chunks_exact(row_len) {
+        scanlines.push(0);
+        scanlines.extend_from_slice(row);
+    }
+
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder
+        .write_all(&scanlines)
+        .map_err(|_| PngParseError::DeflateFailed)?;
+    let idat_payload = encoder.finish().map_err(|_| PngParseError::DeflateFailed)?;
+
+    append_png_chunk(&mut output, *b"IDAT", &idat_payload)?;
+    append_png_chunk(&mut output, *b"IEND", &[])?;
+
+    Ok(output)
+}
+
+fn encode_ihdr_payload(image: &PngImage) -> Result<[u8; IHDR_PAYLOAD_LEN], PngParseError> {
+    let width = image.width.to_be_bytes();
+    let height = image.height.to_be_bytes();
+
+    Ok([
+        width[0],
+        width[1],
+        width[2],
+        width[3],
+        height[0],
+        height[1],
+        height[2],
+        height[3],
+        image.bit_depth,
+        image.color_type.byte(),
+        PngCompressionMethod::Deflate.byte(),
+        PngFilterMethod::Adaptive.byte(),
+        PngInterlaceMethod::None.byte(),
+    ])
+}
+
+fn append_png_chunk(
+    output: &mut Vec<u8>,
+    chunk_type: [u8; 4],
+    payload: &[u8],
+) -> Result<(), PngParseError> {
+    let chunk_type = ChunkType::from_bytes(chunk_type)?;
+    let length = u32::try_from(payload.len())
+        .ok()
+        .filter(|length| *length <= PNG_UINT_31_MAX)
+        .ok_or(PngParseError::InvalidChunkLength {
+            length: PNG_UINT_31_MAX + 1,
+        })?;
+    let crc = calculate_chunk_crc(chunk_type, payload);
+
+    output.extend_from_slice(&length.to_be_bytes());
+    output.extend_from_slice(&chunk_type.bytes());
+    output.extend_from_slice(payload);
+    output.extend_from_slice(&crc.to_be_bytes());
+
+    Ok(())
 }
 
 fn decode_layout(ihdr: Ihdr) -> Result<DecodeLayout, PngParseError> {
@@ -880,6 +1110,119 @@ fn find_transparency(chunks: &[Chunk], ihdr: Ihdr) -> Result<Option<Transparency
         .find(|chunk| chunk.header.chunk_type.bytes() == *b"tRNS")
         .map(|chunk| parse_trns(&chunk.payload, ihdr.color_type))
         .transpose()
+}
+
+fn parse_gama(payload: &[u8]) -> Result<u32, PngParseError> {
+    if payload.len() != 4 {
+        return Err(PngParseError::InvalidMetadataLength {
+            chunk_type: *b"gAMA",
+            length: payload.len(),
+        });
+    }
+
+    Ok(u32::from_be_bytes([
+        payload[0], payload[1], payload[2], payload[3],
+    ]))
+}
+
+fn parse_srgb(payload: &[u8]) -> Result<SrgbRenderingIntent, PngParseError> {
+    if payload.len() != 1 {
+        return Err(PngParseError::InvalidMetadataLength {
+            chunk_type: *b"sRGB",
+            length: payload.len(),
+        });
+    }
+
+    match payload[0] {
+        0 => Ok(SrgbRenderingIntent::Perceptual),
+        1 => Ok(SrgbRenderingIntent::RelativeColorimetric),
+        2 => Ok(SrgbRenderingIntent::Saturation),
+        3 => Ok(SrgbRenderingIntent::AbsoluteColorimetric),
+        _ => Err(PngParseError::InvalidMetadataLength {
+            chunk_type: *b"sRGB",
+            length: payload.len(),
+        }),
+    }
+}
+
+fn parse_phys(payload: &[u8]) -> Result<PhysicalPixelDimensions, PngParseError> {
+    if payload.len() != 9 {
+        return Err(PngParseError::InvalidMetadataLength {
+            chunk_type: *b"pHYs",
+            length: payload.len(),
+        });
+    }
+
+    Ok(PhysicalPixelDimensions {
+        pixels_per_unit_x: u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]),
+        pixels_per_unit_y: u32::from_be_bytes([payload[4], payload[5], payload[6], payload[7]]),
+        unit: match payload[8] {
+            0 => PhysicalPixelUnit::Unknown,
+            1 => PhysicalPixelUnit::Meter,
+            _ => {
+                return Err(PngParseError::InvalidMetadataLength {
+                    chunk_type: *b"pHYs",
+                    length: payload.len(),
+                });
+            }
+        },
+    })
+}
+
+fn parse_time(payload: &[u8]) -> Result<PngTimestamp, PngParseError> {
+    if payload.len() != 7 {
+        return Err(PngParseError::InvalidMetadataLength {
+            chunk_type: *b"tIME",
+            length: payload.len(),
+        });
+    }
+
+    Ok(PngTimestamp {
+        year: u16::from_be_bytes([payload[0], payload[1]]),
+        month: payload[2],
+        day: payload[3],
+        hour: payload[4],
+        minute: payload[5],
+        second: payload[6],
+    })
+}
+
+fn parse_text(payload: &[u8]) -> Result<TextChunk, PngParseError> {
+    let Some(separator) = payload.iter().position(|byte| *byte == 0) else {
+        return Err(PngParseError::InvalidTextChunk);
+    };
+
+    if separator == 0 || separator > 79 {
+        return Err(PngParseError::InvalidTextChunk);
+    }
+
+    let keyword = String::from_utf8(payload[..separator].to_vec())
+        .map_err(|_| PngParseError::InvalidTextChunk)?;
+    let text = String::from_utf8(payload[separator + 1..].to_vec())
+        .map_err(|_| PngParseError::InvalidTextChunk)?;
+
+    Ok(TextChunk { keyword, text })
+}
+
+fn preserve_unknown_ancillary_chunks(chunks: &[Chunk]) -> Vec<UnknownAncillaryChunk> {
+    chunks
+        .iter()
+        .filter(|chunk| {
+            chunk.header.chunk_type.is_ancillary()
+                && !is_known_ancillary_chunk(chunk.header.chunk_type.bytes())
+        })
+        .map(|chunk| UnknownAncillaryChunk {
+            chunk_type: chunk.header.chunk_type.bytes(),
+            payload: Vec::from(chunk.payload.as_slice()),
+        })
+        .collect()
+}
+
+fn is_known_ancillary_chunk(chunk_type: [u8; 4]) -> bool {
+    matches!(
+        &chunk_type,
+        b"gAMA" | b"sRGB" | b"pHYs" | b"tIME" | b"tEXt" | b"PLTE" | b"tRNS"
+    )
 }
 
 fn find_palette(chunks: &[Chunk]) -> Result<Vec<PaletteEntry>, PngParseError> {
@@ -1217,6 +1560,14 @@ mod tests {
             chunk(*b"IDAT", vec![1, 2, 3]),
             chunk(*b"IEND", Vec::new()),
         ]
+    }
+
+    fn phys_payload(pixels_per_unit_x: u32, pixels_per_unit_y: u32, unit: u8) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(9);
+        payload.extend_from_slice(&pixels_per_unit_x.to_be_bytes());
+        payload.extend_from_slice(&pixels_per_unit_y.to_be_bytes());
+        payload.push(unit);
+        payload
     }
 
     fn append_chunk_bytes(input: &mut Vec<u8>, chunk: &Chunk) {
@@ -1881,6 +2232,186 @@ mod tests {
         assert_eq!(
             validate_png_chunks(&chunks),
             Err(PngParseError::PlteNotAllowed { color_type: 0 })
+        );
+    }
+
+    #[test]
+    fn metadata_inspection_collects_common_chunks() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 2, 0, 0, 0).to_vec()),
+            chunk(*b"gAMA", 45_455_u32.to_be_bytes().to_vec()),
+            chunk(*b"sRGB", vec![0]),
+            chunk(*b"pHYs", phys_payload(3_780, 3_780, 1)),
+            chunk(*b"tIME", vec![0x07, 0xe9, 5, 27, 7, 45, 30]),
+            chunk(*b"tEXt", b"Title\0Tiny PNG".to_vec()),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+        let input = png_bytes_from_chunks(&chunks);
+
+        assert_eq!(
+            inspect_png_metadata(&input),
+            Ok(PngMetadata {
+                gamma_scaled: Some(45_455),
+                srgb_rendering_intent: Some(SrgbRenderingIntent::Perceptual),
+                physical_pixel_dimensions: Some(PhysicalPixelDimensions {
+                    pixels_per_unit_x: 3_780,
+                    pixels_per_unit_y: 3_780,
+                    unit: PhysicalPixelUnit::Meter,
+                }),
+                timestamp: Some(PngTimestamp {
+                    year: 2025,
+                    month: 5,
+                    day: 27,
+                    hour: 7,
+                    minute: 45,
+                    second: 30,
+                }),
+                text_chunks: vec![TextChunk {
+                    keyword: "Title".to_string(),
+                    text: "Tiny PNG".to_string(),
+                }],
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_inspection_rejects_malformed_payloads() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 2, 0, 0, 0).to_vec()),
+            chunk(*b"gAMA", vec![0, 1]),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            extract_png_metadata(&chunks),
+            Err(PngParseError::InvalidMetadataLength {
+                chunk_type: *b"gAMA",
+                length: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_inspection_rejects_malformed_text_chunk() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 2, 0, 0, 0).to_vec()),
+            chunk(*b"tEXt", b"missing separator".to_vec()),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            extract_png_metadata(&chunks),
+            Err(PngParseError::InvalidTextChunk)
+        );
+    }
+
+    #[test]
+    fn encode_png_image_writes_grayscale_round_trip_png() {
+        let image = PngImage {
+            width: 2,
+            height: 2,
+            color_type: IhdrColorType::Grayscale,
+            bit_depth: 8,
+            pixels: vec![0, 64, 128, 255],
+        };
+
+        let encoded = encode_png_image(&image).expect("grayscale image should encode");
+
+        assert_eq!(decode_png_image(&encoded), Ok(image));
+    }
+
+    #[test]
+    fn encode_png_image_writes_truecolor_round_trip_png() {
+        let image = PngImage {
+            width: 2,
+            height: 1,
+            color_type: IhdrColorType::Truecolor,
+            bit_depth: 8,
+            pixels: vec![255, 0, 0, 0, 128, 255],
+        };
+
+        let encoded = encode_png_image(&image).expect("truecolor image should encode");
+
+        assert_eq!(decode_png_image(&encoded), Ok(image));
+    }
+
+    #[test]
+    fn encode_png_image_rejects_indexed_without_palette_write_support() {
+        let image = PngImage {
+            width: 1,
+            height: 1,
+            color_type: IhdrColorType::Indexed,
+            bit_depth: 8,
+            pixels: vec![0],
+        };
+
+        assert_eq!(
+            encode_png_image(&image),
+            Err(PngParseError::UnsupportedEncodeFormat {
+                bit_depth: 8,
+                color_type: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn encode_png_image_rejects_incorrect_pixel_length() {
+        let image = PngImage {
+            width: 2,
+            height: 1,
+            color_type: IhdrColorType::Truecolor,
+            bit_depth: 8,
+            pixels: vec![255, 0, 0],
+        };
+
+        assert_eq!(
+            encode_png_image(&image),
+            Err(PngParseError::InvalidImageDataLength {
+                expected: 6,
+                actual: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_document_preserves_unknown_ancillary_chunks() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 0, 0, 0, 0).to_vec()),
+            chunk(*b"tEXt", b"Title\0Document".to_vec()),
+            chunk(*b"vpAg", vec![9, 8, 7]),
+            chunk(*b"IDAT", zlib_compress(&[0, 42])),
+            chunk(*b"IEND", Vec::new()),
+        ];
+        let input = png_bytes_from_chunks(&chunks);
+
+        assert_eq!(
+            decode_png_document(&input),
+            Ok(PngDocument {
+                image: PngImage {
+                    width: 1,
+                    height: 1,
+                    color_type: IhdrColorType::Grayscale,
+                    bit_depth: 8,
+                    pixels: vec![42],
+                },
+                metadata: PngMetadata {
+                    gamma_scaled: None,
+                    srgb_rendering_intent: None,
+                    physical_pixel_dimensions: None,
+                    timestamp: None,
+                    text_chunks: vec![TextChunk {
+                        keyword: "Title".to_string(),
+                        text: "Document".to_string(),
+                    }],
+                },
+                unknown_ancillary_chunks: vec![UnknownAncillaryChunk {
+                    chunk_type: *b"vpAg",
+                    payload: vec![9, 8, 7],
+                }],
+            })
         );
     }
 

@@ -341,3 +341,66 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; Adam7 pass rows are reconstructed into owned pass buffers and copied into an owned final image buffer.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: stop libpng validation at the practical read-path boundary; future work should use a different target or an intentionally failed branch to measure navigation effectiveness.
+
+### iteration-015
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L084-L087 metadata chunk inspection
+- Prompt summary: Broaden the libpng port beyond the read-path completion boundary by adding gAMA, sRGB, pHYs, tIME, and tEXt metadata extraction with malformed payload errors.
+- Human ownership hints before attempt: preserve current read/decode behavior and avoid `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-015 && cargo check --message-format=json > ../reports/iteration-015/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-015/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-015/ownership-report.json --html-out validation/ports/libpng/reports/iteration-015/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 57 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-015/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-015/ownership-report.json`
+- Ownership report HTML: `reports/iteration-015/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; text chunk payloads are copied into owned `String` values.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: add a basic PNG write API to cover another major full-parity gap.
+
+### iteration-016
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L088-L091 basic PNG write API
+- Prompt summary: Add `encode_png_image` for non-interlaced grayscale/truecolor-style images, write IHDR/IDAT/IEND with CRC and zlib compression, and verify decode round-trips.
+- Human ownership hints before attempt: keep indexed palette writing out of scope for this slice; continue avoiding `unsafe`, shared mutability shortcuts, and unnecessary cloning.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-016 && cargo check --message-format=json > ../reports/iteration-016/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-016/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-016/ownership-report.json --html-out validation/ports/libpng/reports/iteration-016/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 61 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-016/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-016/ownership-report.json`
+- Ownership report HTML: `reports/iteration-016/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; encoded scanlines and compressed IDAT payload are owned buffers.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: add a document-level API that preserves unknown ancillary chunks.
+
+### iteration-017
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L092-L094 document decode and ancillary preservation
+- Prompt summary: Add `decode_png_document` returning decoded image data, parsed metadata, and unknown ancillary chunk payloads for copy-policy style behavior.
+- Human ownership hints before attempt: keep the API Rust-native, owned, and compile-checkable; avoid expanding into C ABI compatibility.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-017 && cargo check --message-format=json > ../reports/iteration-017/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-017/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-017/ownership-report.json --html-out validation/ports/libpng/reports/iteration-017/ownership-report.html --audience intermediate`
+- Result: compile success; test success, 62 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-017/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-017/ownership-report.json`
+- Ownership report HTML: `reports/iteration-017/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; unknown ancillary payloads are preserved as owned `Vec<u8>` records.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: remaining full-parity gaps are progressive callbacks, richer color management, compressed/international text chunks, and broader write support.

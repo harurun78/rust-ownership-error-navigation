@@ -133,3 +133,23 @@
 - [x] L081 Implement Adam7 pass reconstruction for byte-aligned decoded samples. (iteration-014)
 - [x] L082 Record iteration-014 diagnostics and ownership report. (iteration-014)
 - [x] L083 Write final validation-port completion assessment. (iteration-014)
+
+## Phase 18: Metadata Chunk Inspection Slice
+
+- [x] L084 Add tests for parsing gAMA, sRGB, pHYs, tIME, and tEXt chunks. (iteration-015)
+- [x] L085 Implement metadata extraction over parsed chunk records. (iteration-015)
+- [x] L086 Add deterministic errors for malformed metadata payloads. (iteration-015)
+- [x] L087 Record iteration-015 diagnostics and ownership report. (iteration-015)
+
+## Phase 19: Basic PNG Write Slice
+
+- [x] L088 Add tests for encoding simple grayscale and truecolor PNG images. (iteration-016)
+- [x] L089 Implement IHDR/IDAT/IEND writing with CRC and zlib compression for non-interlaced images. (iteration-016)
+- [x] L090 Add encode/decode round-trip coverage. (iteration-016)
+- [x] L091 Record iteration-016 diagnostics and ownership report. (iteration-016)
+
+## Phase 20: Document Decode and Ancillary Preservation Slice
+
+- [x] L092 Add tests for preserving unknown ancillary chunk payloads. (iteration-017)
+- [x] L093 Implement document-level decode that returns image data, metadata, and unknown ancillary chunks. (iteration-017)
+- [x] L094 Record iteration-017 diagnostics and ownership report. (iteration-017)

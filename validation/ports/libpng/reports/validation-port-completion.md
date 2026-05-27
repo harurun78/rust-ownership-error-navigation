@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Decision
 
-The libpng validation port is complete for the practical Rust read-path boundary used by this repository's porting experiments.
+The libpng validation port reached the practical Rust read-path boundary at iteration-014. Iterations 015-017 deliberately broadened the scope toward selected full-libpng parity gaps while keeping the work Rust-native and compile-checkable.
 
 Completed capabilities:
 
@@ -20,25 +20,28 @@ Completed capabilities:
 - Packed 1/2/4-bit grayscale and indexed-color sample expansion
 - 16-bit grayscale, truecolor, grayscale-alpha, and truecolor-alpha byte preservation
 - Adam7 pass reconstruction for byte-aligned decoded samples
+- gAMA, sRGB, pHYs, tIME, and tEXt metadata extraction
+- Basic PNG writing for non-interlaced grayscale/truecolor-style images
+- Document-level decode with unknown ancillary chunk preservation
 
 ## Still Out Of Scope
 
 The following are intentionally outside this validation port boundary rather than incomplete iteration work:
 
 - Full libpng public API parity
-- Write/encode APIs
+- Full write/encode API parity, including palette writing, metadata writing, filter strategy selection, and interlaced output
 - C ABI compatibility
 - Custom allocator hooks and setjmp/longjmp behavior
 - Progressive callback API parity
-- Full metadata/color-management chunk interpretation such as gAMA, cHRM, sRGB, iCCP, tEXt, zTXt, iTXt, tIME, and pHYs
-- Unknown ancillary chunk preservation policy beyond structure validation
+- Full metadata/color-management chunk interpretation such as cHRM, iCCP, zTXt, and iTXt
+- Complete unknown ancillary copy policy during writing
 
 ## Navigation App Effect
 
-Across libpng iterations 001-014, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
+Across libpng iterations 001-017, `cargo check --message-format=json` emitted zero diagnostics. The ownership-navigation app therefore did not need to guide a repair during this target. The generated reports are still useful as validation artifacts because they make the absence of ownership and non-ownership diagnostics explicit.
 
 The feature improvements remain verified through fixture smoke reports, but libpng itself did not provide a measurable before/after diagnostic-reduction signal.
 
 ## Final Recommendation
 
-Stop libpng iteration at this boundary and use a different validation target or an intentionally failed libpng branch if the goal is to measure diagnostic navigation effectiveness. Further libpng parity work would mostly test PNG domain coverage rather than ownership-error navigation.
+Further libpng parity work is possible, but it will mostly test PNG domain coverage rather than ownership-error navigation. Use a different validation target or an intentionally failed libpng branch if the goal is to measure diagnostic navigation effectiveness.

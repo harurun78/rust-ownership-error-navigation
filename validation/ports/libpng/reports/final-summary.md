@@ -4,7 +4,7 @@ Date: 2026-05-27
 
 ## Completion Boundary
 
-This validation target has moved beyond the original structure-only slice into a practical minimal PNG read path: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, and Adam7 pass reconstruction for byte-aligned decoded samples.
+This validation target has moved beyond the original structure-only slice into a practical PNG implementation subset: PNG signature comparison, progressive chunk parsing, owned chunk payload/CRC extraction, CRC32 validation, IHDR validation, stream structure validation, PLTE validation, IDAT zlib inflation, scanline filter reconstruction, packed 1/2/4-bit grayscale/indexed expansion, non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6, non-interlaced 16-bit decode for color types 0, 2, 4, and 6, tRNS transparency expansion, Adam7 pass reconstruction for byte-aligned decoded samples, common metadata extraction, basic PNG writing, and document-level unknown ancillary preservation.
 
 This is still not full libpng parity. Remaining gaps are tracked in `reports/full-port-gap-assessment.md`.
 
@@ -26,6 +26,9 @@ This is still not full libpng parity. Remaining gaps are tracked in `reports/ful
 | iteration-012 | 16-bit alpha decode | compile/test pass | 49 | 0 | 0 | 0 | Preserve big-endian sample bytes for 16-bit grayscale-alpha and truecolor-alpha images |
 | iteration-013 | PLTE structure validation | compile/test pass | 53 | 0 | 0 | 0 | Require PLTE before indexed IDAT and reject duplicate/late/disallowed PLTE chunks |
 | iteration-014 | Adam7 interlace completion | compile/test pass | 54 | 0 | 0 | 0 | Reconstruct Adam7 pass data for byte-aligned decoded samples |
+| iteration-015 | Metadata chunk inspection | compile/test pass | 57 | 0 | 0 | 0 | Extract gAMA, sRGB, pHYs, tIME, and tEXt metadata |
+| iteration-016 | Basic PNG write API | compile/test pass | 61 | 0 | 0 | 0 | Encode non-interlaced grayscale/truecolor images with IHDR/IDAT/IEND |
+| iteration-017 | Document decode and ancillary preservation | compile/test pass | 62 | 0 | 0 | 0 | Return image data, metadata, and unknown ancillary chunk payloads |
 
 ## Shortcut Pressure
 
@@ -54,6 +57,7 @@ Interpretation:
 ## Next Candidate Work
 
 - Use a different validation target, or an intentionally failed libpng branch, to measure diagnostic navigation effectiveness.
-- Add Adam7 interlace reconstruction.
 - Add progressive row callback style decoding to increase ownership pressure.
+- Add richer color/text metadata coverage such as cHRM, iCCP, zTXt, and iTXt.
+- Expand the writer to palette, metadata, and interlaced output.
 - If future iterations produce E0382/E0499/E0502 or E0308/E0004/E0425, feed the generated report into the next low-cost attempt and compare repeated diagnostics.
