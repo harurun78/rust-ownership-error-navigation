@@ -46,6 +46,8 @@ Final source scan found no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad
 
 ## Navigation App Effect Check
 
+Detailed assessment: `reports/navigation-feature-assessment.md`.
+
 Actual libpng iterations did not emit compiler diagnostics, so ownership navigation did not need to guide a fix. This means the direct libpng-porting effect remains neutral rather than negative: the implementation completed the planned slices without E0382/E0499/E0502 or high-frequency non-ownership blockers.
 
 To verify the navigation app feature additions still improve the diagnostic surface when errors exist, smoke reports were generated under `reports/navigation-feature-check/` using existing diagnostic fixtures.
