@@ -1,0 +1,12 @@
+# family	case	commands	RESP2 expected replies
+strings	set_get_binary	SET,k,value\0bytes|GET,k	+OK\r\n$11\r\nvalue\0bytes\r\n
+lists	push_range	RPUSH,list,a,b|LRANGE,list,0,-1	:2\r\n*2\r\n$1\r\na\r\n$1\r\nb\r\n
+hashes	hset_hgetall	HSET,h,f,v|HGETALL,h	:1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n
+sets	sadd_smembers	SADD,set,b,a|SMEMBERS,set	:2\r\n*2\r\n$1\r\na\r\n$1\r\nb\r\n
+sorted-sets	zadd_zrange	ZADD,z,1,one,2,two|ZRANGE,z,0,-1	:2\r\n*2\r\n$3\r\none\r\n$3\r\ntwo\r\n
+streams	xadd_xlen	XADD,stream,1-0,f,v|XLEN,stream	$3\r\n1-0\r\n:1\r\n
+pubsub	subscribe_ping	SUBSCRIBE,news|PING|UNSUBSCRIBE,news	*3\r\n$9\r\nsubscribe\r\n$4\r\nnews\r\n:1\r\n+PONG\r\n*3\r\n$11\r\nunsubscribe\r\n$4\r\nnews\r\n:0\r\n
+persistence	command_before_snapshot	SET,persisted,value|GET,persisted	+OK\r\n$5\r\nvalue\r\n
+scripting	eval_argv_stub	EVAL,return ARGV[1],0,hello	$5\r\nhello\r\n
+replication	role_replconf	ROLE|REPLCONF,listening-port,6379	*3\r\n$6\r\nmaster\r\n:0\r\n*0\r\n+OK\r\n
+cluster	keyslot_hash_tag	CLUSTER,KEYSLOT,foo{bar}zap	:5061\r\n

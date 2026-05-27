@@ -368,7 +368,9 @@ iteration-036: completed scripting compatibility stubs with deterministic `SCRIP
 
 ## Phase 36: Compatibility Harness And Final Gap Report
 
-- [ ] R241 Add fixture-driven compatibility tests comparing selected Redis upstream command transcripts.
-- [ ] R242 Add TCP smoke tests for parser, executor, persistence, pub/sub, and replication slices.
-- [ ] R243 Produce a final compatibility matrix documenting complete, partial, and intentionally unsupported behavior.
-- [ ] R244 Run final `cargo fmt -- --check`, `cargo test`, repository gates, shortcut scan, and generate final ownership report summary.
+- [x] R241 Add fixture-driven compatibility tests comparing selected Redis upstream command transcripts.
+- [x] R242 Add TCP smoke tests for parser, executor, persistence, pub/sub, and replication slices.
+- [x] R243 Produce a final compatibility matrix documenting complete, partial, and intentionally unsupported behavior.
+- [x] R244 Run final `cargo fmt -- --check`, `cargo test`, repository gates, shortcut scan, and generate final ownership report summary.
+
+iteration-039: completed Phase 36 compatibility harness and final gap report with fixture-driven RESP2 transcript coverage across strings, lists, hashes, sets, sorted sets, streams, Pub/Sub, persistence command smoke, scripting stubs, replication, and cluster basics. Added client-session smoke tests for partial parser input, executor state, Pub/Sub subscribed-mode boundaries, replication role transitions, Pub/Sub broker delivery, and direct persistence snapshot/AOF roundtrips. Final `cargo fmt -- --check`, `cargo check`, `cargo test`, ownership report generation, repository gates, and shortcut scan completed with zero ownership diagnostics.

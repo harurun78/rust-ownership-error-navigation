@@ -68,6 +68,27 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; narrow `to_vec()` copies used; no broad clone shortcuts introduced.
 - Did the ownership report change the next fix: not applicable; no ownership diagnostics were emitted
 - Next action: continue incremental cluster feature expansion (slot migration simulation, ASK handling over TCP, cluster-replicas topology tests)
+
+### iteration-039
+
+- Date: 2026-05-27
+- Model: GPT-5 mini (copilot)
+- Task slice: R241-R244 Phase 36 Compatibility Harness And Final Gap Report
+- Prompt summary: Add fixture-driven compatibility transcripts and TCP/client-session smoke tests for parser, executor, persistence, Pub/Sub, replication, scripting stubs, and cluster basics; produce final compatibility matrix; run final Cargo validation, repository gates, shortcut scan, and ownership report generation under `reports/iteration-039/` without committing.
+- Human ownership hints before attempt: none
+- Command: `cargo fmt && cargo check --message-format=json > ../reports/iteration-039/cargo-check.jsonl && cargo fmt -- --check && cargo test && node ../../../../dist/cli/main.js --input ../reports/iteration-039/cargo-check.jsonl --json-out ../reports/iteration-039/ownership-report.json --html-out ../reports/iteration-039/ownership-report.html`; repository gates `npm run format:check && npm run lint && npm run type-check && npm run test:run`
+- Result: compile success; test success, all Rust tests passed; repository gates passed; ownership report generation success
+- Diagnostics file: `reports/iteration-039/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-039/ownership-report.json`
+- Ownership report HTML: `reports/iteration-039/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 1 (corrected a new test expectation for single-channel Pub/Sub subscribe acknowledgement shape)
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, or `Arc<Mutex<_>>`; no new broad clone shortcuts in iteration-039 tests. Existing source shortcut scan still reports earlier narrow `clone()` use for retained values/key iteration in executor internals.
+- Did the ownership report change the next fix: not applicable; no ownership diagnostics were emitted
+- Next action: Phase 36 validation is complete; future work should be scoped as post-MVP compatibility expansion, not Phase 36 closure.
 - Date: 2026-05-26
 - Task slice: R010-R024 crate skeleton, RESP2 multibulk happy path, diagnostic capture, reports, and ledger updates.
 - Prompt summary: Initialize `validation/ports/redis/rust-port`, expose a complete RESP2 multibulk parser API returning owned command argument bytes, test PING/GET/SET and binary-safe payloads, capture cargo diagnostics, generate ownership reports, and update notes/tasks without committing.
