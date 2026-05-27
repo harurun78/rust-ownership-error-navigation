@@ -1,3 +1,26 @@
+#
+
+### iteration-005
+
+- Date: 2026-05-27
+- Model: GPT-4.1 (porting-lowcost)
+- Task slice: CRC validation for PNG chunks (type+payload), integrate with structure validation, add tests, no unsafe/clone/RefCell/Arc/Mutex, document dependency, update tasks, run fmt/check/test/report.
+- Prompt summary: CRC validation for PNG chunks (type+payload), integrate with structure validation, add tests, no unsafe/clone/RefCell/Arc/Mutex, document dependency, update tasks, run fmt/check/test/report.
+- Human ownership hints before attempt: Use crc32fast, follow PNG spec, test both valid and invalid CRC, update all required files, do not touch upstream.
+- Command:
+  - cargo fmt
+  - cargo fmt -- --check
+  - mkdir -p ../reports/iteration-005
+  - cargo check --message-format=json > ../reports/iteration-005/cargo-check.jsonl
+  - cargo test
+  - (from repo root) node dist/cli/main.js validation/ports/libpng/reports/iteration-005/cargo-check.jsonl
+- Result: (to be filled after check)
+- Diagnostics file: reports/iteration-005/cargo-check.jsonl
+- Ownership report JSON: reports/iteration-005/ownership-report.json
+- Ownership report HTML: reports/iteration-005/ownership-report.html
+- E0382 count: (to be filled)
+- E0499 count: (to be filled)
+
 # libpng Porting Iteration Log
 
 Use this log to separate ownership-report effects from human guidance.
@@ -108,3 +131,87 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; small summary metadata derives `Copy, Clone`.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: write final libpng validation summary for L038.
+
+### iteration-005
+
+- Date: 2026-05-27
+- Model: GitHub Copilot in porting-lowcost mode, with main-agent correction
+- Task slice: L039-L042 CRC validation
+- Prompt summary: Add a documented CRC32 dependency decision, tests for valid and mismatched chunk CRC values, CRC validation over chunk type bytes plus payload, and iteration-005 cargo/report artifacts.
+- Human ownership hints before attempt: no manual Rust ownership fixes; no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-005 && cargo check --message-format=json > ../reports/iteration-005/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-005/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-005/ownership-report.json --html-out validation/ports/libpng/reports/iteration-005/ownership-report.html`
+- Result: compile success; test success, 28 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-005/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-005/ownership-report.json`
+- Ownership report HTML: `reports/iteration-005/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 1 (main agent completed the CRC implementation after the low-cost attempt added dependency/docs/tasks but did not modify `src/lib.rs`)
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; CRC validation uses owned chunk metadata and borrowed payload slices.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: continue with non-interlaced image decode: zlib IDAT inflation and PNG filter reconstruction.
+
+### iteration-006
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L043-L047 non-interlaced image decode
+- Prompt summary: Add a zlib/deflate dependency decision, tests for tiny 8-bit grayscale and truecolor PNG decode, IDAT concatenation, zlib inflation, and PNG scanline filter reconstruction.
+- Human ownership hints before attempt: keep scope to non-interlaced color types 0 and 2 at 8-bit depth; no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-006 && cargo check --message-format=json > ../reports/iteration-006/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-006/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-006/ownership-report.json --html-out validation/ports/libpng/reports/iteration-006/ownership-report.html`
+- Result: compile success; test success, 30 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-006/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-006/ownership-report.json`
+- Ownership report HTML: `reports/iteration-006/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; IDAT bytes are concatenated into owned compressed data and scanlines are reconstructed into an owned pixel buffer.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: reassess full libpng parity gaps and select the next slice, likely palette/tRNS before Adam7 interlace or row streaming.
+
+### iteration-007
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L049-L052 alpha channel decode
+- Prompt summary: Extend 8-bit non-interlaced decode from grayscale/truecolor to grayscale-alpha and truecolor-alpha, reusing scanline reconstruction and adding tiny PNG decode tests.
+- Human ownership hints before attempt: no manual ownership fixes; continue avoiding `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-007 && cargo check --message-format=json > ../reports/iteration-007/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-007/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-007/ownership-report.json --html-out validation/ports/libpng/reports/iteration-007/ownership-report.html`
+- Result: compile success; test success, 32 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-007/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-007/ownership-report.json`
+- Ownership report HTML: `reports/iteration-007/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; color channel support is selected through byte-per-pixel metadata.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: continue with indexed-color palette support or Adam7 interlace depending on desired parity depth.
+
+### iteration-008
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L053-L057 indexed palette decode
+- Prompt summary: Add PLTE parsing, tiny 8-bit indexed-color PNG decode, RGB expansion, and deterministic missing/invalid palette errors.
+- Human ownership hints before attempt: no manual ownership fixes; continue avoiding `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, and broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-008 && cargo check --message-format=json > ../reports/iteration-008/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-008/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-008/ownership-report.json --html-out validation/ports/libpng/reports/iteration-008/ownership-report.html`
+- Result: compile success; test success, 36 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-008/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-008/ownership-report.json`
+- Ownership report HTML: `reports/iteration-008/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; palette entries are copied as small value metadata and indexed pixels expand into an owned RGB buffer.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: reassess full libpng parity gaps; likely remaining high-value slices are tRNS alpha expansion, Adam7 interlace, metadata chunks, and streaming row decode.

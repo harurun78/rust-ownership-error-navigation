@@ -55,3 +55,37 @@
 - [x] L036 Implement a minimal PNG structure validator over owned chunk records.
 - [x] L037 Record iteration-004 diagnostics and ownership report.
 - [x] L038 Write final libpng validation summary including whether navigation app feature additions improved usefulness.
+
+## Phase 7: CRC Validation Slice
+
+- [x] L039 Add a documented CRC32 dependency decision for chunk verification. (iteration-005)
+- [x] L040 Add tests for valid and mismatched PNG chunk CRC values. (iteration-005)
+- [x] L041 Implement CRC validation over chunk type bytes plus payload bytes. (iteration-005)
+- [x] L042 Record iteration-005 diagnostics and ownership report. (iteration-005)
+
+## Phase 8: Non-Interlaced Image Decode Slice
+
+- [x] L043 Add a documented zlib/deflate dependency decision for IDAT inflation. (iteration-006)
+- [x] L044 Add tests for decoding a tiny non-interlaced grayscale PNG image. (iteration-006)
+- [x] L045 Add tests for decoding a tiny non-interlaced truecolor PNG image. (iteration-006)
+- [x] L046 Implement IDAT concatenation, zlib inflation, and PNG filter reconstruction for color types 0 and 2 at 8-bit depth. (iteration-006)
+- [x] L047 Record iteration-006 diagnostics and ownership report. (iteration-006)
+
+## Phase 9: Full-Port Boundary Reassessment
+
+- [x] L048 Summarize remaining gaps versus full libpng parity and decide the next slice: palette/tRNS, Adam7 interlace, row streaming, or metadata chunks. (post-iteration-008)
+
+## Phase 10: Alpha Channel Decode Slice
+
+- [x] L049 Add tests for decoding a tiny non-interlaced grayscale-alpha PNG image. (iteration-007)
+- [x] L050 Add tests for decoding a tiny non-interlaced truecolor-alpha PNG image. (iteration-007)
+- [x] L051 Extend 8-bit decode support to color types 4 and 6. (iteration-007)
+- [x] L052 Record iteration-007 diagnostics and ownership report. (iteration-007)
+
+## Phase 11: Indexed Palette Decode Slice
+
+- [x] L053 Add tests for PLTE chunk parsing. (iteration-008)
+- [x] L054 Add tests for decoding a tiny 8-bit indexed-color PNG image. (iteration-008)
+- [x] L055 Implement PLTE parsing and indexed-color expansion to RGB pixels. (iteration-008)
+- [x] L056 Add deterministic errors for missing PLTE and invalid palette indices. (iteration-008)
+- [x] L057 Record iteration-008 diagnostics and ownership report. (iteration-008)

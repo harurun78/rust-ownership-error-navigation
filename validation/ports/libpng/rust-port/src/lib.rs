@@ -4,6 +4,8 @@
 //! the 8-byte PNG signature, validating 4-byte chunk type names, and extracting
 //! owned chunk-header metadata from progressive input.
 
+use std::io::Read;
+
 pub const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
 const PNG_SIGNATURE_LEN: usize = PNG_SIGNATURE.len();
@@ -56,11 +58,39 @@ pub enum PngParseError {
     ChunkAfterIend {
         chunk_type: [u8; 4],
     },
+    CrcMismatch {
+        chunk_type: [u8; 4],
+        expected: u32,
+        actual: u32,
+    },
     UnknownCriticalChunk {
         chunk_type: [u8; 4],
     },
     TrailingBytesAfterIend {
         byte_count: usize,
+    },
+    MissingImageData,
+    UnsupportedDecodeFormat {
+        bit_depth: u8,
+        color_type: u8,
+        interlace_method: u8,
+    },
+    InflateFailed,
+    InvalidInflatedDataLength {
+        expected: usize,
+        actual: usize,
+    },
+    InvalidPlteLength {
+        length: usize,
+    },
+    MissingPlte,
+    InvalidPaletteIndex {
+        index: u8,
+        palette_len: usize,
+    },
+    InvalidFilterType {
+        row: usize,
+        filter_type: u8,
     },
     UnexpectedEndOfInput {
         buffered_len: usize,
@@ -224,6 +254,13 @@ impl PngInterlaceMethod {
             _ => Err(PngParseError::InvalidIhdrInterlaceMethod { method: byte }),
         }
     }
+
+    fn byte(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Adam7 => 1,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -243,6 +280,22 @@ pub struct PngStructureSummary {
     pub height: u32,
     pub idat_count: usize,
     pub ancillary_count: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct PngImage {
+    pub width: u32,
+    pub height: u32,
+    pub color_type: IhdrColorType,
+    pub bit_depth: u8,
+    pub pixels: Vec<u8>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct PaletteEntry {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
 }
 
 impl Ihdr {
@@ -436,6 +489,8 @@ pub fn validate_png_chunks(chunks: &[Chunk]) -> Result<PngStructureSummary, PngP
     let mut seen_iend = false;
 
     for chunk in chunks {
+        validate_chunk_crc(chunk)?;
+
         let chunk_type = chunk.header.chunk_type;
         let chunk_type_bytes = chunk_type.bytes();
 
@@ -493,7 +548,28 @@ pub fn validate_png_chunks(chunks: &[Chunk]) -> Result<PngStructureSummary, PngP
     })
 }
 
-pub fn validate_png_structure(input: &[u8]) -> Result<PngStructureSummary, PngParseError> {
+pub fn calculate_chunk_crc(chunk_type: ChunkType, payload: &[u8]) -> u32 {
+    let mut hasher = crc32fast::Hasher::new();
+    hasher.update(&chunk_type.bytes());
+    hasher.update(payload);
+    hasher.finalize()
+}
+
+pub fn validate_chunk_crc(chunk: &Chunk) -> Result<(), PngParseError> {
+    let expected = calculate_chunk_crc(chunk.header.chunk_type, &chunk.payload);
+
+    if chunk.crc != expected {
+        return Err(PngParseError::CrcMismatch {
+            chunk_type: chunk.header.chunk_type.bytes(),
+            expected,
+            actual: chunk.crc,
+        });
+    }
+
+    Ok(())
+}
+
+pub fn parse_png_chunks(input: &[u8]) -> Result<Vec<Chunk>, PngParseError> {
     let mut parser = PngStreamParser::new();
     let mut chunks = Vec::new();
 
@@ -539,7 +615,197 @@ pub fn validate_png_structure(input: &[u8]) -> Result<PngStructureSummary, PngPa
         }
     }
 
+    Ok(chunks)
+}
+
+pub fn validate_png_structure(input: &[u8]) -> Result<PngStructureSummary, PngParseError> {
+    let chunks = parse_png_chunks(input)?;
+
     validate_png_chunks(&chunks)
+}
+
+pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
+    let chunks = parse_png_chunks(input)?;
+    validate_png_chunks(&chunks)?;
+
+    let ihdr_chunk = chunks
+        .iter()
+        .find(|chunk| chunk.header.chunk_type.bytes() == *b"IHDR")
+        .ok_or(PngParseError::MissingIhdr)?;
+    let ihdr = Ihdr::parse(&ihdr_chunk.payload)?;
+    let bytes_per_pixel = decode_bytes_per_pixel(ihdr)?;
+
+    let mut compressed = Vec::new();
+    for chunk in chunks
+        .iter()
+        .filter(|chunk| chunk.header.chunk_type.bytes() == *b"IDAT")
+    {
+        compressed.extend_from_slice(&chunk.payload);
+    }
+
+    if compressed.is_empty() {
+        return Err(PngParseError::MissingImageData);
+    }
+
+    let mut decoder = flate2::read::ZlibDecoder::new(compressed.as_slice());
+    let mut inflated = Vec::new();
+    decoder
+        .read_to_end(&mut inflated)
+        .map_err(|_| PngParseError::InflateFailed)?;
+
+    let reconstructed = reconstruct_scanlines(&inflated, ihdr.width, ihdr.height, bytes_per_pixel)?;
+    let pixels = if ihdr.color_type == IhdrColorType::Indexed {
+        let palette = find_palette(&chunks)?;
+        expand_indexed_pixels(&reconstructed, &palette)?
+    } else {
+        reconstructed
+    };
+
+    Ok(PngImage {
+        width: ihdr.width,
+        height: ihdr.height,
+        color_type: ihdr.color_type,
+        bit_depth: ihdr.bit_depth,
+        pixels,
+    })
+}
+
+fn decode_bytes_per_pixel(ihdr: Ihdr) -> Result<usize, PngParseError> {
+    if ihdr.bit_depth != 8 || ihdr.interlace_method != PngInterlaceMethod::None {
+        return Err(PngParseError::UnsupportedDecodeFormat {
+            bit_depth: ihdr.bit_depth,
+            color_type: ihdr.color_type.byte(),
+            interlace_method: ihdr.interlace_method.byte(),
+        });
+    }
+
+    match ihdr.color_type {
+        IhdrColorType::Grayscale => Ok(1),
+        IhdrColorType::Truecolor => Ok(3),
+        IhdrColorType::Indexed => Ok(1),
+        IhdrColorType::GrayscaleAlpha => Ok(2),
+        IhdrColorType::TruecolorAlpha => Ok(4),
+    }
+}
+
+pub fn parse_plte(payload: &[u8]) -> Result<Vec<PaletteEntry>, PngParseError> {
+    if payload.is_empty() || !payload.len().is_multiple_of(3) || payload.len() > 256 * 3 {
+        return Err(PngParseError::InvalidPlteLength {
+            length: payload.len(),
+        });
+    }
+
+    Ok(payload
+        .chunks_exact(3)
+        .map(|entry| PaletteEntry {
+            red: entry[0],
+            green: entry[1],
+            blue: entry[2],
+        })
+        .collect())
+}
+
+fn find_palette(chunks: &[Chunk]) -> Result<Vec<PaletteEntry>, PngParseError> {
+    let plte = chunks
+        .iter()
+        .find(|chunk| chunk.header.chunk_type.bytes() == *b"PLTE")
+        .ok_or(PngParseError::MissingPlte)?;
+
+    parse_plte(&plte.payload)
+}
+
+fn expand_indexed_pixels(
+    indices: &[u8],
+    palette: &[PaletteEntry],
+) -> Result<Vec<u8>, PngParseError> {
+    let mut pixels = Vec::with_capacity(indices.len() * 3);
+
+    for index in indices {
+        let entry = palette.get(*index as usize).ok_or({
+            PngParseError::InvalidPaletteIndex {
+                index: *index,
+                palette_len: palette.len(),
+            }
+        })?;
+
+        pixels.extend_from_slice(&[entry.red, entry.green, entry.blue]);
+    }
+
+    Ok(pixels)
+}
+
+fn reconstruct_scanlines(
+    inflated: &[u8],
+    width: u32,
+    height: u32,
+    bytes_per_pixel: usize,
+) -> Result<Vec<u8>, PngParseError> {
+    let row_len = width as usize * bytes_per_pixel;
+    let expected = (row_len + 1) * height as usize;
+
+    if inflated.len() != expected {
+        return Err(PngParseError::InvalidInflatedDataLength {
+            expected,
+            actual: inflated.len(),
+        });
+    }
+
+    let mut pixels = vec![0; row_len * height as usize];
+
+    for row in 0..height as usize {
+        let source_start = row * (row_len + 1);
+        let filter_type = inflated[source_start];
+        let scanline = &inflated[source_start + 1..source_start + 1 + row_len];
+        let target_start = row * row_len;
+
+        for column in 0..row_len {
+            let raw = scanline[column];
+            let left = if column >= bytes_per_pixel {
+                pixels[target_start + column - bytes_per_pixel]
+            } else {
+                0
+            };
+            let up = if row > 0 {
+                pixels[target_start + column - row_len]
+            } else {
+                0
+            };
+            let up_left = if row > 0 && column >= bytes_per_pixel {
+                pixels[target_start + column - row_len - bytes_per_pixel]
+            } else {
+                0
+            };
+
+            pixels[target_start + column] = match filter_type {
+                0 => raw,
+                1 => raw.wrapping_add(left),
+                2 => raw.wrapping_add(up),
+                3 => raw.wrapping_add(((u16::from(left) + u16::from(up)) / 2) as u8),
+                4 => raw.wrapping_add(paeth_predictor(left, up, up_left)),
+                _ => return Err(PngParseError::InvalidFilterType { row, filter_type }),
+            };
+        }
+    }
+
+    Ok(pixels)
+}
+
+fn paeth_predictor(left: u8, up: u8, up_left: u8) -> u8 {
+    let left = i32::from(left);
+    let up = i32::from(up);
+    let up_left = i32::from(up_left);
+    let prediction = left + up - up_left;
+    let left_distance = (prediction - left).abs();
+    let up_distance = (prediction - up).abs();
+    let up_left_distance = (prediction - up_left).abs();
+
+    if left_distance <= up_distance && left_distance <= up_left_distance {
+        left as u8
+    } else if up_distance <= up_left_distance {
+        up as u8
+    } else {
+        up_left as u8
+    }
 }
 
 fn is_ascii_letter(byte: u8) -> bool {
@@ -549,6 +815,7 @@ fn is_ascii_letter(byte: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     fn ihdr_payload(
         width: u32,
@@ -580,13 +847,16 @@ mod tests {
     }
 
     fn chunk(chunk_type: [u8; 4], payload: Vec<u8>) -> Chunk {
+        let chunk_type = ChunkType::from_bytes(chunk_type).expect("test chunk type is valid");
+        let crc = calculate_chunk_crc(chunk_type, &payload);
+
         Chunk {
             header: ChunkHeader {
                 length: payload.len() as u32,
-                chunk_type: ChunkType::from_bytes(chunk_type).expect("test chunk type is valid"),
+                chunk_type,
             },
             payload,
-            crc: 0,
+            crc,
         }
     }
 
@@ -605,15 +875,54 @@ mod tests {
         input.extend_from_slice(&chunk.crc.to_be_bytes());
     }
 
-    fn minimal_png_bytes() -> Vec<u8> {
-        let chunks = minimal_chunks();
+    fn png_bytes_from_chunks(chunks: &[Chunk]) -> Vec<u8> {
         let mut input = PNG_SIGNATURE.to_vec();
 
-        for chunk in &chunks {
+        for chunk in chunks {
             append_chunk_bytes(&mut input, chunk);
         }
 
         input
+    }
+
+    fn minimal_png_bytes() -> Vec<u8> {
+        png_bytes_from_chunks(&minimal_chunks())
+    }
+
+    fn zlib_compress(input: &[u8]) -> Vec<u8> {
+        let mut encoder =
+            flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder
+            .write_all(input)
+            .expect("test scanline bytes should compress");
+        encoder.finish().expect("test zlib stream should finish")
+    }
+
+    fn image_png_bytes(width: u32, height: u32, color_type: u8, scanlines: &[u8]) -> Vec<u8> {
+        let chunks = vec![
+            chunk(
+                *b"IHDR",
+                ihdr_payload(width, height, 8, color_type, 0, 0, 0).to_vec(),
+            ),
+            chunk(*b"IDAT", zlib_compress(scanlines)),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        png_bytes_from_chunks(&chunks)
+    }
+
+    fn indexed_png_bytes(width: u32, height: u32, palette: Vec<u8>, scanlines: &[u8]) -> Vec<u8> {
+        let chunks = vec![
+            chunk(
+                *b"IHDR",
+                ihdr_payload(width, height, 8, 3, 0, 0, 0).to_vec(),
+            ),
+            chunk(*b"PLTE", palette),
+            chunk(*b"IDAT", zlib_compress(scanlines)),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        png_bytes_from_chunks(&chunks)
     }
 
     #[test]
@@ -968,6 +1277,28 @@ mod tests {
     }
 
     #[test]
+    fn chunk_crc_validation_accepts_matching_crc() {
+        let chunk = chunk(*b"tEXt", b"hello".to_vec());
+
+        assert_eq!(validate_chunk_crc(&chunk), Ok(()));
+    }
+
+    #[test]
+    fn chunk_crc_validation_rejects_mismatched_crc() {
+        let mut chunks = minimal_chunks();
+        chunks[1].crc ^= 1;
+
+        assert_eq!(
+            validate_png_chunks(&chunks),
+            Err(PngParseError::CrcMismatch {
+                chunk_type: *b"IDAT",
+                expected: calculate_chunk_crc(chunks[1].header.chunk_type, &chunks[1].payload),
+                actual: chunks[1].crc,
+            })
+        );
+    }
+
+    #[test]
     fn structure_validator_accepts_ordered_png_chunks_and_returns_summary() {
         assert_eq!(
             validate_png_chunks(&minimal_chunks()),
@@ -1099,6 +1430,130 @@ mod tests {
             Err(PngParseError::InvalidIhdrDimensions {
                 width: 0,
                 height: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_reads_tiny_grayscale_pixels() {
+        let input = image_png_bytes(2, 2, 0, &[0, 10, 20, 0, 30, 40]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 2,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 8,
+                pixels: vec![10, 20, 30, 40],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_reconstructs_truecolor_sub_filter() {
+        let input = image_png_bytes(2, 1, 2, &[1, 10, 20, 30, 5, 5, 5]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Truecolor,
+                bit_depth: 8,
+                pixels: vec![10, 20, 30, 15, 25, 35],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_reads_tiny_grayscale_alpha_pixels() {
+        let input = image_png_bytes(2, 1, 4, &[0, 10, 255, 20, 128]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::GrayscaleAlpha,
+                bit_depth: 8,
+                pixels: vec![10, 255, 20, 128],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_reconstructs_truecolor_alpha_sub_filter() {
+        let input = image_png_bytes(2, 1, 6, &[1, 10, 20, 30, 255, 5, 5, 5, 0]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::TruecolorAlpha,
+                bit_depth: 8,
+                pixels: vec![10, 20, 30, 255, 15, 25, 35, 255],
+            })
+        );
+    }
+
+    #[test]
+    fn plte_parser_returns_palette_entries() {
+        assert_eq!(
+            parse_plte(&[255, 0, 0, 0, 255, 0]),
+            Ok(vec![
+                PaletteEntry {
+                    red: 255,
+                    green: 0,
+                    blue: 0,
+                },
+                PaletteEntry {
+                    red: 0,
+                    green: 255,
+                    blue: 0,
+                },
+            ])
+        );
+
+        assert_eq!(
+            parse_plte(&[255, 0, 0, 1]),
+            Err(PngParseError::InvalidPlteLength { length: 4 })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_expands_indexed_pixels_to_rgb() {
+        let input = indexed_png_bytes(2, 1, vec![255, 0, 0, 0, 255, 0], &[0, 0, 1]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 2,
+                height: 1,
+                color_type: IhdrColorType::Indexed,
+                bit_depth: 8,
+                pixels: vec![255, 0, 0, 0, 255, 0],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_requires_plte_for_indexed_color() {
+        let input = image_png_bytes(1, 1, 3, &[0, 0]);
+
+        assert_eq!(decode_png_image(&input), Err(PngParseError::MissingPlte));
+    }
+
+    #[test]
+    fn decode_png_image_rejects_invalid_palette_index() {
+        let input = indexed_png_bytes(1, 1, vec![255, 0, 0], &[0, 1]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Err(PngParseError::InvalidPaletteIndex {
+                index: 1,
+                palette_len: 1,
             })
         );
     }
