@@ -24,6 +24,7 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 <body>
 	<h1>Rust Ownership Diagnostic Report</h1>
 	${renderSummary(report)}
+	${renderLearnerSummaries(report.diagnostics)}
 	${renderDiagnosticsOverview(report.diagnostics)}
 	${renderCausalityTimeline(report.diagnostics)}
 	${renderSourceSpans(report.diagnostics)}
@@ -33,6 +34,33 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 </body>
 </html>
 `;
+}
+
+function renderLearnerSummaries(diagnostics: readonly DiagnosticRecord[]): string {
+  const summaryRows = diagnostics
+    .filter((diagnostic) => diagnostic.learnerSummary !== undefined)
+    .map((diagnostic) => {
+      const summary = diagnostic.learnerSummary!;
+
+      return `<article class="learner-summary-card" id="${stableId('learner-summary', [diagnostic.id])}">
+		<h3>${escapeHtml(diagnostic.code ?? 'unknown')} learner summary</h3>
+		<table>
+			<tbody>
+				<tr><th>Audience</th><td>${escapeHtml(summary.audience)}</td></tr>
+				<tr><th>What Happened</th><td>${escapeHtml(summary.whatHappened)}</td></tr>
+				<tr><th>Why It Matters</th><td>${escapeHtml(summary.whyItMatters)}</td></tr>
+				<tr><th>Next Step</th><td>${escapeHtml(summary.nextStep)}</td></tr>
+				<tr><th>Concepts</th><td>${escapeHtml(summary.conceptTerms?.join(', ') ?? '')}</td></tr>
+				<tr><th>Confidence</th><td>${escapeHtml(summary.confidence)}</td></tr>
+			</tbody>
+		</table>
+	</article>`;
+    });
+
+  return `<section id="learner-summaries">
+	<h2>Learner Summaries</h2>
+	${summaryRows.join('\n') || '<p>No learner summaries</p>'}
+</section>`;
 }
 
 function renderDiagnosticsOverview(diagnostics: readonly DiagnosticRecord[]): string {

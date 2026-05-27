@@ -2,6 +2,7 @@ import type { DiagnosticRecord } from './ownership-event.js';
 import { mapE0382Diagnostic } from './e0382.js';
 import { mapE0499Diagnostic } from './e0499.js';
 import { mapE0502Diagnostic } from './e0502.js';
+import { attachLearnerSummary } from './learner-summary.js';
 import { createUnsupportedDiagnosticRecord } from './unsupported.js';
 
 export const SUPPORTED_DIAGNOSTIC_CODES = ['E0382', 'E0499', 'E0502'] as const;
@@ -32,7 +33,7 @@ export function mapDiagnostic(
     return createUnsupportedDiagnosticRecord(diagnostic);
   }
 
-  return registry[diagnostic.code](diagnostic);
+  return attachLearnerSummary(registry[diagnostic.code](diagnostic));
 }
 
 export function mapDiagnostics(

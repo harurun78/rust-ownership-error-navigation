@@ -7,6 +7,7 @@ export * from './mapper/e0382.js';
 export * from './mapper/e0499.js';
 export * from './mapper/e0502.js';
 export * from './mapper/diagnostic-navigation.js';
+export * from './mapper/learner-summary.js';
 export * from './mapper/ownership-event.js';
 export * from './mapper/index.js';
 export * from './mapper/rustc-suggestions.js';
