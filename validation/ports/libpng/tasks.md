@@ -105,3 +105,24 @@
 - [x] L065 Add tests for decoding a tiny non-interlaced 16-bit truecolor PNG image. (iteration-010)
 - [x] L066 Implement 16-bit row byte reconstruction for color types 0 and 2 while preserving big-endian sample bytes. (iteration-010)
 - [x] L067 Record iteration-010 diagnostics and ownership report. (iteration-010)
+
+## Phase 14: Packed Bit-Depth Decode Slice
+
+- [x] L068 Add tests for decoding 1-bit and 4-bit grayscale PNG images. (iteration-011)
+- [x] L069 Add tests for decoding a 2-bit indexed-color PNG image. (iteration-011)
+- [x] L070 Implement packed sample expansion for bit depths 1, 2, and 4. (iteration-011)
+- [x] L071 Record iteration-011 diagnostics and ownership report. (iteration-011)
+
+## Phase 15: 16-bit Alpha Decode Slice
+
+- [x] L072 Add tests for decoding a tiny non-interlaced 16-bit grayscale-alpha PNG image. (iteration-012)
+- [x] L073 Add tests for decoding a tiny non-interlaced 16-bit truecolor-alpha PNG image. (iteration-012)
+- [x] L074 Verify 16-bit alpha color types preserve big-endian channel bytes through row reconstruction. (iteration-012)
+- [x] L075 Record iteration-012 diagnostics and ownership report. (iteration-012)
+
+## Phase 16: PLTE Structure Validation Slice
+
+- [x] L076 Add tests for indexed-color PNG requiring PLTE before IDAT. (iteration-013)
+- [x] L077 Add tests for duplicate PLTE and PLTE after IDAT errors. (iteration-013)
+- [x] L078 Implement PLTE ordering/cardinality validation in stream structure checks. (iteration-013)
+- [x] L079 Record iteration-013 diagnostics and ownership report. (iteration-013)

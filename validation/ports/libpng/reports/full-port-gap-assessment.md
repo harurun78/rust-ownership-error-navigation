@@ -15,17 +15,17 @@ The validation port now covers a practical minimal PNG read path:
 - IDAT concatenation and zlib inflation
 - PNG scanline filter reconstruction for filter types 0-4
 - Non-interlaced 8-bit decode for color types 0, 2, 3, 4, and 6
+- Packed 1/2/4-bit sample expansion for grayscale and indexed-color images
 - Non-interlaced 16-bit decode for color types 0 and 2, preserving big-endian sample bytes
+- Non-interlaced 16-bit decode for color types 4 and 6, preserving big-endian sample bytes
 - PLTE parsing and indexed-color expansion to RGB pixels
+- PLTE ordering and cardinality validation for indexed-color conformance
 - tRNS transparency expansion for grayscale, truecolor, and indexed-color images
 
 ## Remaining Gaps Versus Full libpng Parity
 
 This is not a full libpng replacement. Major remaining gaps include:
 
-- Packed bit depths 1, 2, and 4 for grayscale/indexed paths
-- 16-bit grayscale-alpha and truecolor-alpha decode paths
-- PLTE ordering and cardinality rules beyond the basic decode path
 - Adam7 interlace reconstruction
 - Progressive row callbacks and true streaming row decode
 - Color management chunks: gAMA, cHRM, sRGB, iCCP
@@ -37,6 +37,6 @@ This is not a full libpng replacement. Major remaining gaps include:
 
 ## Next Slice Decision
 
-The next highest-value slice is packed bit-depth expansion for 1/2/4-bit scanlines. It is smaller than Adam7 interlace, builds directly on the current row reconstruction path, and will force explicit handling of sub-byte samples.
+The next highest-value slice is Adam7 interlace reconstruction. It is the remaining high-value read-path gap after non-interlaced color-type, bit-depth, transparency, and palette validation support.
 
-Adam7 interlace and progressive row callbacks are better handled after bit-depth expansion because they require broader data-flow changes and more substantial test fixtures.
+Progressive row callbacks and metadata chunks are better handled after Adam7 because they are broader API-surface work rather than core image reconstruction.

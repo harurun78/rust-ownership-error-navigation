@@ -257,3 +257,66 @@ Use this log to separate ownership-report effects from human guidance.
 - `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; 16-bit sample bytes reuse the existing owned scanline reconstruction path.
 - Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
 - Next action: continue with packed 1/2/4-bit sample expansion before attempting Adam7 interlace.
+
+### iteration-011
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L068-L071 packed bit-depth decode
+- Prompt summary: Add 1-bit and 4-bit grayscale decode tests, 2-bit indexed-color decode tests, packed sample expansion, and iteration-011 diagnostic/report artifacts.
+- Human ownership hints before attempt: keep Adam7 interlace out of scope; no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-011 && cargo check --message-format=json > ../reports/iteration-011/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-011/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-011/ownership-report.json --html-out validation/ports/libpng/reports/iteration-011/ownership-report.html`
+- Result: compile success; test success, 47 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-011/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-011/ownership-report.json`
+- Ownership report HTML: `reports/iteration-011/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; packed samples expand into owned sample/index buffers after scanline reconstruction.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: continue with 16-bit grayscale-alpha and truecolor-alpha decode before Adam7 interlace.
+
+### iteration-012
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L072-L075 16-bit alpha decode
+- Prompt summary: Add tests for tiny non-interlaced 16-bit grayscale-alpha and truecolor-alpha PNG images, verifying big-endian channel bytes are preserved through row reconstruction.
+- Human ownership hints before attempt: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-012 && cargo check --message-format=json > ../reports/iteration-012/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-012/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-012/ownership-report.json --html-out validation/ports/libpng/reports/iteration-012/ownership-report.html`
+- Result: compile success; test success, 49 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-012/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-012/ownership-report.json`
+- Ownership report HTML: `reports/iteration-012/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; 16-bit alpha channels reuse the owned scanline reconstruction path.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: continue with PLTE ordering/cardinality validation before reassessing Adam7 interlace.
+
+### iteration-013
+
+- Date: 2026-05-27
+- Model: GitHub Copilot main agent
+- Task slice: L076-L079 PLTE structure validation
+- Prompt summary: Add indexed-color PLTE-before-IDAT tests, duplicate PLTE and PLTE-after-IDAT tests, grayscale PLTE rejection, and structure validation for PLTE ordering/cardinality.
+- Human ownership hints before attempt: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad clone shortcuts.
+- Command: `cargo fmt && cargo fmt -- --check && mkdir -p ../reports/iteration-013 && cargo check --message-format=json > ../reports/iteration-013/cargo-check.jsonl && cargo test`; report command `node dist/cli/main.js --input validation/ports/libpng/reports/iteration-013/cargo-check.jsonl --json-out validation/ports/libpng/reports/iteration-013/ownership-report.json --html-out validation/ports/libpng/reports/iteration-013/ownership-report.html`
+- Result: compile success; test success, 53 unit tests passed; ownership report generation success
+- Diagnostics file: `reports/iteration-013/cargo-check.jsonl`
+- Ownership report JSON: `reports/iteration-013/ownership-report.json`
+- Ownership report HTML: `reports/iteration-013/ownership-report.html`
+- E0382 count: 0
+- E0499 count: 0
+- E0502 count: 0
+- Repeated ownership diagnostics: none
+- Human intervention count: 0
+- `clone` / shared mutability / `unsafe` pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls; validation uses copied IHDR metadata and owned chunk records.
+- Did the ownership report change the next fix: not applicable; no diagnostics were emitted.
+- Next action: reassess completion boundary; Adam7 interlace is the remaining high-value read-path gap.

@@ -84,6 +84,11 @@ pub enum PngParseError {
         length: usize,
     },
     MissingPlte,
+    DuplicatePlte,
+    PlteAfterIdat,
+    PlteNotAllowed {
+        color_type: u8,
+    },
     InvalidPaletteIndex {
         index: u8,
         palette_len: usize,
@@ -305,6 +310,12 @@ pub struct PaletteEntry {
     pub blue: u8,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct DecodeLayout {
+    filter_bytes_per_pixel: usize,
+    row_data_len: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Transparency {
     Grayscale { sample: u8 },
@@ -500,6 +511,7 @@ pub fn validate_png_chunks(chunks: &[Chunk]) -> Result<PngStructureSummary, PngP
     let mut ihdr = None;
     let mut idat_count = 0;
     let mut ancillary_count = 0;
+    let mut seen_plte = false;
     let mut seen_iend = false;
 
     for chunk in chunks {
@@ -523,6 +535,14 @@ pub fn validate_png_chunks(chunks: &[Chunk]) -> Result<PngStructureSummary, PngP
                 ihdr = Some(Ihdr::parse(&chunk.payload)?);
             }
             b"IDAT" => {
+                if matches!(
+                    ihdr.map(|ihdr| ihdr.color_type),
+                    Some(IhdrColorType::Indexed)
+                ) && !seen_plte
+                {
+                    return Err(PngParseError::MissingPlte);
+                }
+
                 idat_count += 1;
             }
             b"IEND" => {
@@ -532,7 +552,28 @@ pub fn validate_png_chunks(chunks: &[Chunk]) -> Result<PngStructureSummary, PngP
 
                 seen_iend = true;
             }
-            b"PLTE" => {}
+            b"PLTE" => {
+                if seen_plte {
+                    return Err(PngParseError::DuplicatePlte);
+                }
+
+                if idat_count > 0 {
+                    return Err(PngParseError::PlteAfterIdat);
+                }
+
+                let ihdr = ihdr.ok_or(PngParseError::MissingIhdr)?;
+                if matches!(
+                    ihdr.color_type,
+                    IhdrColorType::Grayscale | IhdrColorType::GrayscaleAlpha
+                ) {
+                    return Err(PngParseError::PlteNotAllowed {
+                        color_type: ihdr.color_type.byte(),
+                    });
+                }
+
+                parse_plte(&chunk.payload)?;
+                seen_plte = true;
+            }
             _ if chunk_type.is_ancillary() => {
                 ancillary_count += 1;
             }
@@ -647,7 +688,7 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
         .find(|chunk| chunk.header.chunk_type.bytes() == *b"IHDR")
         .ok_or(PngParseError::MissingIhdr)?;
     let ihdr = Ihdr::parse(&ihdr_chunk.payload)?;
-    let bytes_per_pixel = decode_bytes_per_pixel(ihdr)?;
+    let layout = decode_layout(ihdr)?;
     let transparency = find_transparency(&chunks, ihdr)?;
 
     if transparency.is_some() && ihdr.bit_depth != 8 {
@@ -676,13 +717,18 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
         .read_to_end(&mut inflated)
         .map_err(|_| PngParseError::InflateFailed)?;
 
-    let reconstructed = reconstruct_scanlines(&inflated, ihdr.width, ihdr.height, bytes_per_pixel)?;
+    let reconstructed = reconstruct_scanlines(
+        &inflated,
+        ihdr.height,
+        layout.row_data_len,
+        layout.filter_bytes_per_pixel,
+    )?;
     let pixels = match ihdr.color_type {
         IhdrColorType::Grayscale => match transparency {
             Some(Transparency::Grayscale { sample }) => {
                 expand_grayscale_transparency(&reconstructed, sample)
             }
-            _ => reconstructed,
+            _ => expand_packed_grayscale_samples(&reconstructed, ihdr.width, ihdr.bit_depth),
         },
         IhdrColorType::Truecolor => match transparency {
             Some(Transparency::Truecolor { red, green, blue }) => {
@@ -692,12 +738,13 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
         },
         IhdrColorType::Indexed => {
             let palette = find_palette(&chunks)?;
+            let indices = expand_packed_indices(&reconstructed, ihdr.width, ihdr.bit_depth);
 
             match transparency {
                 Some(Transparency::Indexed { alpha }) => {
-                    expand_indexed_pixels_with_alpha(&reconstructed, &palette, &alpha)?
+                    expand_indexed_pixels_with_alpha(&indices, &palette, &alpha)?
                 }
-                _ => expand_indexed_pixels(&reconstructed, &palette)?,
+                _ => expand_indexed_pixels(&indices, &palette)?,
             }
         }
         IhdrColorType::GrayscaleAlpha | IhdrColorType::TruecolorAlpha => reconstructed,
@@ -712,7 +759,7 @@ pub fn decode_png_image(input: &[u8]) -> Result<PngImage, PngParseError> {
     })
 }
 
-fn decode_bytes_per_pixel(ihdr: Ihdr) -> Result<usize, PngParseError> {
+fn decode_layout(ihdr: Ihdr) -> Result<DecodeLayout, PngParseError> {
     if ihdr.interlace_method != PngInterlaceMethod::None {
         return Err(PngParseError::UnsupportedDecodeFormat {
             bit_depth: ihdr.bit_depth,
@@ -728,15 +775,30 @@ fn decode_bytes_per_pixel(ihdr: Ihdr) -> Result<usize, PngParseError> {
         IhdrColorType::TruecolorAlpha => 4,
     };
 
-    match ihdr.bit_depth {
-        8 => Ok(channel_count),
-        16 if ihdr.color_type != IhdrColorType::Indexed => Ok(channel_count * 2),
+    let bits_per_pixel = match ihdr.bit_depth {
+        1 | 2 | 4
+            if matches!(
+                ihdr.color_type,
+                IhdrColorType::Grayscale | IhdrColorType::Indexed
+            ) =>
+        {
+            ihdr.bit_depth as usize
+        }
+        8 => channel_count * 8,
+        16 if ihdr.color_type != IhdrColorType::Indexed => channel_count * 16,
         _ => Err(PngParseError::UnsupportedDecodeFormat {
             bit_depth: ihdr.bit_depth,
             color_type: ihdr.color_type.byte(),
             interlace_method: ihdr.interlace_method.byte(),
-        }),
-    }
+        })?,
+    };
+
+    let row_bits = ihdr.width as usize * bits_per_pixel;
+
+    Ok(DecodeLayout {
+        filter_bytes_per_pixel: bits_per_pixel.div_ceil(8).max(1),
+        row_data_len: row_bits.div_ceil(8),
+    })
 }
 
 pub fn parse_plte(payload: &[u8]) -> Result<Vec<PaletteEntry>, PngParseError> {
@@ -842,6 +904,49 @@ fn expand_indexed_pixels(
     Ok(pixels)
 }
 
+fn expand_packed_grayscale_samples(pixels: &[u8], width: u32, bit_depth: u8) -> Vec<u8> {
+    if bit_depth >= 8 {
+        return pixels.to_vec();
+    }
+
+    expand_packed_samples(pixels, width, bit_depth)
+        .into_iter()
+        .map(|sample| scale_sample_to_u8(sample, bit_depth))
+        .collect()
+}
+
+fn expand_packed_indices(indices: &[u8], width: u32, bit_depth: u8) -> Vec<u8> {
+    if bit_depth >= 8 {
+        return indices.to_vec();
+    }
+
+    expand_packed_samples(indices, width, bit_depth)
+}
+
+fn expand_packed_samples(input: &[u8], width: u32, bit_depth: u8) -> Vec<u8> {
+    let samples_per_byte = 8 / bit_depth as usize;
+    let mask = (1 << bit_depth) - 1;
+    let mut samples = Vec::with_capacity(width as usize);
+
+    for byte in input {
+        for sample_offset in 0..samples_per_byte {
+            if samples.len() == width as usize {
+                return samples;
+            }
+
+            let shift = 8 - bit_depth as usize * (sample_offset + 1);
+            samples.push((byte >> shift) & mask);
+        }
+    }
+
+    samples
+}
+
+fn scale_sample_to_u8(sample: u8, bit_depth: u8) -> u8 {
+    let max_sample = (1 << bit_depth) - 1;
+    ((u16::from(sample) * 255) / max_sample as u16) as u8
+}
+
 fn expand_grayscale_transparency(pixels: &[u8], transparent_sample: u8) -> Vec<u8> {
     let mut expanded = Vec::with_capacity(pixels.len() * 2);
 
@@ -902,11 +1007,10 @@ fn expand_indexed_pixels_with_alpha(
 
 fn reconstruct_scanlines(
     inflated: &[u8],
-    width: u32,
     height: u32,
-    bytes_per_pixel: usize,
+    row_len: usize,
+    filter_bytes_per_pixel: usize,
 ) -> Result<Vec<u8>, PngParseError> {
-    let row_len = width as usize * bytes_per_pixel;
     let expected = (row_len + 1) * height as usize;
 
     if inflated.len() != expected {
@@ -926,8 +1030,8 @@ fn reconstruct_scanlines(
 
         for column in 0..row_len {
             let raw = scanline[column];
-            let left = if column >= bytes_per_pixel {
-                pixels[target_start + column - bytes_per_pixel]
+            let left = if column >= filter_bytes_per_pixel {
+                pixels[target_start + column - filter_bytes_per_pixel]
             } else {
                 0
             };
@@ -936,8 +1040,8 @@ fn reconstruct_scanlines(
             } else {
                 0
             };
-            let up_left = if row > 0 && column >= bytes_per_pixel {
-                pixels[target_start + column - row_len - bytes_per_pixel]
+            let up_left = if row > 0 && column >= filter_bytes_per_pixel {
+                pixels[target_start + column - row_len - filter_bytes_per_pixel]
             } else {
                 0
             };
@@ -1629,6 +1733,66 @@ mod tests {
     }
 
     #[test]
+    fn structure_validator_requires_plte_before_indexed_idat() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 3, 0, 0, 0).to_vec()),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            validate_png_chunks(&chunks),
+            Err(PngParseError::MissingPlte)
+        );
+    }
+
+    #[test]
+    fn structure_validator_rejects_duplicate_plte() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 3, 0, 0, 0).to_vec()),
+            chunk(*b"PLTE", vec![255, 0, 0]),
+            chunk(*b"PLTE", vec![0, 255, 0]),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            validate_png_chunks(&chunks),
+            Err(PngParseError::DuplicatePlte)
+        );
+    }
+
+    #[test]
+    fn structure_validator_rejects_plte_after_idat() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 2, 0, 0, 0).to_vec()),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"PLTE", vec![255, 0, 0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            validate_png_chunks(&chunks),
+            Err(PngParseError::PlteAfterIdat)
+        );
+    }
+
+    #[test]
+    fn structure_validator_rejects_plte_for_grayscale() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(1, 1, 8, 0, 0, 0, 0).to_vec()),
+            chunk(*b"PLTE", vec![255, 0, 0]),
+            chunk(*b"IDAT", vec![0]),
+            chunk(*b"IEND", Vec::new()),
+        ];
+
+        assert_eq!(
+            validate_png_chunks(&chunks),
+            Err(PngParseError::PlteNotAllowed { color_type: 0 })
+        );
+    }
+
+    #[test]
     fn decode_png_image_reads_tiny_grayscale_pixels() {
         let input = image_png_bytes(2, 2, 0, &[0, 10, 20, 0, 30, 40]);
 
@@ -1640,6 +1804,38 @@ mod tests {
                 color_type: IhdrColorType::Grayscale,
                 bit_depth: 8,
                 pixels: vec![10, 20, 30, 40],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_expands_one_bit_grayscale_samples() {
+        let input = image_png_bytes_with_bit_depth(4, 1, 1, 0, &[0, 0b1010_0000]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 4,
+                height: 1,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 1,
+                pixels: vec![255, 0, 255, 0],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_expands_four_bit_grayscale_samples() {
+        let input = image_png_bytes_with_bit_depth(3, 1, 4, 0, &[0, 0x0f, 0x80]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 3,
+                height: 1,
+                color_type: IhdrColorType::Grayscale,
+                bit_depth: 4,
+                pixels: vec![0, 255, 136],
             })
         );
     }
@@ -1710,6 +1906,22 @@ mod tests {
     }
 
     #[test]
+    fn decode_png_image_preserves_16_bit_grayscale_alpha_sample_bytes() {
+        let input = image_png_bytes_with_bit_depth(1, 1, 16, 4, &[0, 0x00, 0x80, 0xff, 0xff]);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 1,
+                height: 1,
+                color_type: IhdrColorType::GrayscaleAlpha,
+                bit_depth: 16,
+                pixels: vec![0x00, 0x80, 0xff, 0xff],
+            })
+        );
+    }
+
+    #[test]
     fn decode_png_image_reconstructs_truecolor_alpha_sub_filter() {
         let input = image_png_bytes(2, 1, 6, &[1, 10, 20, 30, 255, 5, 5, 5, 0]);
 
@@ -1721,6 +1933,28 @@ mod tests {
                 color_type: IhdrColorType::TruecolorAlpha,
                 bit_depth: 8,
                 pixels: vec![10, 20, 30, 255, 15, 25, 35, 255],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_preserves_16_bit_truecolor_alpha_sample_bytes() {
+        let input = image_png_bytes_with_bit_depth(
+            1,
+            1,
+            16,
+            6,
+            &[0, 0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0xff, 0xff],
+        );
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 1,
+                height: 1,
+                color_type: IhdrColorType::TruecolorAlpha,
+                bit_depth: 16,
+                pixels: vec![0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0xff, 0xff],
             })
         );
     }
@@ -1761,6 +1995,31 @@ mod tests {
                 color_type: IhdrColorType::Indexed,
                 bit_depth: 8,
                 pixels: vec![255, 0, 0, 0, 255, 0],
+            })
+        );
+    }
+
+    #[test]
+    fn decode_png_image_expands_two_bit_indexed_pixels_to_rgb() {
+        let chunks = vec![
+            chunk(*b"IHDR", ihdr_payload(4, 1, 2, 3, 0, 0, 0).to_vec()),
+            chunk(
+                *b"PLTE",
+                vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255],
+            ),
+            chunk(*b"IDAT", zlib_compress(&[0, 0b0001_1011])),
+            chunk(*b"IEND", Vec::new()),
+        ];
+        let input = png_bytes_from_chunks(&chunks);
+
+        assert_eq!(
+            decode_png_image(&input),
+            Ok(PngImage {
+                width: 4,
+                height: 1,
+                color_type: IhdrColorType::Indexed,
+                bit_depth: 2,
+                pixels: vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255],
             })
         );
     }
