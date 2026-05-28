@@ -1,0 +1,8 @@
+[package]
+name = "libpng_port_validation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crc32fast = "1.4" # See CRC_DEPENDENCY_DECISION.md for rationale
+flate2 = "1.0"    # See ZLIB_DEPENDENCY_DECISION.md for rationale

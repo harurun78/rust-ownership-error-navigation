@@ -1,0 +1,1266 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "test/fixtures/diagnostics/ownership-baseline-2026-05-24.jsonl",
+    "audienceMode": "beginner"
+  },
+  "summary": {
+    "totalDiagnostics": 5,
+    "supportedDiagnostics": 3,
+    "unsupportedDiagnostics": 2,
+    "ownershipDiagnostics": 3,
+    "nonOwnershipDiagnostics": 0,
+    "recommendedFirstFixes": [
+      {
+        "diagnosticId": "diagnostic-1",
+        "code": "E0382",
+        "priority": 1,
+        "reason": "Fix the move/use conflict before changing later borrow behavior.",
+        "nextStep": "Borrow the value instead of moving it",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0382"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "value moved here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "    takes_ownership(s);"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-2",
+        "code": "E0499",
+        "priority": 2,
+        "reason": "Remove overlapping mutable borrows so each mutation has exclusive access.",
+        "nextStep": "Shorten the first mutable borrow scope",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first borrow later used here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "    *r1 += 1;"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-3",
+        "code": "E0502",
+        "priority": 3,
+        "reason": "Separate shared and mutable access before applying local rewrites.",
+        "nextStep": "End the shared borrow before the mutable borrow",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow later used here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "    println!(\"{}\", first);"
+          },
+          {
+            "source": "rustc_expansion",
+            "field": "expansion",
+            "value": true
+          }
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "diagnostic-1",
+      "code": "E0382",
+      "supported": true,
+      "level": "error",
+      "message": "borrow of moved value: `s`",
+      "spans": [
+        {
+          "id": "diagnostic-1-span-1",
+          "diagnosticId": "diagnostic-1",
+          "role": "cause",
+          "file": "src/main.rs",
+          "lineStart": 7,
+          "lineEnd": 7,
+          "columnStart": 21,
+          "columnEnd": 22,
+          "byteStart": 118,
+          "byteEnd": 119,
+          "isPrimary": false,
+          "label": "value moved here",
+          "snippet": "    takes_ownership(s);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value moved here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    takes_ownership(s);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-2",
+          "diagnosticId": "diagnostic-1",
+          "role": "conflict",
+          "file": "src/main.rs",
+          "lineStart": 8,
+          "lineEnd": 8,
+          "columnStart": 20,
+          "columnEnd": 21,
+          "byteStart": 141,
+          "byteEnd": 142,
+          "isPrimary": true,
+          "label": "value borrowed here after move",
+          "snippet": "    println!(\"{}\", s);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": true,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value borrowed here after move"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    println!(\"{}\", s);"
+            },
+            {
+              "source": "rustc_expansion",
+              "field": "expansion",
+              "value": true
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-3",
+          "diagnosticId": "diagnostic-1",
+          "role": "context",
+          "file": "src/main.rs",
+          "lineStart": 6,
+          "lineEnd": 6,
+          "columnStart": 9,
+          "columnEnd": 10,
+          "byteStart": 71,
+          "byteEnd": 72,
+          "isPrimary": false,
+          "label": "move occurs because `s` has type `String`, which does not implement the `Copy` trait",
+          "snippet": "    let s = String::from(\"hello\");",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "move occurs because `s` has type `String`, which does not implement the `Copy` trait"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let s = String::from(\"hello\");"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [
+        {
+          "code": null,
+          "level": "note",
+          "message": "consider changing this parameter type in function `takes_ownership` to borrow instead if owning the value isn't necessary",
+          "spans": [
+            {
+              "id": "diagnostic-1-child-1-span-1",
+              "diagnosticId": "diagnostic-1-child-1",
+              "role": "unknown",
+              "file": "src/main.rs",
+              "lineStart": 1,
+              "lineEnd": 1,
+              "columnStart": 23,
+              "columnEnd": 29,
+              "byteStart": 22,
+              "byteEnd": 28,
+              "isPrimary": true,
+              "label": "this parameter takes ownership of the value",
+              "snippet": "fn takes_ownership(s: String) {",
+              "suggestedReplacement": null,
+              "suggestionApplicability": null,
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_span_label",
+                  "field": "label",
+                  "value": "this parameter takes ownership of the value"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "fn takes_ownership(s: String) {"
+                }
+              ],
+              "confidence": "high"
+            },
+            {
+              "id": "diagnostic-1-child-1-span-2",
+              "diagnosticId": "diagnostic-1-child-1",
+              "role": "unknown",
+              "file": "src/main.rs",
+              "lineStart": 1,
+              "lineEnd": 1,
+              "columnStart": 4,
+              "columnEnd": 19,
+              "byteStart": 3,
+              "byteEnd": 18,
+              "isPrimary": false,
+              "label": "in this function",
+              "snippet": "fn takes_ownership(s: String) {",
+              "suggestedReplacement": null,
+              "suggestionApplicability": null,
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_span_label",
+                  "field": "label",
+                  "value": "in this function"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "fn takes_ownership(s: String) {"
+                }
+              ],
+              "confidence": "high"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        },
+        {
+          "code": null,
+          "level": "help",
+          "message": "consider cloning the value if the performance cost is acceptable",
+          "spans": [
+            {
+              "id": "diagnostic-1-child-2-span-1",
+              "diagnosticId": "diagnostic-1-child-2",
+              "role": "possible_fix",
+              "file": "src/main.rs",
+              "lineStart": 7,
+              "lineEnd": 7,
+              "columnStart": 22,
+              "columnEnd": 22,
+              "byteStart": 119,
+              "byteEnd": 119,
+              "isPrimary": true,
+              "label": null,
+              "snippet": "    takes_ownership(s);",
+              "suggestedReplacement": ".clone()",
+              "suggestionApplicability": "MachineApplicable",
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_suggestion",
+                  "field": "suggested_replacement",
+                  "value": ".clone()"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "    takes_ownership(s);"
+                }
+              ],
+              "confidence": "high"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        }
+      ],
+      "rendered": "error[E0382]: borrow of moved value: `s`\n --> src/main.rs:8:20\n  |\n6 |     let s = String::from(\"hello\");\n  |         - move occurs because `s` has type `String`, which does not implement the `Copy` trait\n7 |     takes_ownership(s);\n  |                     - value moved here\n8 |     println!(\"{}\", s);\n  |                    ^ value borrowed here after move\n  |\nnote: consider changing this parameter type in function `takes_ownership` to borrow instead if owning the value isn't necessary\n --> src/main.rs:1:23\n  |\n1 | fn takes_ownership(s: String) {\n  |    ---------------    ^^^^^^ this parameter takes ownership of the value\n  |    |\n  |    in this function\nhelp: consider cloning the value if the performance cost is acceptable\n  |\n7 |     takes_ownership(s.clone());\n  |                      ++++++++\n\n",
+      "events": [
+        {
+          "id": "diagnostic-1-event-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "move",
+          "role": "cause",
+          "place": "s",
+          "spanId": "diagnostic-1-span-1",
+          "message": "value moved here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value moved here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    takes_ownership(s);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-2",
+          "diagnosticId": "diagnostic-1",
+          "kind": "use",
+          "role": "conflict",
+          "place": "s",
+          "spanId": "diagnostic-1-span-2",
+          "message": "value borrowed here after move",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value borrowed here after move"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    println!(\"{}\", s);"
+            },
+            {
+              "source": "rustc_expansion",
+              "field": "expansion",
+              "value": true
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-3",
+          "diagnosticId": "diagnostic-1",
+          "kind": "context",
+          "role": "context",
+          "place": "s",
+          "spanId": "diagnostic-1-span-3",
+          "message": "move occurs because `s` has type `String`, which does not implement the `Copy` trait",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "move occurs because `s` has type `String`, which does not implement the `Copy` trait"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let s = String::from(\"hello\");"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-4",
+          "diagnosticId": "diagnostic-1",
+          "kind": "possible_fix",
+          "role": "possible_fix",
+          "place": "s",
+          "spanId": "diagnostic-1-child-2-span-1",
+          "message": "consider cloning the value if the performance cost is acceptable",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_child_diagnostic",
+              "field": "message",
+              "value": "consider cloning the value if the performance cost is acceptable"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_suggestion",
+              "field": "suggested_replacement",
+              "value": ".clone()"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    takes_ownership(s);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-1-fix-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "borrow",
+          "title": "Borrow the value instead of moving it",
+          "rationale": "If later code still needs the original binding, pass a reference at the ownership boundary.",
+          "tradeOffs": [
+            "Keeps one owner and avoids an allocation.",
+            "Requires the called API to accept a reference or a borrowed variant."
+          ],
+          "spanId": "diagnostic-1-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value moved here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    takes_ownership(s);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-fix-2",
+          "diagnosticId": "diagnostic-1",
+          "kind": "clone_or_copy",
+          "title": "Use clone() only when two owned values are intentional",
+          "rationale": "Cloning can satisfy ownership when both locations truly need independent owned values.",
+          "tradeOffs": [
+            "Makes the extra allocation or copy explicit.",
+            "Can hide a design issue if borrowing or moving later would express the intent better."
+          ],
+          "spanId": "diagnostic-1-child-2-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_child_diagnostic",
+              "field": "message",
+              "value": "consider cloning the value if the performance cost is acceptable"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_suggestion",
+              "field": "suggested_replacement",
+              "value": ".clone()"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    takes_ownership(s);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-fix-3",
+          "diagnosticId": "diagnostic-1",
+          "kind": "move_timing",
+          "title": "Move ownership after the last use",
+          "rationale": "Reordering can keep the original binding valid until the final read has happened.",
+          "tradeOffs": [
+            "Often keeps APIs unchanged.",
+            "May require splitting a larger expression into smaller statements."
+          ],
+          "spanId": "diagnostic-1-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0382"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "value borrowed here after move"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    println!(\"{}\", s);"
+            },
+            {
+              "source": "rustc_expansion",
+              "field": "expansion",
+              "value": true
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "beginner",
+        "whatHappened": "s was moved, and the code later tried to use it again.",
+        "whyItMatters": "After a move, the original binding no longer owns the value, so Rust prevents later use through that binding.",
+        "nextStep": "Start at the move location, then decide whether the later code should borrow the value, clone it, or change ownership flow.",
+        "conceptTerms": [
+          "move",
+          "ownership",
+          "use after move"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0382"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "value moved here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0382"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "value borrowed here after move"
+          },
+          {
+            "source": "rustc_expansion",
+            "field": "expansion",
+            "value": true
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-2",
+      "code": "E0499",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `x` as mutable more than once at a time",
+      "spans": [
+        {
+          "id": "diagnostic-2-span-1",
+          "diagnosticId": "diagnostic-2",
+          "role": "cause",
+          "file": "src/main.rs",
+          "lineStart": 13,
+          "lineEnd": 13,
+          "columnStart": 14,
+          "columnEnd": 20,
+          "byteStart": 193,
+          "byteEnd": 199,
+          "isPrimary": false,
+          "label": "first mutable borrow occurs here",
+          "snippet": "    let r1 = &mut x;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let r1 = &mut x;"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-2",
+          "diagnosticId": "diagnostic-2",
+          "role": "conflict",
+          "file": "src/main.rs",
+          "lineStart": 14,
+          "lineEnd": 14,
+          "columnStart": 14,
+          "columnEnd": 20,
+          "byteStart": 214,
+          "byteEnd": 220,
+          "isPrimary": true,
+          "label": "second mutable borrow occurs here",
+          "snippet": "    let r2 = &mut x;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let r2 = &mut x;"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-3",
+          "diagnosticId": "diagnostic-2",
+          "role": "context",
+          "file": "src/main.rs",
+          "lineStart": 15,
+          "lineEnd": 15,
+          "columnStart": 5,
+          "columnEnd": 13,
+          "byteStart": 226,
+          "byteEnd": 234,
+          "isPrimary": false,
+          "label": "first borrow later used here",
+          "snippet": "    *r1 += 1;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first borrow later used here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    *r1 += 1;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0499]: cannot borrow `x` as mutable more than once at a time\n  --> src/main.rs:14:14\n   |\n13 |     let r1 = &mut x;\n   |              ------ first mutable borrow occurs here\n14 |     let r2 = &mut x;\n   |              ^^^^^^ second mutable borrow occurs here\n15 |     *r1 += 1;\n   |     -------- first borrow later used here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-2-event-1",
+          "diagnosticId": "diagnostic-2",
+          "kind": "borrow_mut",
+          "role": "cause",
+          "place": "x",
+          "spanId": "diagnostic-2-span-1",
+          "message": "first mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let r1 = &mut x;"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-event-2",
+          "diagnosticId": "diagnostic-2",
+          "kind": "borrow_mut_request",
+          "role": "conflict",
+          "place": "x",
+          "spanId": "diagnostic-2-span-2",
+          "message": "second mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let r2 = &mut x;"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-event-3",
+          "diagnosticId": "diagnostic-2",
+          "kind": "context",
+          "role": "context",
+          "place": "x",
+          "spanId": "diagnostic-2-span-3",
+          "message": "first borrow later used here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first borrow later used here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    *r1 += 1;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-2-fix-1",
+          "diagnosticId": "diagnostic-2",
+          "kind": "split_scope",
+          "title": "Shorten the first mutable borrow scope",
+          "rationale": "End the first mutable borrow before requesting another mutable borrow of the same value.",
+          "tradeOffs": [
+            "Keeps exclusive access clear to the compiler.",
+            "May require introducing a smaller block or moving the last use earlier."
+          ],
+          "spanId": "diagnostic-2-span-3",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first borrow later used here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    *r1 += 1;"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-fix-2",
+          "diagnosticId": "diagnostic-2",
+          "kind": "move_timing",
+          "title": "Reorder the second mutable operation after the first borrow ends",
+          "rationale": "The second mutable borrow is valid once the first mutable reference is no longer used.",
+          "tradeOffs": [
+            "Preserves mutation semantics without cloning.",
+            "Can change behavior if the two operations were intentionally interleaved."
+          ],
+          "spanId": "diagnostic-2-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let r2 = &mut x;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "beginner",
+        "whatHappened": "x already has an active mutable borrow, and the code requested another mutable borrow before the first one ended.",
+        "whyItMatters": "Rust allows only one active mutable borrow at a time so writes cannot race or invalidate each other.",
+        "nextStep": "Find where the first mutable borrow is last used, then shorten that scope or reorder the second mutable borrow after it.",
+        "conceptTerms": [
+          "mutable borrow",
+          "borrow scope",
+          "conflict"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "second mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-3",
+      "code": "E0502",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `v` as mutable because it is also borrowed as immutable",
+      "spans": [
+        {
+          "id": "diagnostic-3-span-1",
+          "diagnosticId": "diagnostic-3",
+          "role": "conflict",
+          "file": "src/main.rs",
+          "lineStart": 22,
+          "lineEnd": 22,
+          "columnStart": 5,
+          "columnEnd": 14,
+          "byteStart": 324,
+          "byteEnd": 333,
+          "isPrimary": true,
+          "label": "mutable borrow occurs here",
+          "snippet": "    v.push(4);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    v.push(4);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-span-2",
+          "diagnosticId": "diagnostic-3",
+          "role": "cause",
+          "file": "src/main.rs",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "columnStart": 18,
+          "columnEnd": 19,
+          "byteStart": 314,
+          "byteEnd": 315,
+          "isPrimary": false,
+          "label": "immutable borrow occurs here",
+          "snippet": "    let first = &v[0];",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let first = &v[0];"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-span-3",
+          "diagnosticId": "diagnostic-3",
+          "role": "context",
+          "file": "src/main.rs",
+          "lineStart": 23,
+          "lineEnd": 23,
+          "columnStart": 20,
+          "columnEnd": 25,
+          "byteStart": 354,
+          "byteEnd": 359,
+          "isPrimary": false,
+          "label": "immutable borrow later used here",
+          "snippet": "    println!(\"{}\", first);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": true,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow later used here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    println!(\"{}\", first);"
+            },
+            {
+              "source": "rustc_expansion",
+              "field": "expansion",
+              "value": true
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable\n  --> src/main.rs:22:5\n   |\n21 |     let first = &v[0];\n   |                  - immutable borrow occurs here\n22 |     v.push(4);\n   |     ^^^^^^^^^ mutable borrow occurs here\n23 |     println!(\"{}\", first);\n   |                    ----- immutable borrow later used here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-3-event-1",
+          "diagnosticId": "diagnostic-3",
+          "kind": "borrow_mut",
+          "role": "conflict",
+          "place": "v",
+          "spanId": "diagnostic-3-span-1",
+          "message": "mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    v.push(4);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-event-2",
+          "diagnosticId": "diagnostic-3",
+          "kind": "borrow_shared",
+          "role": "cause",
+          "place": "v",
+          "spanId": "diagnostic-3-span-2",
+          "message": "immutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let first = &v[0];"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-event-3",
+          "diagnosticId": "diagnostic-3",
+          "kind": "context",
+          "role": "context",
+          "place": "v",
+          "spanId": "diagnostic-3-span-3",
+          "message": "immutable borrow later used here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow later used here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    println!(\"{}\", first);"
+            },
+            {
+              "source": "rustc_expansion",
+              "field": "expansion",
+              "value": true
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-3-fix-1",
+          "diagnosticId": "diagnostic-3",
+          "kind": "split_scope",
+          "title": "End the shared borrow before the mutable borrow",
+          "rationale": "The mutable operation must happen after the immutable reference is no longer needed.",
+          "tradeOffs": [
+            "Usually avoids extra allocation and keeps aliasing rules explicit.",
+            "May require copying out a small value or limiting a reference to a smaller block."
+          ],
+          "spanId": "diagnostic-3-span-3",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow later used here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    println!(\"{}\", first);"
+            },
+            {
+              "source": "rustc_expansion",
+              "field": "expansion",
+              "value": true
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-fix-2",
+          "diagnosticId": "diagnostic-3",
+          "kind": "move_timing",
+          "title": "Move the mutation after the last shared read",
+          "rationale": "Operation ordering can remove the overlap between shared and mutable access.",
+          "tradeOffs": [
+            "Keeps the data model unchanged.",
+            "Requires checking that the reordered mutation still matches the intended behavior."
+          ],
+          "spanId": "diagnostic-3-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    v.push(4);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "beginner",
+        "whatHappened": "v is still immutably borrowed when the code tries to borrow it mutably.",
+        "whyItMatters": "Rust keeps shared reads and mutable writes from overlapping so readers cannot observe a value while it is being changed.",
+        "nextStep": "Locate the last use of the immutable borrow, then move the mutable borrow after that point or narrow the immutable borrow scope.",
+        "conceptTerms": [
+          "immutable borrow",
+          "mutable borrow",
+          "borrow scope"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-4",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "Some errors have detailed explanations: E0382, E0499, E0502.",
+      "spans": [],
+      "children": [],
+      "rendered": "Some errors have detailed explanations: E0382, E0499, E0502.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    },
+    {
+      "id": "diagnostic-5",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "For more information about an error, try `rustc --explain E0382`.",
+      "spans": [],
+      "children": [],
+      "rendered": "For more information about an error, try `rustc --explain E0382`.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    }
+  ]
+}

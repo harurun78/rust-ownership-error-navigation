@@ -1,0 +1,368 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "validation/ports/miniz-streaming/reports/compatibility/iteration-001/cargo-check.jsonl",
+    "audienceMode": "intermediate"
+  },
+  "summary": {
+    "totalDiagnostics": 2,
+    "supportedDiagnostics": 1,
+    "unsupportedDiagnostics": 1,
+    "ownershipDiagnostics": 1,
+    "nonOwnershipDiagnostics": 0,
+    "recommendedFirstFixes": [
+      {
+        "diagnosticId": "diagnostic-1",
+        "code": "E0502",
+        "priority": 1,
+        "reason": "Separate shared and mutable access before applying local rewrites.",
+        "nextStep": "End the shared borrow before the mutable borrow",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow occurs here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "            avail_out: output.len(),"
+          }
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "diagnostic-1",
+      "code": "E0502",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `*output` as immutable because it is also borrowed as mutable",
+      "spans": [
+        {
+          "id": "diagnostic-1-span-1",
+          "diagnosticId": "diagnostic-1",
+          "role": "cause",
+          "file": "src/lib.rs",
+          "lineStart": 38,
+          "lineEnd": 38,
+          "columnStart": 24,
+          "columnEnd": 30,
+          "byteStart": 881,
+          "byteEnd": 887,
+          "isPrimary": true,
+          "label": "immutable borrow occurs here",
+          "snippet": "            avail_out: output.len(),",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            avail_out: output.len(),"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-2",
+          "diagnosticId": "diagnostic-1",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 37,
+          "lineEnd": 37,
+          "columnStart": 28,
+          "columnEnd": 34,
+          "byteStart": 849,
+          "byteEnd": 855,
+          "isPrimary": false,
+          "label": "mutable borrow occurs here",
+          "snippet": "            next_out: Some(output),",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            next_out: Some(output),"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-3",
+          "diagnosticId": "diagnostic-1",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 32,
+          "lineEnd": 32,
+          "columnStart": 6,
+          "columnEnd": 8,
+          "byteStart": 655,
+          "byteEnd": 657,
+          "isPrimary": false,
+          "label": "lifetime `'a` defined here",
+          "snippet": "impl<'a> MzStream<'a> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'a` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'a> MzStream<'a> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-4",
+          "diagnosticId": "diagnostic-1",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 34,
+          "lineEnd": 45,
+          "columnStart": 9,
+          "columnEnd": 10,
+          "byteStart": 746,
+          "byteEnd": 1064,
+          "isPrimary": false,
+          "label": "returning this value requires that `*output` is borrowed for `'a`",
+          "snippet": "        Self {\n            next_in: Some(input),\n            avail_in: input.len(),\n            next_out: Some(output),\n            avail_out: output.len(),\n            total_in: 0,\n            total_out: 0,\n            zalloc: None,\n            zfree: None,\n            initialized: false,\n            ended: false,\n        }",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "returning this value requires that `*output` is borrowed for `'a`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        Self {"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0502]: cannot borrow `*output` as immutable because it is also borrowed as mutable\n  --> src/lib.rs:38:24\n   |\n32 |   impl<'a> MzStream<'a> {\n   |        -- lifetime `'a` defined here\n33 |       pub fn new(input: &'a [u8], output: &'a mut [u8]) -> Self {\n34 | /         Self {\n35 | |             next_in: Some(input),\n36 | |             avail_in: input.len(),\n37 | |             next_out: Some(output),\n   | |                            ------ mutable borrow occurs here\n38 | |             avail_out: output.len(),\n   | |                        ^^^^^^ immutable borrow occurs here\n...  |\n44 | |             ended: false,\n45 | |         }\n   | |_________- returning this value requires that `*output` is borrowed for `'a`\n\n",
+      "events": [
+        {
+          "id": "diagnostic-1-event-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "borrow_shared",
+          "role": "cause",
+          "place": "*output",
+          "spanId": "diagnostic-1-span-1",
+          "message": "immutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            avail_out: output.len(),"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-2",
+          "diagnosticId": "diagnostic-1",
+          "kind": "borrow_mut",
+          "role": "conflict",
+          "place": "*output",
+          "spanId": "diagnostic-1-span-2",
+          "message": "mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            next_out: Some(output),"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-1-fix-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "split_scope",
+          "title": "End the shared borrow before the mutable borrow",
+          "rationale": "The mutable operation must happen after the immutable reference is no longer needed.",
+          "tradeOffs": [
+            "Usually avoids extra allocation and keeps aliasing rules explicit.",
+            "May require copying out a small value or limiting a reference to a smaller block."
+          ],
+          "spanId": "diagnostic-1-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            avail_out: output.len(),"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-fix-2",
+          "diagnosticId": "diagnostic-1",
+          "kind": "move_timing",
+          "title": "Move the mutation after the last shared read",
+          "rationale": "Operation ordering can remove the overlap between shared and mutable access.",
+          "tradeOffs": [
+            "Keeps the data model unchanged.",
+            "Requires checking that the reordered mutation still matches the intended behavior."
+          ],
+          "spanId": "diagnostic-1-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            next_out: Some(output),"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "intermediate",
+        "whatHappened": "*output has a shared borrow whose lifetime overlaps a mutable borrow request.",
+        "whyItMatters": "The immutable reference remains live across the mutation boundary, so the mutable borrow cannot be exclusive.",
+        "nextStep": "Narrow the shared borrow lifetime, copy out the needed data, or move the mutation after the last shared use.",
+        "conceptTerms": [
+          "immutable borrow",
+          "mutable borrow",
+          "borrow scope"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-2",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "For more information about this error, try `rustc --explain E0502`.",
+      "spans": [],
+      "children": [],
+      "rendered": "For more information about this error, try `rustc --explain E0502`.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    }
+  ]
+}

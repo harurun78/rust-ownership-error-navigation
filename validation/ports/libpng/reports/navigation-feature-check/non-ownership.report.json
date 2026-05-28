@@ -1,0 +1,580 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "test/fixtures/diagnostics/porting/non-ownership-navigation-2026-05-25.jsonl",
+    "audienceMode": "beginner"
+  },
+  "summary": {
+    "totalDiagnostics": 3,
+    "supportedDiagnostics": 3,
+    "unsupportedDiagnostics": 0,
+    "ownershipDiagnostics": 0,
+    "nonOwnershipDiagnostics": 3,
+    "recommendedFirstFixes": [
+      {
+        "diagnosticId": "diagnostic-3",
+        "code": "E0425",
+        "priority": 1,
+        "reason": "Resolve missing names first because later diagnostics may depend on the referenced item.",
+        "nextStep": "Resolve the missing name in this scope",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0425"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "not found in this scope"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "    let value = missing_name + 1;"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-1",
+        "code": "E0308",
+        "priority": 2,
+        "reason": "Align types before changing ownership so the code has the expected shape.",
+        "nextStep": "Align the expression type with the expected type",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0308"
+          },
+          {
+            "source": "rustc_child_diagnostic",
+            "field": "message",
+            "value": "try using a conversion method"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_suggestion",
+            "field": "suggested_replacement",
+            "value": ".to_string()"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "    let text: String = 42;"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-2",
+        "code": "E0004",
+        "priority": 3,
+        "reason": "Complete match coverage before refining the surrounding control flow.",
+        "nextStep": "Cover every possible match case",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0004"
+          },
+          {
+            "source": "rustc_child_diagnostic",
+            "field": "message",
+            "value": "ensure that all possible cases are being handled by adding a match arm"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_suggestion",
+            "field": "suggested_replacement",
+            "value": ",\n        State::Done => todo!()"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "        State::Ready => println!(\"ready\"),"
+          }
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "diagnostic-1",
+      "code": "E0308",
+      "supported": true,
+      "level": "error",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "id": "diagnostic-1-span-1",
+          "diagnosticId": "diagnostic-1",
+          "role": "conflict",
+          "file": "src/main.rs",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "columnStart": 24,
+          "columnEnd": 26,
+          "byteStart": 58,
+          "byteEnd": 60,
+          "isPrimary": true,
+          "label": "expected `String`, found integer",
+          "snippet": "    let text: String = 42;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "expected `String`, found integer"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let text: String = 42;"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-2",
+          "diagnosticId": "diagnostic-1",
+          "role": "cause",
+          "file": "src/main.rs",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "columnStart": 15,
+          "columnEnd": 21,
+          "byteStart": 49,
+          "byteEnd": 55,
+          "isPrimary": false,
+          "label": "expected due to this",
+          "snippet": "    let text: String = 42;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "expected due to this"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let text: String = 42;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [
+        {
+          "code": null,
+          "level": "help",
+          "message": "try using a conversion method",
+          "spans": [
+            {
+              "id": "diagnostic-1-child-1-span-1",
+              "diagnosticId": "diagnostic-1-child-1",
+              "role": "possible_fix",
+              "file": "src/main.rs",
+              "lineStart": 3,
+              "lineEnd": 3,
+              "columnStart": 26,
+              "columnEnd": 26,
+              "byteStart": 60,
+              "byteEnd": 60,
+              "isPrimary": true,
+              "label": null,
+              "snippet": "    let text: String = 42;",
+              "suggestedReplacement": ".to_string()",
+              "suggestionApplicability": "MaybeIncorrect",
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_suggestion",
+                  "field": "suggested_replacement",
+                  "value": ".to_string()"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "    let text: String = 42;"
+                }
+              ],
+              "confidence": "high"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        }
+      ],
+      "rendered": "error[E0308]: mismatched types\n",
+      "fixStrategies": [
+        {
+          "id": "diagnostic-1-fix-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "align_types",
+          "title": "Align the expression type with the expected type",
+          "rationale": "Rust expected one type at this location but inferred a different expression type.",
+          "tradeOffs": [
+            "Changing the expression may be simpler when the expected type is correct.",
+            "Changing the annotation or signature may be better when the expected type is too narrow."
+          ],
+          "spanId": "diagnostic-1-child-1-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0308"
+            },
+            {
+              "source": "rustc_child_diagnostic",
+              "field": "message",
+              "value": "try using a conversion method"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_suggestion",
+              "field": "suggested_replacement",
+              "value": ".to_string()"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let text: String = 42;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "diagnostic-2",
+      "code": "E0004",
+      "supported": true,
+      "level": "error",
+      "message": "non-exhaustive patterns: `State::Done` not covered",
+      "spans": [
+        {
+          "id": "diagnostic-2-span-1",
+          "diagnosticId": "diagnostic-2",
+          "role": "conflict",
+          "file": "src/main.rs",
+          "lineStart": 10,
+          "lineEnd": 10,
+          "columnStart": 11,
+          "columnEnd": 16,
+          "byteStart": 148,
+          "byteEnd": 153,
+          "isPrimary": true,
+          "label": "pattern `State::Done` not covered",
+          "snippet": "    match state {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "pattern `State::Done` not covered"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    match state {"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [
+        {
+          "code": null,
+          "level": "note",
+          "message": "`State` defined here",
+          "spans": [
+            {
+              "id": "diagnostic-2-child-1-span-1",
+              "diagnosticId": "diagnostic-2-child-1",
+              "role": "context",
+              "file": "src/main.rs",
+              "lineStart": 5,
+              "lineEnd": 5,
+              "columnStart": 6,
+              "columnEnd": 11,
+              "byteStart": 84,
+              "byteEnd": 89,
+              "isPrimary": true,
+              "label": "",
+              "snippet": "enum State {",
+              "suggestedReplacement": null,
+              "suggestionApplicability": null,
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_span_label",
+                  "field": "label",
+                  "value": ""
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "enum State {"
+                }
+              ],
+              "confidence": "medium"
+            },
+            {
+              "id": "diagnostic-2-child-1-span-2",
+              "diagnosticId": "diagnostic-2-child-1",
+              "role": "cause",
+              "file": "src/main.rs",
+              "lineStart": 7,
+              "lineEnd": 7,
+              "columnStart": 5,
+              "columnEnd": 9,
+              "byteStart": 111,
+              "byteEnd": 115,
+              "isPrimary": false,
+              "label": "not covered",
+              "snippet": "    Done,",
+              "suggestedReplacement": null,
+              "suggestionApplicability": null,
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_span_label",
+                  "field": "label",
+                  "value": "not covered"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "    Done,"
+                }
+              ],
+              "confidence": "high"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        },
+        {
+          "code": null,
+          "level": "help",
+          "message": "ensure that all possible cases are being handled by adding a match arm",
+          "spans": [
+            {
+              "id": "diagnostic-2-child-2-span-1",
+              "diagnosticId": "diagnostic-2-child-2",
+              "role": "possible_fix",
+              "file": "src/main.rs",
+              "lineStart": 11,
+              "lineEnd": 11,
+              "columnStart": 42,
+              "columnEnd": 42,
+              "byteStart": 189,
+              "byteEnd": 189,
+              "isPrimary": true,
+              "label": null,
+              "snippet": "        State::Ready => println!(\"ready\"),",
+              "suggestedReplacement": ",\n        State::Done => todo!()",
+              "suggestionApplicability": "HasPlaceholders",
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_suggestion",
+                  "field": "suggested_replacement",
+                  "value": ",\n        State::Done => todo!()"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "        State::Ready => println!(\"ready\"),"
+                }
+              ],
+              "confidence": "high"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        }
+      ],
+      "rendered": "error[E0004]: non-exhaustive patterns: `State::Done` not covered\n",
+      "fixStrategies": [
+        {
+          "id": "diagnostic-2-fix-1",
+          "diagnosticId": "diagnostic-2",
+          "kind": "add_match_arm",
+          "title": "Cover every possible match case",
+          "rationale": "Rust cannot prove this match handles every value the input type can produce.",
+          "tradeOffs": [
+            "Adding an explicit arm documents the missing case clearly.",
+            "A wildcard arm is shorter but can hide future enum variants."
+          ],
+          "spanId": "diagnostic-2-child-2-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0004"
+            },
+            {
+              "source": "rustc_child_diagnostic",
+              "field": "message",
+              "value": "ensure that all possible cases are being handled by adding a match arm"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_suggestion",
+              "field": "suggested_replacement",
+              "value": ",\n        State::Done => todo!()"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        State::Ready => println!(\"ready\"),"
+            }
+          ],
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "diagnostic-3",
+      "code": "E0425",
+      "supported": true,
+      "level": "error",
+      "message": "cannot find value `missing_name` in this scope",
+      "spans": [
+        {
+          "id": "diagnostic-3-span-1",
+          "diagnosticId": "diagnostic-3",
+          "role": "conflict",
+          "file": "src/main.rs",
+          "lineStart": 2,
+          "lineEnd": 2,
+          "columnStart": 17,
+          "columnEnd": 29,
+          "byteStart": 28,
+          "byteEnd": 40,
+          "isPrimary": true,
+          "label": "not found in this scope",
+          "snippet": "    let value = missing_name + 1;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "not found in this scope"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let value = missing_name + 1;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0425]: cannot find value `missing_name` in this scope\n",
+      "fixStrategies": [
+        {
+          "id": "diagnostic-3-fix-1",
+          "diagnosticId": "diagnostic-3",
+          "kind": "resolve_name",
+          "title": "Resolve the missing name in this scope",
+          "rationale": "Rust could not find the referenced item where this code is compiled.",
+          "tradeOffs": [
+            "Renaming the reference is direct when this is a typo.",
+            "Adding an import or declaration is better when the item exists elsewhere."
+          ],
+          "spanId": "diagnostic-3-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0425"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "not found in this scope"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    let value = missing_name + 1;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ]
+    }
+  ]
+}
