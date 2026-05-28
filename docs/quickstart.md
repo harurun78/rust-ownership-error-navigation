@@ -47,6 +47,7 @@ Expected result:
 - Static HTML report is created.
 - E0382 / E0499 / E0502 have ownership events.
 - Supported diagnostics include learner summaries.
+- Supported diagnostics may include deterministic design suggestions.
 - Unsupported count is 2 for the baseline fixture because rustc failure-note diagnostics are preserved display-only.
 
 ## 3. Run compatibility fixture checks
@@ -91,11 +92,24 @@ Required sections:
 
 - Summary
 - Learner Summaries
+- Design Direction
 - Causality Timeline
 - Source Spans
 - Evidence
 - Borrow Sheet
 - Unsupported Diagnostics, when applicable
+
+## Design Suggestions
+
+Reports can include optional `designSuggestions` on supported diagnostics and a matching `Design Direction` HTML section. These suggestions are deterministic local rules over rustc diagnostics, spans, labels, snippets, events, and audience mode.
+
+The first implemented slice includes:
+
+- `split-mutation-phase` for E0499/E0502 records with cause, conflict, and context evidence.
+- `avoid-long-lived-buffer-borrow` for E0499/E0502 records involving parser, stream, input, output, or buffer pressure.
+- `owned-result` for E0382 moved-value reuse and E0308 type-boundary pressure.
+
+The CLI does not call an external LLM API and does not apply source edits.
 
 ## Unsupported Diagnostics
 
@@ -118,6 +132,6 @@ Future VS Code adapters should convert to VS Code's 0-based `Range` model at the
 
 ## Post-MVP Direction
 
-The Redis porting validation showed that learner value should expand beyond ownership-only reports. The next slice focuses on learner summaries, beginner/intermediate/agent display modes, E0308/E0004/E0425 triage, fix strategy trade-offs, and a cargo wrapper workflow.
+The Redis and miniz porting validations showed that learner value should expand beyond ownership-only reports. The implemented post-MVP slices now include learner summaries, beginner/intermediate/agent display modes, E0308/E0004/E0425 triage, fix strategy trade-offs, and deterministic design suggestions.
 
 See [application-roadmap-from-redis-validation.md](../tasks/application-roadmap-from-redis-validation.md) for the prioritized task list.
