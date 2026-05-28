@@ -1,0 +1,773 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "validation/ports/sax-js-queued-events/reports/compatibility/iteration-001/cargo-check.jsonl",
+    "audienceMode": "intermediate"
+  },
+  "summary": {
+    "totalDiagnostics": 3,
+    "supportedDiagnostics": 2,
+    "unsupportedDiagnostics": 1,
+    "ownershipDiagnostics": 2,
+    "nonOwnershipDiagnostics": 0,
+    "recommendedFirstFixes": [
+      {
+        "diagnosticId": "diagnostic-1",
+        "code": "E0502",
+        "priority": 1,
+        "reason": "Separate shared and mutable access before applying local rewrites.",
+        "nextStep": "End the shared borrow before the mutable borrow",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow occurs here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "            let raw_name = &self.buffer[1..tag_end];"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-2",
+        "code": "E0502",
+        "priority": 2,
+        "reason": "Separate shared and mutable access before applying local rewrites.",
+        "nextStep": "End the shared borrow before the mutable borrow",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow occurs here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "            let text = &self.buffer[..tag_start];"
+          }
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "diagnostic-1",
+      "code": "E0502",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `self.buffer` as mutable because it is also borrowed as immutable",
+      "spans": [
+        {
+          "id": "diagnostic-1-span-1",
+          "diagnosticId": "diagnostic-1",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 44,
+          "lineEnd": 44,
+          "columnStart": 13,
+          "columnEnd": 42,
+          "byteStart": 1103,
+          "byteEnd": 1132,
+          "isPrimary": true,
+          "label": "mutable borrow occurs here",
+          "snippet": "            self.buffer.drain(..=tag_end);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.buffer.drain(..=tag_end);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-2",
+          "diagnosticId": "diagnostic-1",
+          "role": "cause",
+          "file": "src/lib.rs",
+          "lineStart": 35,
+          "lineEnd": 35,
+          "columnStart": 29,
+          "columnEnd": 40,
+          "byteStart": 779,
+          "byteEnd": 790,
+          "isPrimary": false,
+          "label": "immutable borrow occurs here",
+          "snippet": "            let raw_name = &self.buffer[1..tag_end];",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            let raw_name = &self.buffer[1..tag_end];"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-3",
+          "diagnosticId": "diagnostic-1",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 19,
+          "lineEnd": 19,
+          "columnStart": 6,
+          "columnEnd": 12,
+          "byteStart": 321,
+          "byteEnd": 327,
+          "isPrimary": false,
+          "label": "lifetime `'input` defined here",
+          "snippet": "impl<'input> SaxParser<'input> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'input` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'input> SaxParser<'input> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-4",
+          "diagnosticId": "diagnostic-1",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 43,
+          "lineEnd": 43,
+          "columnStart": 13,
+          "columnEnd": 36,
+          "byteStart": 1066,
+          "byteEnd": 1089,
+          "isPrimary": false,
+          "label": "argument requires that `self.buffer` is borrowed for `'input`",
+          "snippet": "            self.queued.push(event);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "argument requires that `self.buffer` is borrowed for `'input`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.queued.push(event);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0502]: cannot borrow `self.buffer` as mutable because it is also borrowed as immutable\n  --> src/lib.rs:44:13\n   |\n19 | impl<'input> SaxParser<'input> {\n   |      ------ lifetime `'input` defined here\n...\n35 |             let raw_name = &self.buffer[1..tag_end];\n   |                             ----------- immutable borrow occurs here\n...\n43 |             self.queued.push(event);\n   |             ----------------------- argument requires that `self.buffer` is borrowed for `'input`\n44 |             self.buffer.drain(..=tag_end);\n   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-1-event-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "borrow_mut",
+          "role": "conflict",
+          "place": "self.buffer",
+          "spanId": "diagnostic-1-span-1",
+          "message": "mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.buffer.drain(..=tag_end);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-event-2",
+          "diagnosticId": "diagnostic-1",
+          "kind": "borrow_shared",
+          "role": "cause",
+          "place": "self.buffer",
+          "spanId": "diagnostic-1-span-2",
+          "message": "immutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            let raw_name = &self.buffer[1..tag_end];"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-1-fix-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "split_scope",
+          "title": "End the shared borrow before the mutable borrow",
+          "rationale": "The mutable operation must happen after the immutable reference is no longer needed.",
+          "tradeOffs": [
+            "Usually avoids extra allocation and keeps aliasing rules explicit.",
+            "May require copying out a small value or limiting a reference to a smaller block."
+          ],
+          "spanId": "diagnostic-1-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            let raw_name = &self.buffer[1..tag_end];"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-fix-2",
+          "diagnosticId": "diagnostic-1",
+          "kind": "move_timing",
+          "title": "Move the mutation after the last shared read",
+          "rationale": "Operation ordering can remove the overlap between shared and mutable access.",
+          "tradeOffs": [
+            "Keeps the data model unchanged.",
+            "Requires checking that the reordered mutation still matches the intended behavior."
+          ],
+          "spanId": "diagnostic-1-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.buffer.drain(..=tag_end);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "designSuggestions": [
+        {
+          "id": "diagnostic-1-design-suggestion-avoid-long-lived-buffer-borrow",
+          "diagnosticId": "diagnostic-1",
+          "kind": "avoid-long-lived-buffer-borrow",
+          "title": "Prefer owned parse output over stored buffer borrows",
+          "why": "The diagnostic evidence mentions parser, stream, input, output, or buffer state while a borrow conflict is present.",
+          "whenToUse": "Use this when a C-style port stores references to caller input or output buffers across parser state transitions.",
+          "caution": "Owned records can allocate or copy more data; keep borrowed views only when the lifetime boundary is small and clear.",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "heuristic",
+              "field": "rule",
+              "value": "avoid-long-lived-buffer-borrow"
+            },
+            {
+              "source": "heuristic",
+              "field": "trigger",
+              "value": "buffer"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "spanId",
+              "value": "diagnostic-1-span-1"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "intermediate",
+        "whatHappened": "self.buffer has a shared borrow whose lifetime overlaps a mutable borrow request.",
+        "whyItMatters": "The immutable reference remains live across the mutation boundary, so the mutable borrow cannot be exclusive.",
+        "nextStep": "Narrow the shared borrow lifetime, copy out the needed data, or move the mutation after the last shared use.",
+        "conceptTerms": [
+          "immutable borrow",
+          "mutable borrow",
+          "borrow scope"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-2",
+      "code": "E0502",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `self.buffer` as mutable because it is also borrowed as immutable",
+      "spans": [
+        {
+          "id": "diagnostic-2-span-1",
+          "diagnosticId": "diagnostic-2",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 48,
+          "lineEnd": 48,
+          "columnStart": 13,
+          "columnEnd": 43,
+          "byteStart": 1309,
+          "byteEnd": 1339,
+          "isPrimary": true,
+          "label": "mutable borrow occurs here",
+          "snippet": "            self.buffer.drain(..tag_start);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.buffer.drain(..tag_start);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-2",
+          "diagnosticId": "diagnostic-2",
+          "role": "cause",
+          "file": "src/lib.rs",
+          "lineStart": 46,
+          "lineEnd": 46,
+          "columnStart": 25,
+          "columnEnd": 36,
+          "byteStart": 1222,
+          "byteEnd": 1233,
+          "isPrimary": false,
+          "label": "immutable borrow occurs here",
+          "snippet": "            let text = &self.buffer[..tag_start];",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            let text = &self.buffer[..tag_start];"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-3",
+          "diagnosticId": "diagnostic-2",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 19,
+          "lineEnd": 19,
+          "columnStart": 6,
+          "columnEnd": 12,
+          "byteStart": 321,
+          "byteEnd": 327,
+          "isPrimary": false,
+          "label": "lifetime `'input` defined here",
+          "snippet": "impl<'input> SaxParser<'input> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'input` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'input> SaxParser<'input> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-4",
+          "diagnosticId": "diagnostic-2",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 47,
+          "lineEnd": 47,
+          "columnStart": 13,
+          "columnEnd": 48,
+          "byteStart": 1260,
+          "byteEnd": 1295,
+          "isPrimary": false,
+          "label": "argument requires that `self.buffer` is borrowed for `'input`",
+          "snippet": "            self.queued.push(Event::Text(text));",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "argument requires that `self.buffer` is borrowed for `'input`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.queued.push(Event::Text(text));"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0502]: cannot borrow `self.buffer` as mutable because it is also borrowed as immutable\n  --> src/lib.rs:48:13\n   |\n19 | impl<'input> SaxParser<'input> {\n   |      ------ lifetime `'input` defined here\n...\n46 |             let text = &self.buffer[..tag_start];\n   |                         ----------- immutable borrow occurs here\n47 |             self.queued.push(Event::Text(text));\n   |             ----------------------------------- argument requires that `self.buffer` is borrowed for `'input`\n48 |             self.buffer.drain(..tag_start);\n   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-2-event-1",
+          "diagnosticId": "diagnostic-2",
+          "kind": "borrow_mut",
+          "role": "conflict",
+          "place": "self.buffer",
+          "spanId": "diagnostic-2-span-1",
+          "message": "mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.buffer.drain(..tag_start);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-event-2",
+          "diagnosticId": "diagnostic-2",
+          "kind": "borrow_shared",
+          "role": "cause",
+          "place": "self.buffer",
+          "spanId": "diagnostic-2-span-2",
+          "message": "immutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            let text = &self.buffer[..tag_start];"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-2-fix-1",
+          "diagnosticId": "diagnostic-2",
+          "kind": "split_scope",
+          "title": "End the shared borrow before the mutable borrow",
+          "rationale": "The mutable operation must happen after the immutable reference is no longer needed.",
+          "tradeOffs": [
+            "Usually avoids extra allocation and keeps aliasing rules explicit.",
+            "May require copying out a small value or limiting a reference to a smaller block."
+          ],
+          "spanId": "diagnostic-2-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "immutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            let text = &self.buffer[..tag_start];"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-fix-2",
+          "diagnosticId": "diagnostic-2",
+          "kind": "move_timing",
+          "title": "Move the mutation after the last shared read",
+          "rationale": "Operation ordering can remove the overlap between shared and mutable access.",
+          "tradeOffs": [
+            "Keeps the data model unchanged.",
+            "Requires checking that the reordered mutation still matches the intended behavior."
+          ],
+          "spanId": "diagnostic-2-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            self.buffer.drain(..tag_start);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "designSuggestions": [
+        {
+          "id": "diagnostic-2-design-suggestion-avoid-long-lived-buffer-borrow",
+          "diagnosticId": "diagnostic-2",
+          "kind": "avoid-long-lived-buffer-borrow",
+          "title": "Prefer owned parse output over stored buffer borrows",
+          "why": "The diagnostic evidence mentions parser, stream, input, output, or buffer state while a borrow conflict is present.",
+          "whenToUse": "Use this when a C-style port stores references to caller input or output buffers across parser state transitions.",
+          "caution": "Owned records can allocate or copy more data; keep borrowed views only when the lifetime boundary is small and clear.",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0502"
+            },
+            {
+              "source": "heuristic",
+              "field": "rule",
+              "value": "avoid-long-lived-buffer-borrow"
+            },
+            {
+              "source": "heuristic",
+              "field": "trigger",
+              "value": "buffer"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "spanId",
+              "value": "diagnostic-2-span-1"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "mutable borrow occurs here"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "intermediate",
+        "whatHappened": "self.buffer has a shared borrow whose lifetime overlaps a mutable borrow request.",
+        "whyItMatters": "The immutable reference remains live across the mutation boundary, so the mutable borrow cannot be exclusive.",
+        "nextStep": "Narrow the shared borrow lifetime, copy out the needed data, or move the mutation after the last shared use.",
+        "conceptTerms": [
+          "immutable borrow",
+          "mutable borrow",
+          "borrow scope"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "immutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0502"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-3",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "For more information about this error, try `rustc --explain E0502`.",
+      "spans": [],
+      "children": [],
+      "rendered": "For more information about this error, try `rustc --explain E0502`.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "validation/ports/sax-js-queued-events/reports/rust-native/iteration-002/cargo-check.jsonl",
+    "audienceMode": "intermediate"
+  },
+  "summary": {
+    "totalDiagnostics": 0,
+    "supportedDiagnostics": 0,
+    "unsupportedDiagnostics": 0,
+    "ownershipDiagnostics": 0,
+    "nonOwnershipDiagnostics": 0
+  },
+  "diagnostics": []
+}
