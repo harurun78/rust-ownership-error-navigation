@@ -2,6 +2,10 @@
   "name": "rust-ownership-error-navigation",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bookworm",
   "features": {
+    "ghcr.io/devcontainers-extra/features/apt-packages": {
+      "packages": "ripgrep,fzf"
+    },
+    "ghcr.io/devcontainers/features/common-utils:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/rust:1": {
       "version": "stable"
