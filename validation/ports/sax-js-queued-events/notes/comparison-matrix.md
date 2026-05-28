@@ -15,3 +15,19 @@
 ## Slice 001 Interpretation
 
 This target produced the repair signal missing from the previous HTTP parser target. The compatibility shape tried to keep queued `&str` payloads into a parser-owned buffer and then mutate that buffer, yielding E0502. The deterministic design suggestion correctly identified long-lived buffer borrows, and the repair changed queued storage to byte spans with short-lived borrowed views at delivery time.
+
+## Paired Slice 003 - Attributes And Partial Tags
+
+| Metric                          | Compatibility | Rust-Native | Interpretation                                                                           |
+| ------------------------------- | ------------: | ----------: | ---------------------------------------------------------------------------------------- |
+| cargo-check diagnostics         |             0 |           0 | The span-queue repair continued to compile cleanly after attributes and partial tags.    |
+| ownership diagnostics           |             0 |           0 | No E0382/E0499/E0502 surfaced in the completion slice.                                   |
+| non-ownership diagnostics       |             0 |           0 | Both tracks passed saved cargo-check captures.                                           |
+| repair iterations to pass tests |             0 |           0 | No additional repair was needed after the iteration-002 design change.                   |
+| shortcut pressure events        |             0 |           0 | No `unsafe`, shared mutability wrappers, or broad clone shortcuts.                       |
+| tests passed                    |             7 |           6 | Compatibility covers incremental partial tags; Rust-native covers whole-input behavior.  |
+| navigation changed next action  |            no |          no | The earlier navigation-guided span queue was sufficient for the expanded completion set. |
+
+## Completion Note
+
+The target is complete for the selected ownership-navigation boundary. It produced a useful repair signal in the first compatibility attempt, then showed that the report-guided span queue design scales to attributes and incremental parser input without additional ownership diagnostics.

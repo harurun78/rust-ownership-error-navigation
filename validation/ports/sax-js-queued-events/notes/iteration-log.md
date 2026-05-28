@@ -21,3 +21,14 @@
 - Rust-native result: `cargo test` passed 3 tests; `cargo check` produced 0 diagnostics.
 - Shortcut pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls detected.
 - Next slice candidate: attributes or incremental partial tags if more parser-state pressure is desired.
+
+## iteration-003
+
+- Slice: quoted start-tag attributes plus compatibility incremental partial tags.
+- Compatibility condition: continue preserving queued event delivery with borrowed event and attribute views, backed by span storage rather than long-lived `&str` payloads.
+- Rust-native condition: return owned `Event::StartTag { name, attributes }` records.
+- Compatibility result: `cargo test` passed 7 tests; `cargo check` produced 0 diagnostics.
+- Rust-native result: `cargo test` passed 6 tests; `cargo check` produced 0 diagnostics.
+- Shortcut pressure: no `unsafe`, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or broad `.clone()` calls detected.
+- Navigation effect: no new repair signal after the iteration-002 span-queue repair; the same design continued to scale to attributes and partial tags.
+- Completion decision: target complete at tags, text, quoted attributes, malformed tag/attribute rejection, and compatibility partial tag completion.

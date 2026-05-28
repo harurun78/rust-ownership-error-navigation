@@ -41,10 +41,20 @@ Use a `sax-js` style XML streaming tokenizer because it is JavaScript-origin, ca
 - Create borrowed `Event<'_>` views only at `next_event` delivery time.
 - Keep Rust-native behavior unchanged as an owned output baseline.
 
+## Iteration 003 Completion Scope
+
+- Parse quoted start-tag attributes.
+- Preserve compatibility queued event delivery with borrowed event views and borrowed attribute views.
+- Return Rust-native owned attributes.
+- Accept incremental partial tags in the compatibility parser, for example `write("<ro")` followed by `write("ot id=\"main\">")`.
+- Reject invalid attributes and malformed end-tag names.
+
+This is the completion boundary for the current target. It covers the parser-buffer, queued-event, borrowed-view, owned-output, and incremental-input ownership surfaces without expanding into full XML compliance.
+
 ## Non-Goals
 
 - Full XML compliance.
-- Attributes and namespaces.
+- Namespaces.
 - Entities and CDATA.
 - Encoding detection.
 - Real Node.js stream compatibility.

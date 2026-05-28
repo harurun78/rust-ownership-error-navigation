@@ -50,3 +50,21 @@ node dist/cli/main.js \
   --html-out validation/ports/sax-js-queued-events/reports/rust-native/iteration-002/ownership-report.html \
   --audience intermediate
 ```
+
+## Completion Iteration Reports
+
+Use `iteration-003` paths after adding attributes and compatibility partial tags:
+
+```bash
+node dist/cli/main.js \
+  --input validation/ports/sax-js-queued-events/reports/compatibility/iteration-003/cargo-check.jsonl \
+  --json-out validation/ports/sax-js-queued-events/reports/compatibility/iteration-003/ownership-report.json \
+  --html-out validation/ports/sax-js-queued-events/reports/compatibility/iteration-003/ownership-report.html \
+  --audience intermediate
+
+node dist/cli/main.js \
+  --input validation/ports/sax-js-queued-events/reports/rust-native/iteration-003/cargo-check.jsonl \
+  --json-out validation/ports/sax-js-queued-events/reports/rust-native/iteration-003/ownership-report.json \
+  --html-out validation/ports/sax-js-queued-events/reports/rust-native/iteration-003/ownership-report.html \
+  --audience intermediate
+```

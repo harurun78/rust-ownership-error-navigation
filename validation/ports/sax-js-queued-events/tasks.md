@@ -23,3 +23,11 @@
 - [x] S010 Apply navigation-guided compatibility repair after iteration 001 produced E0502 diagnostics.
 - [x] S011 Save iteration-002 cargo-check JSONL and navigation reports for both tracks.
 - [x] S012 Verify repaired compatibility tests and Rust-native baseline tests.
+
+## Phase 5: Completion Iteration
+
+- [x] S013 Add quoted attribute parsing to both tracks.
+- [x] S014 Add compatibility incremental partial tag behavior.
+- [x] S015 Add tests for attributes, partial tags, and invalid attributes.
+- [x] S016 Save iteration-003 cargo-check JSONL and navigation reports for both tracks.
+- [x] S017 Mark the target complete at tags, text, attributes, and partial tags.

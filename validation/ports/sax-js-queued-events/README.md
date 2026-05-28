@@ -4,7 +4,7 @@ This target ports a small `sax-js` style XML streaming tokenizer into Rust under
 
 - Upstream style: JavaScript `isaacs/sax-js` streaming tokenizer callbacks.
 - Validation focus: queued parser events that want to reference parser input buffers after parsing continues.
-- Current slice: simple start tags, end tags, and text nodes.
+- Completed slice: start tags, end tags, text nodes, quoted attributes, and incremental partial tags.
 
 The target is intentionally selected after `http-parser-js-streaming` because it makes borrowed event views more likely to escape the immediate parser call.
 
@@ -17,3 +17,15 @@ The target is intentionally selected after `http-parser-js-streaming` because it
 
 - `reports/compatibility/iteration-001/`
 - `reports/rust-native/iteration-001/`
+- `reports/compatibility/iteration-002/`
+- `reports/rust-native/iteration-002/`
+- `reports/compatibility/iteration-003/`
+- `reports/rust-native/iteration-003/`
+
+## Completion Boundary
+
+- simple start tags and end tags
+- text nodes between tags
+- quoted start-tag attributes
+- incremental partial tag completion in the compatibility parser
+- malformed tag and attribute rejection

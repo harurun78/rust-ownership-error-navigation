@@ -29,3 +29,10 @@
 - Resolve spans into borrowed event views only when `next_event` is called.
 - Save clean cargo-check JSONL and navigation reports after repair.
 - Compare the repair value against the Rust-native owned event baseline.
+
+## Phase 6: Completion Iteration 003
+
+- Add quoted attribute parsing to both tracks.
+- Preserve compatibility span-based queue storage and borrowed view delivery.
+- Add incremental partial tag behavior to the compatibility track.
+- Save iteration-003 reports and close the target at tags, text, attributes, and partial tags.
