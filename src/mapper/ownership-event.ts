@@ -49,6 +49,27 @@ export interface OwnershipEvent {
   confidence: Confidence;
 }
 
+export type DesignSuggestionKind =
+  | 'owned-result'
+  | 'builder'
+  | 'state-machine'
+  | 'short-borrow-callback'
+  | 'split-mutation-phase'
+  | 'avoid-c-style-out-param'
+  | 'avoid-long-lived-buffer-borrow';
+
+export interface DesignSuggestion {
+  id: string;
+  diagnosticId: string;
+  kind: DesignSuggestionKind;
+  title: string;
+  why: string;
+  whenToUse: string;
+  caution: string;
+  evidence: Evidence[];
+  confidence: Confidence;
+}
+
 export interface DiagnosticChildRecord {
   code?: string | null;
   level?: string;
@@ -69,6 +90,7 @@ export interface DiagnosticRecord {
   events?: OwnershipEvent[];
   learnerSummary?: LearnerSummary;
   fixStrategies?: FixStrategy[];
+  designSuggestions?: DesignSuggestion[];
   rendered?: string | null;
   unsupportedReason?: string;
 }

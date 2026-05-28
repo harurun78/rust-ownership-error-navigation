@@ -34,6 +34,7 @@ export function renderHtmlReport(report: DiagnosticReport): string {
 	${renderDiagnosticGroups(report.diagnostics)}
 	${renderDiagnosticsOverview(report.diagnostics)}
   ${renderFixStrategies(report.diagnostics)}
+  ${renderDesignSuggestions(report.diagnostics)}
 	${renderCausalityTimeline(report.diagnostics)}
 	${renderSourceSpans(report.diagnostics)}
 	${renderEvidence(report.diagnostics)}
@@ -143,6 +144,23 @@ function renderFixStrategies(diagnostics: readonly DiagnosticRecord[]): string {
 	<table>
 		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Rationale</th><th>Trade-offs</th><th>Span</th><th>Confidence</th></tr></thead>
 		<tbody>${rows.join('\n') || '<tr><td colspan="7">No fix strategies</td></tr>'}</tbody>
+	</table>
+</section>`;
+}
+
+function renderDesignSuggestions(diagnostics: readonly DiagnosticRecord[]): string {
+  const rows = diagnostics.flatMap((diagnostic) =>
+    (diagnostic.designSuggestions ?? []).map(
+      (suggestion) =>
+        `<tr><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(suggestion.kind)}</td><td>${escapeHtml(suggestion.title)}</td><td>${escapeHtml(suggestion.why)}</td><td>${escapeHtml(suggestion.whenToUse)}</td><td>${escapeHtml(suggestion.caution)}</td><td>${escapeHtml(suggestion.confidence)}</td></tr>`
+    )
+  );
+
+  return `<section id="design-direction">
+	<h2>Design Direction</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Why</th><th>When To Use</th><th>Caution</th><th>Confidence</th></tr></thead>
+		<tbody>${rows.join('\n') || '<tr><td colspan="7">No design suggestions</td></tr>'}</tbody>
 	</table>
 </section>`;
 }

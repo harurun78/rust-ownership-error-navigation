@@ -10,6 +10,7 @@ export * from './mapper/e0425.js';
 export * from './mapper/e0499.js';
 export * from './mapper/e0502.js';
 export * from './mapper/diagnostic-navigation.js';
+export * from './mapper/design-suggestion.js';
 export * from './mapper/fix-strategy.js';
 export * from './mapper/learner-summary.js';
 export * from './mapper/ownership-event.js';

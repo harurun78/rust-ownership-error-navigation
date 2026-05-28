@@ -60,12 +60,200 @@
         </tbody>
       </table>
     </section>
+    <section id="recommended-first-fixes">
+      <h2>Recommended First Fixes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Code</th>
+            <th>Diagnostic</th>
+            <th>Reason</th>
+            <th>Next Step</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>E0382</td>
+            <td>diagnostic-1</td>
+            <td>Fix the move/use conflict before changing later borrow behavior.</td>
+            <td>Borrow the value instead of moving it</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>E0499</td>
+            <td>diagnostic-2</td>
+            <td>Remove overlapping mutable borrows so each mutation has exclusive access.</td>
+            <td>Shorten the first mutable borrow scope</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>E0502</td>
+            <td>diagnostic-3</td>
+            <td>Separate shared and mutable access before applying local rewrites.</td>
+            <td>End the shared borrow before the mutable borrow</td>
+            <td>high</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section id="learner-summaries">
+      <h2>Learner Summaries</h2>
+      <article class="learner-summary-card" id="learner-summary-14525ee848e3">
+        <h3>E0382 learner summary</h3>
+        <table>
+          <tbody>
+            <tr>
+              <th>Audience</th>
+              <td>beginner</td>
+            </tr>
+            <tr>
+              <th>What Happened</th>
+              <td>s was moved, and the code later tried to use it again.</td>
+            </tr>
+            <tr>
+              <th>Why It Matters</th>
+              <td>
+                After a move, the original binding no longer owns the value, so Rust prevents later
+                use through that binding.
+              </td>
+            </tr>
+            <tr>
+              <th>Next Step</th>
+              <td>
+                Start at the move location, then decide whether the later code should borrow the
+                value, clone it, or change ownership flow.
+              </td>
+            </tr>
+            <tr>
+              <th>Concepts</th>
+              <td>move, ownership, use after move</td>
+            </tr>
+            <tr>
+              <th>Confidence</th>
+              <td>high</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+      <article class="learner-summary-card" id="learner-summary-80edc4e1485f">
+        <h3>E0499 learner summary</h3>
+        <table>
+          <tbody>
+            <tr>
+              <th>Audience</th>
+              <td>beginner</td>
+            </tr>
+            <tr>
+              <th>What Happened</th>
+              <td>
+                x already has an active mutable borrow, and the code requested another mutable
+                borrow before the first one ended.
+              </td>
+            </tr>
+            <tr>
+              <th>Why It Matters</th>
+              <td>
+                Rust allows only one active mutable borrow at a time so writes cannot race or
+                invalidate each other.
+              </td>
+            </tr>
+            <tr>
+              <th>Next Step</th>
+              <td>
+                Find where the first mutable borrow is last used, then shorten that scope or reorder
+                the second mutable borrow after it.
+              </td>
+            </tr>
+            <tr>
+              <th>Concepts</th>
+              <td>mutable borrow, borrow scope, conflict</td>
+            </tr>
+            <tr>
+              <th>Confidence</th>
+              <td>high</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+      <article class="learner-summary-card" id="learner-summary-8f16b0356145">
+        <h3>E0502 learner summary</h3>
+        <table>
+          <tbody>
+            <tr>
+              <th>Audience</th>
+              <td>beginner</td>
+            </tr>
+            <tr>
+              <th>What Happened</th>
+              <td>v is still immutably borrowed when the code tries to borrow it mutably.</td>
+            </tr>
+            <tr>
+              <th>Why It Matters</th>
+              <td>
+                Rust keeps shared reads and mutable writes from overlapping so readers cannot
+                observe a value while it is being changed.
+              </td>
+            </tr>
+            <tr>
+              <th>Next Step</th>
+              <td>
+                Locate the last use of the immutable borrow, then move the mutable borrow after that
+                point or narrow the immutable borrow scope.
+              </td>
+            </tr>
+            <tr>
+              <th>Concepts</th>
+              <td>immutable borrow, mutable borrow, borrow scope</td>
+            </tr>
+            <tr>
+              <th>Confidence</th>
+              <td>high</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+    <section id="diagnostic-groups">
+      <h2>Diagnostic Groups</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>Count</th>
+            <th>Codes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Ownership</td>
+            <td>3</td>
+            <td>E0382, E0499, E0502</td>
+          </tr>
+          <tr>
+            <td>Non-Ownership</td>
+            <td>0</td>
+            <td>none</td>
+          </tr>
+          <tr>
+            <td>Unsupported</td>
+            <td>2</td>
+            <td>unknown, unknown</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
     <section id="diagnostics">
       <h2>Diagnostics</h2>
       <table>
         <thead>
           <tr>
             <th>ID</th>
+            <th>Group</th>
             <th>Code</th>
             <th>Message</th>
             <th>Status</th>
@@ -74,33 +262,226 @@
         <tbody>
           <tr>
             <td>diagnostic-1</td>
+            <td>ownership</td>
             <td>E0382</td>
             <td>borrow of moved value: `s`</td>
             <td>supported</td>
           </tr>
           <tr>
             <td>diagnostic-2</td>
+            <td>ownership</td>
             <td>E0499</td>
             <td>cannot borrow `x` as mutable more than once at a time</td>
             <td>supported</td>
           </tr>
           <tr>
             <td>diagnostic-3</td>
+            <td>ownership</td>
             <td>E0502</td>
             <td>cannot borrow `v` as mutable because it is also borrowed as immutable</td>
             <td>supported</td>
           </tr>
           <tr>
             <td>diagnostic-4</td>
+            <td>unsupported</td>
             <td>unknown</td>
             <td>Some errors have detailed explanations: E0382, E0499, E0502.</td>
             <td>unsupported</td>
           </tr>
           <tr>
             <td>diagnostic-5</td>
+            <td>unsupported</td>
             <td>unknown</td>
             <td>For more information about an error, try `rustc --explain E0382`.</td>
             <td>unsupported</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section id="fix-strategies">
+      <h2>Fix Strategies</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Kind</th>
+            <th>Title</th>
+            <th>Rationale</th>
+            <th>Trade-offs</th>
+            <th>Span</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>E0382</td>
+            <td>borrow</td>
+            <td>Borrow the value instead of moving it</td>
+            <td>
+              If later code still needs the original binding, pass a reference at the ownership
+              boundary.
+            </td>
+            <td>
+              Keeps one owner and avoids an allocation. Requires the called API to accept a
+              reference or a borrowed variant.
+            </td>
+            <td>diagnostic-1-span-1</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0382</td>
+            <td>clone_or_copy</td>
+            <td>Use clone() only when two owned values are intentional</td>
+            <td>
+              Cloning can satisfy ownership when both locations truly need independent owned values.
+            </td>
+            <td>
+              Makes the extra allocation or copy explicit. Can hide a design issue if borrowing or
+              moving later would express the intent better.
+            </td>
+            <td>diagnostic-1-child-2-span-1</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0382</td>
+            <td>move_timing</td>
+            <td>Move ownership after the last use</td>
+            <td>
+              Reordering can keep the original binding valid until the final read has happened.
+            </td>
+            <td>
+              Often keeps APIs unchanged. May require splitting a larger expression into smaller
+              statements.
+            </td>
+            <td>diagnostic-1-span-2</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0499</td>
+            <td>split_scope</td>
+            <td>Shorten the first mutable borrow scope</td>
+            <td>
+              End the first mutable borrow before requesting another mutable borrow of the same
+              value.
+            </td>
+            <td>
+              Keeps exclusive access clear to the compiler. May require introducing a smaller block
+              or moving the last use earlier.
+            </td>
+            <td>diagnostic-2-span-3</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0499</td>
+            <td>move_timing</td>
+            <td>Reorder the second mutable operation after the first borrow ends</td>
+            <td>
+              The second mutable borrow is valid once the first mutable reference is no longer used.
+            </td>
+            <td>
+              Preserves mutation semantics without cloning. Can change behavior if the two
+              operations were intentionally interleaved.
+            </td>
+            <td>diagnostic-2-span-2</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0502</td>
+            <td>split_scope</td>
+            <td>End the shared borrow before the mutable borrow</td>
+            <td>
+              The mutable operation must happen after the immutable reference is no longer needed.
+            </td>
+            <td>
+              Usually avoids extra allocation and keeps aliasing rules explicit. May require copying
+              out a small value or limiting a reference to a smaller block.
+            </td>
+            <td>diagnostic-3-span-3</td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0502</td>
+            <td>move_timing</td>
+            <td>Move the mutation after the last shared read</td>
+            <td>Operation ordering can remove the overlap between shared and mutable access.</td>
+            <td>
+              Keeps the data model unchanged. Requires checking that the reordered mutation still
+              matches the intended behavior.
+            </td>
+            <td>diagnostic-3-span-1</td>
+            <td>high</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section id="design-direction">
+      <h2>Design Direction</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Kind</th>
+            <th>Title</th>
+            <th>Why</th>
+            <th>When To Use</th>
+            <th>Caution</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>E0382</td>
+            <td>owned-result</td>
+            <td>Return owned values at the API boundary</td>
+            <td>
+              The diagnostic indicates value reuse after a move or a type boundary mismatch where
+              ownership should be explicit.
+            </td>
+            <td>
+              Use this when a function can return the produced value, parse record, or builder
+              result instead of mutating an output slot or reusing a moved binding.
+            </td>
+            <td>
+              Returning owned values can move allocation or construction cost to the caller;
+              preserve borrowing when the caller truly needs a view into existing data.
+            </td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0499</td>
+            <td>split-mutation-phase</td>
+            <td>Split reading and mutation into separate phases</td>
+            <td>
+              The diagnostic has an earlier borrow, a conflicting borrow or mutation, and a later
+              use of the earlier borrow.
+            </td>
+            <td>
+              Use this when the code can finish reading from the borrowed value before starting the
+              mutation, or when an owned snapshot can cross the boundary.
+            </td>
+            <td>
+              Do not change observable ordering if the mutation must happen before the later read;
+              use the source spans to confirm behavior first.
+            </td>
+            <td>high</td>
+          </tr>
+          <tr>
+            <td>E0502</td>
+            <td>split-mutation-phase</td>
+            <td>Split reading and mutation into separate phases</td>
+            <td>
+              The diagnostic has an earlier borrow, a conflicting borrow or mutation, and a later
+              use of the earlier borrow.
+            </td>
+            <td>
+              Use this when the code can finish reading from the borrowed value before starting the
+              mutation, or when an owned snapshot can cross the boundary.
+            </td>
+            <td>
+              Do not change observable ordering if the mutation must happen before the later read;
+              use the source spans to confirm behavior first.
+            </td>
+            <td>high</td>
           </tr>
         </tbody>
       </table>

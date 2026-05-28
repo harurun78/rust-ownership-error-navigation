@@ -360,6 +360,12 @@
                         "$ref": "#/$defs/fixStrategy"
                     }
                 },
+                "designSuggestions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/designSuggestion"
+                    }
+                },
                 "rendered": {
                     "type": [
                         "string",
@@ -466,6 +472,63 @@
                     }
                 },
                 "spanId": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/evidence"
+                    }
+                },
+                "confidence": {
+                    "$ref": "#/$defs/confidence"
+                }
+            },
+            "additionalProperties": false
+        },
+        "designSuggestion": {
+            "type": "object",
+            "required": [
+                "id",
+                "diagnosticId",
+                "kind",
+                "title",
+                "why",
+                "whenToUse",
+                "caution",
+                "evidence",
+                "confidence"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "diagnosticId": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "owned-result",
+                        "builder",
+                        "state-machine",
+                        "short-borrow-callback",
+                        "split-mutation-phase",
+                        "avoid-c-style-out-param",
+                        "avoid-long-lived-buffer-borrow"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "why": {
+                    "type": "string"
+                },
+                "whenToUse": {
+                    "type": "string"
+                },
+                "caution": {
                     "type": "string"
                 },
                 "evidence": {
