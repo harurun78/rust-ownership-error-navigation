@@ -1,0 +1,224 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "validation/ports/tinyexpr-out-param/reports/compatibility/iteration-001/cargo-check.jsonl",
+    "audienceMode": "intermediate"
+  },
+  "summary": {
+    "totalDiagnostics": 2,
+    "supportedDiagnostics": 1,
+    "unsupportedDiagnostics": 1,
+    "ownershipDiagnostics": 0,
+    "nonOwnershipDiagnostics": 1,
+    "recommendedFirstFixes": [
+      {
+        "diagnosticId": "diagnostic-1",
+        "code": "E0308",
+        "priority": 1,
+        "reason": "Align types before changing ownership so the code has the expected shape.",
+        "nextStep": "Align the expression type with the expected type",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0308"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "expected `Option<TeExpr>`, found `Result<TeExpr, ParseError>`"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "    parsed"
+          }
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "diagnostic-1",
+      "code": "E0308",
+      "supported": true,
+      "level": "error",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "id": "diagnostic-1-span-1",
+          "diagnosticId": "diagnostic-1",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 32,
+          "lineEnd": 32,
+          "columnStart": 5,
+          "columnEnd": 11,
+          "byteStart": 766,
+          "byteEnd": 772,
+          "isPrimary": true,
+          "label": "expected `Option<TeExpr>`, found `Result<TeExpr, ParseError>`",
+          "snippet": "    parsed",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "expected `Option<TeExpr>`, found `Result<TeExpr, ParseError>`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    parsed"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-2",
+          "diagnosticId": "diagnostic-1",
+          "role": "context",
+          "file": "src/lib.rs",
+          "lineStart": 28,
+          "lineEnd": 28,
+          "columnStart": 6,
+          "columnEnd": 20,
+          "byteStart": 628,
+          "byteEnd": 642,
+          "isPrimary": false,
+          "label": "expected `Option<TeExpr>` because of return type",
+          "snippet": ") -> Option<TeExpr> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "expected `Option<TeExpr>` because of return type"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": ") -> Option<TeExpr> {"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ],
+      "children": [
+        {
+          "code": null,
+          "level": "note",
+          "message": "expected enum `Option<TeExpr>`\n   found enum `Result<TeExpr, ParseError>`",
+          "spans": [],
+          "children": [],
+          "rendered": null
+        }
+      ],
+      "rendered": "error[E0308]: mismatched types\n  --> src/lib.rs:32:5\n   |\n28 | ) -> Option<TeExpr> {\n   |      -------------- expected `Option<TeExpr>` because of return type\n...\n32 |     parsed\n   |     ^^^^^^ expected `Option<TeExpr>`, found `Result<TeExpr, ParseError>`\n   |\n   = note: expected enum `Option<TeExpr>`\n              found enum `Result<TeExpr, ParseError>`\n\n",
+      "fixStrategies": [
+        {
+          "id": "diagnostic-1-fix-1",
+          "diagnosticId": "diagnostic-1",
+          "kind": "align_types",
+          "title": "Align the expression type with the expected type",
+          "rationale": "Rust expected one type at this location but inferred a different expression type.",
+          "tradeOffs": [
+            "Changing the expression may be simpler when the expected type is correct.",
+            "Changing the annotation or signature may be better when the expected type is too narrow."
+          ],
+          "spanId": "diagnostic-1-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0308"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "expected `Option<TeExpr>`, found `Result<TeExpr, ParseError>`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "    parsed"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "designSuggestions": [
+        {
+          "id": "diagnostic-1-design-suggestion-owned-result",
+          "diagnosticId": "diagnostic-1",
+          "kind": "owned-result",
+          "title": "Prefer owned return values over C-style output pressure",
+          "why": "The diagnostic indicates value reuse after a move or a type boundary mismatch where ownership should be explicit.",
+          "whenToUse": "Use this when a function can return the produced value, parse record, or builder result instead of mutating an output slot or reusing a moved binding.",
+          "caution": "Returning owned values can move allocation or construction cost to the caller; preserve borrowing when the caller truly needs a view into existing data.",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0308"
+            },
+            {
+              "source": "heuristic",
+              "field": "rule",
+              "value": "owned-result"
+            },
+            {
+              "source": "heuristic",
+              "field": "trigger",
+              "value": "E0308"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "spanId",
+              "value": "diagnostic-1-span-1"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "expected `Option<TeExpr>`, found `Result<TeExpr, ParseError>`"
+            }
+          ],
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "diagnostic-2",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "For more information about this error, try `rustc --explain E0308`.",
+      "spans": [],
+      "children": [],
+      "rendered": "For more information about this error, try `rustc --explain E0308`.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    }
+  ]
+}
