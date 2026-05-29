@@ -2,9 +2,14 @@
 
 ## Compatibility Track
 
+`iteration-001` is a saved historical failure artifact. Do not regenerate it from the final source unless intentionally recreating the pre-repair E0308 mismatch.
+
+Use `iteration-002` for final-source checks:
+
 ```bash
 cd validation/ports/tinyexpr-out-param/tracks/compatibility/rust-port
-cargo check --message-format=json > ../../../reports/compatibility/iteration-001/cargo-check.jsonl
+cargo test
+cargo check --message-format=json > ../../../reports/compatibility/iteration-002/cargo-check.jsonl
 ```
 
 ## Rust-Native Track
