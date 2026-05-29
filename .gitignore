@@ -12,6 +12,7 @@ validation/ports/*/upstream/*/
 !validation/ports/*/upstream/.gitkeep
 !validation/ports/*/upstream/*.md
 validation/ports/*/rust-port/target/
+validation/ports/*/tracks/*/rust-port/target/
 
 # Logs
 logs/

@@ -10,6 +10,7 @@ This directory tracks C/C++ to Rust porting experiments.
 | Redis | `redis/redis` | In validation | Streaming RESP parser and server state with mutable buffers, owned command transfer, and multi-client ownership pressure. |
 | sax-js-queued-events | `isaacs/sax-js` | Completed | JavaScript XML streaming tokenizer with queued events, parser buffer views, and callback-style delivery. |
 | libpng | `pnggroup/libpng` | Selected | Byte-level C parser with progressive input, signature/chunk state, allocated buffers, and error-path cleanup. |
+| tinyexpr-out-param | `codeplea/tinyexpr` API shape | Completed | Compact C expression evaluator API with parse error out-parameters, useful for E0308 owned-result validation. |
 
 ## Directory Contract
 
