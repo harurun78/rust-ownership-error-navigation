@@ -124,6 +124,6 @@ The deterministic rule set now includes:
 
 - `arena-backed-tree`: emitted for E0499/E0502 records when evidence mentions DOM/tree/object graph pressure such as `parent.children`, `child list`, `node`, `root`, or `stack`.
 - `stable-node-id`: emitted alongside arena guidance when parent, child, or stack links should remember identity without storing long-lived Rust references.
-- `avoid-self-referential-struct`: reserved for the follow-up self-referential diagnostics slice covering E0505/E0515 guidance.
+- `avoid-self-referential-struct`: emitted for E0505/E0515 records when evidence indicates returning or moving a value while a reference into local state is still required. These diagnostics remain unsupported for full ownership-event mapping, but can carry guidance-only design suggestions.
 
 Reports expose these under optional `designSuggestions` in JSON and a `Design Direction` section in static HTML.

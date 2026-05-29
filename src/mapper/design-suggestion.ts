@@ -19,7 +19,11 @@ export function deriveDesignSuggestions(
   options: DeriveDesignSuggestionsOptions = {}
 ): DesignSuggestion[] {
   if (!diagnostic.supported) {
-    return [];
+    return dedupeSuggestions(
+      [deriveAvoidSelfReferentialStruct(diagnostic, options.audienceMode)].filter(
+        (suggestion): suggestion is DesignSuggestion => suggestion !== undefined
+      )
+    );
   }
 
   const suggestions = [
@@ -27,6 +31,7 @@ export function deriveDesignSuggestions(
     deriveAvoidLongLivedBufferBorrow(diagnostic, options.audienceMode),
     deriveArenaBackedTree(diagnostic, options.audienceMode),
     deriveStableNodeId(diagnostic, options.audienceMode),
+    deriveAvoidSelfReferentialStruct(diagnostic, options.audienceMode),
     deriveOwnedResult(diagnostic, options.audienceMode)
   ].filter((suggestion): suggestion is DesignSuggestion => suggestion !== undefined);
 
@@ -168,6 +173,39 @@ function deriveStableNodeId(
   };
 }
 
+function deriveAvoidSelfReferentialStruct(
+  diagnostic: DiagnosticRecord,
+  audienceMode: AudienceMode | undefined
+): DesignSuggestion | undefined {
+  if (diagnostic.code !== 'E0505' && diagnostic.code !== 'E0515') {
+    return undefined;
+  }
+
+  const matchedTerm = findSelfReferentialPressureTerm(diagnostic);
+  if (matchedTerm === undefined) {
+    return undefined;
+  }
+
+  return {
+    id: `${diagnostic.id}-design-suggestion-avoid-self-referential-struct`,
+    diagnosticId: diagnostic.id,
+    kind: 'avoid-self-referential-struct',
+    title: titleForAudience(
+      audienceMode,
+      'Avoid storing a reference into the same returned object',
+      'Avoid self-referential struct shape',
+      'Avoid self-referential structs; use IDs or owned storage'
+    ),
+    why: 'The diagnostic evidence indicates a value is returned or moved while a reference to its local state is still required.',
+    whenToUse:
+      'Use this when a ported object graph tries to store references to nodes, fields, or locals inside the same returned structure.',
+    caution:
+      'This is guidance only for an unsupported diagnostic mapping; confirm behavior before replacing references with IDs, indexes, or owned values.',
+    evidence: evidenceFor(diagnostic, 'avoid-self-referential-struct', matchedTerm),
+    confidence: 'medium'
+  };
+}
+
 function deriveOwnedResult(
   diagnostic: DiagnosticRecord,
   audienceMode: AudienceMode | undefined
@@ -259,6 +297,38 @@ function findTreePressureTerm(diagnostic: DiagnosticRecord): string | undefined 
   return relationTerm !== undefined && identityTerm !== undefined
     ? `${relationTerm}+${identityTerm}`
     : undefined;
+}
+
+function findSelfReferentialPressureTerm(diagnostic: DiagnosticRecord): string | undefined {
+  const text = textEvidence(diagnostic);
+
+  if (diagnostic.code === 'E0515') {
+    const returnTerms = [
+      'cannot return value referencing local variable',
+      'returns a value referencing data owned by the current function',
+      'returning this value requires',
+      'local variable'
+    ];
+
+    return returnTerms.find((term) => text.includes(term));
+  }
+
+  const moveAfterBorrow = text.includes('cannot move out') && text.includes('borrow');
+  if (!moveAfterBorrow) {
+    return undefined;
+  }
+
+  const constructionTerms = [
+    'returning this value requires',
+    'self-referential',
+    'self {',
+    'struct {',
+    'stack: vec!',
+    'root_ref',
+    'local variable'
+  ];
+
+  return constructionTerms.find((term) => text.includes(term));
 }
 
 function textEvidence(diagnostic: DiagnosticRecord): string {

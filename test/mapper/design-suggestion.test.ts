@@ -159,6 +159,73 @@ describe('deterministic design suggestions', () => {
       expect.arrayContaining(['arena-backed-tree', 'stable-node-id'])
     );
   });
+
+  it('adds self-referential guidance to unsupported E0515 diagnostics without marking them supported', () => {
+    const [diagnostic] = mapDiagnostics([
+      createUnsupportedSelfReferentialDiagnostic({
+        code: 'E0515',
+        message: 'cannot return value referencing local variable `root`',
+        primaryLabel: 'returns a value referencing data owned by the current function',
+        primarySnippet: 'Self { root, stack: vec![root_ref] }',
+        causeLabel: '`root` is borrowed here',
+        causeSnippet: 'let root_ref = &mut root;'
+      })
+    ]);
+
+    expect(diagnostic?.supported).toBe(false);
+    expect(diagnostic?.unsupportedReason).toContain('outside the Phase 1 ownership mapping scope');
+    expect(diagnostic?.events).toEqual([]);
+    expect(diagnostic?.designSuggestions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'avoid-self-referential-struct',
+          title: 'Avoid storing a reference into the same returned object',
+          confidence: 'medium',
+          evidence: expect.arrayContaining([
+            expect.objectContaining({
+              source: 'heuristic',
+              field: 'rule',
+              value: 'avoid-self-referential-struct'
+            })
+          ])
+        })
+      ])
+    );
+  });
+
+  it('adds self-referential guidance to unsupported E0505 construction diagnostics', () => {
+    const [diagnostic] = mapDiagnostics([
+      createUnsupportedSelfReferentialDiagnostic({
+        code: 'E0505',
+        message: 'cannot move out of `root` because it is borrowed',
+        primaryLabel: 'move out of `root` occurs here',
+        primarySnippet: 'Self { root, stack: vec![root_ref] }',
+        causeLabel: 'borrow of `root` occurs here',
+        causeSnippet: 'let root_ref = &mut root;'
+      })
+    ]);
+
+    expect(diagnostic?.supported).toBe(false);
+    expect(diagnostic?.designSuggestions?.map((suggestion) => suggestion.kind)).toEqual([
+      'avoid-self-referential-struct'
+    ]);
+  });
+
+  it('does not add self-referential guidance to ordinary unsupported E0505 move-after-borrow diagnostics', () => {
+    const [diagnostic] = mapDiagnostics([
+      createUnsupportedSelfReferentialDiagnostic({
+        code: 'E0505',
+        message: 'cannot move out of `value` because it is borrowed',
+        primaryLabel: 'move out of `value` occurs here',
+        primarySnippet: 'consume(value);',
+        causeLabel: 'borrow of `value` occurs here',
+        causeSnippet: 'let borrowed = &value;'
+      })
+    ]);
+
+    expect(diagnostic?.supported).toBe(false);
+    expect(diagnostic?.designSuggestions).toBeUndefined();
+  });
 });
 
 function createBorrowConflictDiagnostic(options: {
@@ -220,6 +287,73 @@ function createBorrowConflictDiagnostic(options: {
           { source: 'rustc_primary_span', field: 'is_primary', value: true },
           { source: 'rustc_span_label', field: 'label', value: options.conflictLabel },
           { source: 'rustc_span_text', field: 'text', value: options.conflictSnippet }
+        ],
+        confidence: 'high'
+      }
+    ],
+    children: []
+  };
+}
+
+function createUnsupportedSelfReferentialDiagnostic(options: {
+  code: 'E0505' | 'E0515';
+  message: string;
+  primaryLabel: string;
+  primarySnippet: string;
+  causeLabel: string;
+  causeSnippet: string;
+}): DiagnosticRecord {
+  return {
+    id: `diagnostic-${options.code.toLowerCase()}-self-referential`,
+    code: options.code,
+    supported: false,
+    level: 'error',
+    message: options.message,
+    spans: [
+      {
+        id: 'span-self-ref-primary',
+        diagnosticId: `diagnostic-${options.code.toLowerCase()}-self-referential`,
+        role: 'unknown',
+        file: 'src/lib.rs',
+        lineStart: 55,
+        lineEnd: 58,
+        columnStart: 9,
+        columnEnd: 10,
+        byteStart: 0,
+        byteEnd: 0,
+        isPrimary: true,
+        label: options.primaryLabel,
+        snippet: options.primarySnippet,
+        suggestedReplacement: null,
+        suggestionApplicability: null,
+        hasExpansion: false,
+        evidence: [
+          { source: 'rustc_primary_span', field: 'is_primary', value: true },
+          { source: 'rustc_span_label', field: 'label', value: options.primaryLabel },
+          { source: 'rustc_span_text', field: 'text', value: options.primarySnippet }
+        ],
+        confidence: 'high'
+      },
+      {
+        id: 'span-self-ref-cause',
+        diagnosticId: `diagnostic-${options.code.toLowerCase()}-self-referential`,
+        role: 'unknown',
+        file: 'src/lib.rs',
+        lineStart: 54,
+        lineEnd: 54,
+        columnStart: 24,
+        columnEnd: 33,
+        byteStart: 0,
+        byteEnd: 0,
+        isPrimary: false,
+        label: options.causeLabel,
+        snippet: options.causeSnippet,
+        suggestedReplacement: null,
+        suggestionApplicability: null,
+        hasExpansion: false,
+        evidence: [
+          { source: 'rustc_span_label', field: 'label', value: options.causeLabel },
+          { source: 'rustc_span_text', field: 'text', value: options.causeSnippet }
         ],
         confidence: 'high'
       }
