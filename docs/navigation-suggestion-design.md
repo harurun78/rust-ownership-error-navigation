@@ -73,7 +73,7 @@ Keep suggestions non-mutating. Do not emit patches in this feature.
 | span snippets include `&mut self` across multiple conflicting methods | split context into phase-specific structs | medium |
 | snippets include `Option<&`, `Vec<&`, or struct fields with borrowed data in validation target | prefer owned parse records over long-lived buffer borrows | medium |
 | E0499/E0502 evidence mentions parent/child/node/root/stack tree mutation | store nodes in an arena and link them with stable node IDs | medium |
-| E0308 around expected mutable reference or pointer-like type | replace C out-parameter shape with return value when behavior-only track allows it | medium |
+| E0308 around `Result`/`Option`, expected mutable reference, pointer-like type, or output buffer evidence | return owned values when behavior-only track allows it; otherwise add an explicit compatibility adapter | medium |
 | E0425 after compatibility-preserving port references C helper name | resolve missing API shim before ownership redesign | high |
 
 ## Audience Rendering
@@ -114,7 +114,7 @@ The first deterministic slice is implemented as local mapper rules. It does not 
 
 - `split-mutation-phase`: emitted for E0499/E0502 records with cause, conflict, and context events.
 - `avoid-long-lived-buffer-borrow`: emitted for E0499/E0502 records when local text evidence mentions parser, stream, input, output, or buffer pressure.
-- `owned-result`: emitted for E0382 moved-value reuse and E0308 type-boundary pressure.
+- `owned-result`: emitted for E0382 moved-value reuse and for E0308 only when the mismatch has API-boundary evidence such as `Result`/`Option`, mutable output slots, pointer-like output types, or output buffer pressure.
 
 ## Arena And Tree Slice
 
@@ -127,3 +127,14 @@ The deterministic rule set now includes:
 - `avoid-self-referential-struct`: emitted for E0505/E0515 records when evidence indicates returning or moving a value while a reference into local state is still required. These diagnostics remain unsupported for full ownership-event mapping, but can carry guidance-only design suggestions.
 
 Reports expose these under optional `designSuggestions` in JSON and a `Design Direction` section in static HTML.
+
+## E0308 Out-Param Slice
+
+Validation with `tinyexpr-out-param` showed that a compatibility-preserving C-style API can hit E0308 when an internal Rust parser naturally returns `Result<Expr, ParseError>` but the public function still returns `Option<Expr>` and writes an error position through an out-parameter.
+
+The deterministic rule now keeps `owned-result` conservative for E0308:
+
+- It does not fire for ordinary `expected i32, found &str` type mismatches.
+- It fires for `Result`/`Option` adapter pressure and C-style output evidence such as `&mut`, raw output pointers, out-parameter naming, or output buffers.
+- For behavior-only Rust-native ports, the suggestion can point toward returning `Result` or an owned value directly.
+- For compatibility-preserving ports, the caution text emphasizes preserving the C-shaped boundary and adding an explicit adapter internally.

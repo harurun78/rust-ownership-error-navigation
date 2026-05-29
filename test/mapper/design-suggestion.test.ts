@@ -58,7 +58,7 @@ describe('deterministic design suggestions', () => {
     );
   });
 
-  it('adds owned-result for moved value reuse and E0308 type boundary pressure', async () => {
+  it('preserves owned-result for moved value reuse', async () => {
     const ownershipMessages = await loadDiagnosticFixture('ownership-baseline-2026-05-24.jsonl');
     const ownershipDiagnostics = mapDiagnostics(
       ownershipMessages.map((message, index) =>
@@ -66,26 +66,64 @@ describe('deterministic design suggestions', () => {
       )
     );
     const e0382 = ownershipDiagnostics.find((record) => record.code === 'E0382')!;
-    const portingMessages = await loadDiagnosticFixture(
-      'porting/non-ownership-navigation-2026-05-25.jsonl'
-    );
-    const e0308Message = portingMessages.find((message) => message.message?.code?.code === 'E0308');
-    const e0308 = attachDesignSuggestions(
-      mapE0308Diagnostic(
-        normalizeRustcDiagnostic(e0308Message!.message!, { diagnosticId: 'diagnostic-e0308' })
-      )
-    );
 
     expect(e0382.designSuggestions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'owned-result', confidence: 'high' })
       ])
     );
-    expect(e0308.designSuggestions).toEqual(
+  });
+
+  it('adds owned-result for E0308 Result to Option adapter pressure', () => {
+    const diagnostic = attachDesignSuggestions(
+      mapE0308Diagnostic(
+        createTypeMismatchDiagnostic({
+          message: 'mismatched types',
+          primaryLabel: 'expected `Option<TeExpr>`, found `Result<TeExpr, ParseError>`',
+          primarySnippet: '    parsed',
+          contextLabel: 'expected `Option<TeExpr>` because of return type',
+          contextSnippet: ') -> Option<TeExpr> {',
+          childMessage: 'expected enum `Option<TeExpr>`\n   found enum `Result<TeExpr, ParseError>`'
+        })
+      ),
+      { audienceMode: 'intermediate' }
+    );
+
+    expect(diagnostic.designSuggestions).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'owned-result', confidence: 'medium' })
+        expect.objectContaining({
+          kind: 'owned-result',
+          whenToUse:
+            'Use this when a behavior-only Rust API can return Result or an owned value directly, or when compatibility code needs an explicit adapter from Result into an output slot.',
+          caution:
+            'Do not imply a strict compatibility-preserving API can always change shape; keep a C-shaped boundary when required and adapt internally.',
+          evidence: expect.arrayContaining([
+            expect.objectContaining({
+              source: 'heuristic',
+              field: 'trigger',
+              value: 'result-option-boundary'
+            })
+          ])
+        })
       ])
     );
+  });
+
+  it('does not add owned-result for ordinary E0308 type mismatches', () => {
+    const diagnostic = attachDesignSuggestions(
+      mapE0308Diagnostic(
+        createTypeMismatchDiagnostic({
+          message: 'mismatched types',
+          primaryLabel: 'expected `i32`, found `&str`',
+          primarySnippet: '    "42"',
+          contextLabel: 'expected `i32` because of return type',
+          contextSnippet: ') -> i32 {',
+          childMessage: 'expected type `i32`\n found reference `&str`'
+        })
+      )
+    );
+
+    expect(diagnostic.designSuggestions).toBeUndefined();
   });
 
   it('adds arena and stable node ID suggestions for DOM-like E0499 tree pressure', () => {
@@ -292,6 +330,82 @@ function createBorrowConflictDiagnostic(options: {
       }
     ],
     children: []
+  };
+}
+
+function createTypeMismatchDiagnostic(options: {
+  message: string;
+  primaryLabel: string;
+  primarySnippet: string;
+  contextLabel: string;
+  contextSnippet: string;
+  childMessage: string;
+}): DiagnosticRecord {
+  return {
+    id: 'diagnostic-e0308-type-boundary',
+    code: 'E0308',
+    supported: true,
+    level: 'error',
+    message: options.message,
+    spans: [
+      {
+        id: 'span-e0308-primary',
+        diagnosticId: 'diagnostic-e0308-type-boundary',
+        role: 'unknown',
+        file: 'src/lib.rs',
+        lineStart: 32,
+        lineEnd: 32,
+        columnStart: 5,
+        columnEnd: 11,
+        byteStart: 0,
+        byteEnd: 0,
+        isPrimary: true,
+        label: options.primaryLabel,
+        snippet: options.primarySnippet,
+        suggestedReplacement: null,
+        suggestionApplicability: null,
+        hasExpansion: false,
+        evidence: [
+          { source: 'rustc_primary_span', field: 'is_primary', value: true },
+          { source: 'rustc_span_label', field: 'label', value: options.primaryLabel },
+          { source: 'rustc_span_text', field: 'text', value: options.primarySnippet }
+        ],
+        confidence: 'high'
+      },
+      {
+        id: 'span-e0308-context',
+        diagnosticId: 'diagnostic-e0308-type-boundary',
+        role: 'unknown',
+        file: 'src/lib.rs',
+        lineStart: 28,
+        lineEnd: 28,
+        columnStart: 6,
+        columnEnd: 20,
+        byteStart: 0,
+        byteEnd: 0,
+        isPrimary: false,
+        label: options.contextLabel,
+        snippet: options.contextSnippet,
+        suggestedReplacement: null,
+        suggestionApplicability: null,
+        hasExpansion: false,
+        evidence: [
+          { source: 'rustc_span_label', field: 'label', value: options.contextLabel },
+          { source: 'rustc_span_text', field: 'text', value: options.contextSnippet }
+        ],
+        confidence: 'medium'
+      }
+    ],
+    children: [
+      {
+        code: null,
+        level: 'note',
+        message: options.childMessage,
+        spans: [],
+        children: [],
+        rendered: null
+      }
+    ]
   };
 }
 

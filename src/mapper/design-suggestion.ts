@@ -218,9 +218,8 @@ function deriveOwnedResult(
     diagnostic.code === 'E0382' &&
     (diagnostic.events?.some((event) => event.kind === 'move') ?? false) &&
     (diagnostic.events?.some((event) => event.kind === 'use') ?? false);
-  const hasTypeBoundaryPressure =
-    diagnostic.code === 'E0308' &&
-    (textEvidence(diagnostic).includes('expected') || textEvidence(diagnostic).includes('found'));
+  const typeBoundaryTrigger = findOwnedResultTypeBoundaryTerm(diagnostic);
+  const hasTypeBoundaryPressure = diagnostic.code === 'E0308' && typeBoundaryTrigger !== undefined;
 
   if (!hasMovedValueReuse && !hasTypeBoundaryPressure) {
     return undefined;
@@ -238,12 +237,51 @@ function deriveOwnedResult(
     ),
     why: 'The diagnostic indicates value reuse after a move or a type boundary mismatch where ownership should be explicit.',
     whenToUse:
-      'Use this when a function can return the produced value, parse record, or builder result instead of mutating an output slot or reusing a moved binding.',
+      diagnostic.code === 'E0308'
+        ? 'Use this when a behavior-only Rust API can return Result or an owned value directly, or when compatibility code needs an explicit adapter from Result into an output slot.'
+        : 'Use this when a function can return the produced value, parse record, or builder result instead of mutating an output slot or reusing a moved binding.',
     caution:
-      'Returning owned values can move allocation or construction cost to the caller; preserve borrowing when the caller truly needs a view into existing data.',
-    evidence: evidenceFor(diagnostic, 'owned-result', diagnostic.code ?? 'unknown'),
+      diagnostic.code === 'E0308'
+        ? 'Do not imply a strict compatibility-preserving API can always change shape; keep a C-shaped boundary when required and adapt internally.'
+        : 'Returning owned values can move allocation or construction cost to the caller; preserve borrowing when the caller truly needs a view into existing data.',
+    evidence: evidenceFor(
+      diagnostic,
+      'owned-result',
+      typeBoundaryTrigger ?? diagnostic.code ?? 'unknown'
+    ),
     confidence: diagnostic.code === 'E0382' ? 'high' : 'medium'
   };
+}
+
+function findOwnedResultTypeBoundaryTerm(diagnostic: DiagnosticRecord): string | undefined {
+  if (diagnostic.code !== 'E0308') {
+    return undefined;
+  }
+
+  const text = textEvidence(diagnostic);
+  const hasExpectedFound = text.includes('expected') && text.includes('found');
+  if (!hasExpectedFound) {
+    return undefined;
+  }
+
+  const boundaryTerms = [
+    { trigger: 'result-option-boundary', terms: ['result<', 'option<'] },
+    { trigger: 'result-option-boundary', terms: ['result<', 'option '] },
+    { trigger: 'result-error-boundary', terms: ['result<', 'parseerror'] },
+    { trigger: 'mutable-out-param', terms: ['&mut'] },
+    { trigger: 'raw-output-pointer', terms: ['*mut'] },
+    { trigger: 'raw-output-pointer', terms: ['*const'] },
+    { trigger: 'out-param', terms: ['out-param'] },
+    { trigger: 'out-param', terms: ['out parameter'] },
+    { trigger: 'out-param', terms: ['out_parameter'] },
+    { trigger: 'out-param', terms: ['error_out'] },
+    { trigger: 'output-buffer', terms: ['next_out'] },
+    { trigger: 'output-buffer', terms: ['output buffer'] },
+    { trigger: 'output-buffer', terms: ['caller-visible output'] }
+  ];
+
+  return boundaryTerms.find((candidate) => candidate.terms.every((term) => text.includes(term)))
+    ?.trigger;
 }
 
 function evidenceFor(diagnostic: DiagnosticRecord, rule: string, trigger: string): Evidence[] {
