@@ -25,6 +25,8 @@ export function deriveDesignSuggestions(
   const suggestions = [
     deriveSplitMutationPhase(diagnostic, options.audienceMode),
     deriveAvoidLongLivedBufferBorrow(diagnostic, options.audienceMode),
+    deriveArenaBackedTree(diagnostic, options.audienceMode),
+    deriveStableNodeId(diagnostic, options.audienceMode),
     deriveOwnedResult(diagnostic, options.audienceMode)
   ].filter((suggestion): suggestion is DesignSuggestion => suggestion !== undefined);
 
@@ -100,6 +102,72 @@ function deriveAvoidLongLivedBufferBorrow(
   };
 }
 
+function deriveArenaBackedTree(
+  diagnostic: DiagnosticRecord,
+  audienceMode: AudienceMode | undefined
+): DesignSuggestion | undefined {
+  if (diagnostic.code !== 'E0499' && diagnostic.code !== 'E0502') {
+    return undefined;
+  }
+
+  const matchedTerm = findTreePressureTerm(diagnostic);
+  if (matchedTerm === undefined) {
+    return undefined;
+  }
+
+  return {
+    id: `${diagnostic.id}-design-suggestion-arena-backed-tree`,
+    diagnosticId: diagnostic.id,
+    kind: 'arena-backed-tree',
+    title: titleForAudience(
+      audienceMode,
+      'Store tree nodes in an arena',
+      'Use arena-backed tree storage',
+      'Use an arena to separate tree storage from mutation'
+    ),
+    why: 'The diagnostic evidence mentions tree, node, parent, child, or stack state while mutable access overlaps.',
+    whenToUse:
+      'Use this when ported object-graph code stores parent and child references while also mutating the tree.',
+    caution:
+      'Arena storage changes identity from references to indexes; keep APIs explicit about when a node ID can be resolved back to a node.',
+    evidence: evidenceFor(diagnostic, 'arena-backed-tree', matchedTerm),
+    confidence: 'medium'
+  };
+}
+
+function deriveStableNodeId(
+  diagnostic: DiagnosticRecord,
+  audienceMode: AudienceMode | undefined
+): DesignSuggestion | undefined {
+  if (diagnostic.code !== 'E0499' && diagnostic.code !== 'E0502') {
+    return undefined;
+  }
+
+  const matchedTerm = findTreePressureTerm(diagnostic);
+  if (matchedTerm === undefined) {
+    return undefined;
+  }
+
+  return {
+    id: `${diagnostic.id}-design-suggestion-stable-node-id`,
+    diagnosticId: diagnostic.id,
+    kind: 'stable-node-id',
+    title: titleForAudience(
+      audienceMode,
+      'Link nodes with stable IDs instead of references',
+      'Use stable node IDs for tree links',
+      'Represent parent and child links with stable IDs'
+    ),
+    why: 'The diagnostic evidence suggests direct references are being used as both tree identity and mutation access paths.',
+    whenToUse:
+      'Use this when a stack, parent link, or child list needs to remember a node without holding a long-lived Rust reference.',
+    caution:
+      'IDs avoid borrow conflicts but require lookup validation and clear ownership of the backing arena.',
+    evidence: evidenceFor(diagnostic, 'stable-node-id', matchedTerm),
+    confidence: 'medium'
+  };
+}
+
 function deriveOwnedResult(
   diagnostic: DiagnosticRecord,
   audienceMode: AudienceMode | undefined
@@ -164,6 +232,33 @@ function findBufferPressureTerm(diagnostic: DiagnosticRecord): string | undefine
   const terms = ['buffer', 'input', 'output', 'parser', 'stream', 'next_in', 'next_out'];
 
   return terms.find((term) => text.includes(term));
+}
+
+function findTreePressureTerm(diagnostic: DiagnosticRecord): string | undefined {
+  const text = textEvidence(diagnostic);
+  const explicitTerms = [
+    'parent.children',
+    'child list',
+    'child-list',
+    'open stack',
+    'object graph',
+    'object-graph',
+    'nodeid',
+    'node id'
+  ];
+  const explicitTerm = explicitTerms.find((term) => text.includes(term));
+  if (explicitTerm !== undefined) {
+    return explicitTerm;
+  }
+
+  const relationTerms = ['parent', 'child', 'children', 'stack'];
+  const identityTerms = ['node', 'root', 'tree', 'dom', 'element'];
+  const relationTerm = relationTerms.find((term) => text.includes(term));
+  const identityTerm = identityTerms.find((term) => text.includes(term));
+
+  return relationTerm !== undefined && identityTerm !== undefined
+    ? `${relationTerm}+${identityTerm}`
+    : undefined;
 }
 
 function textEvidence(diagnostic: DiagnosticRecord): string {
