@@ -50,7 +50,7 @@ export function mapDiagnostic(
   options: MapDiagnosticOptions = {}
 ): DiagnosticRecord {
   if (!isSupportedDiagnosticCode(diagnostic.code)) {
-    return createUnsupportedDiagnosticRecord(diagnostic);
+    return attachDesignSuggestions(createUnsupportedDiagnosticRecord(diagnostic), options);
   }
 
   const mappedDiagnostic = attachDesignSuggestions(

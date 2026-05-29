@@ -18,9 +18,9 @@ Issue: #61
 
 Issue: #62
 
-- [ ] A007 Add E0505/E0515 guidance path for self-referential struct diagnostics.
-- [ ] A008 Add tests using domhandler iteration-001 diagnostic evidence.
-- [ ] A009 Ensure unsupported diagnostics can still carry guidance without pretending full ownership mapping is available.
+- [x] A007 Add E0505/E0515 guidance path for self-referential struct diagnostics.
+- [x] A008 Add tests using domhandler iteration-001 diagnostic evidence.
+- [x] A009 Ensure unsupported diagnostics can still carry guidance without pretending full ownership mapping is available.
 
 ## Phase 4: P2 HTML Design Translation
 
