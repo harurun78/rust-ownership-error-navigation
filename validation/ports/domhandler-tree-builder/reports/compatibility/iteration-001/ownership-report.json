@@ -1,0 +1,1701 @@
+{
+  "schemaVersion": "0.1.0",
+  "input": {
+    "commandFamily": "cargo-check-jsonl",
+    "path": "validation/ports/domhandler-tree-builder/reports/compatibility/iteration-001/cargo-check.jsonl",
+    "audienceMode": "intermediate"
+  },
+  "summary": {
+    "totalDiagnostics": 8,
+    "supportedDiagnostics": 4,
+    "unsupportedDiagnostics": 4,
+    "ownershipDiagnostics": 4,
+    "nonOwnershipDiagnostics": 0,
+    "recommendedFirstFixes": [
+      {
+        "diagnosticId": "diagnostic-3",
+        "code": "E0499",
+        "priority": 1,
+        "reason": "Remove overlapping mutable borrows so each mutation has exclusive access.",
+        "nextStep": "Shorten the first mutable borrow scope",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "        let child = Node::element(name, *parent);"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-4",
+        "code": "E0499",
+        "priority": 2,
+        "reason": "Remove overlapping mutable borrows so each mutation has exclusive access.",
+        "nextStep": "Shorten the first mutable borrow scope",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "        let child = Node::element(name, *parent);"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-5",
+        "code": "E0499",
+        "priority": 3,
+        "reason": "Remove overlapping mutable borrows so each mutation has exclusive access.",
+        "nextStep": "Shorten the first mutable borrow scope",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+          }
+        ],
+        "confidence": "high"
+      },
+      {
+        "diagnosticId": "diagnostic-6",
+        "code": "E0499",
+        "priority": 4,
+        "reason": "Remove overlapping mutable borrows so each mutation has exclusive access.",
+        "nextStep": "Shorten the first mutable borrow scope",
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "rustc_span_text",
+            "field": "text",
+            "value": "        let child = Node::text(value, *parent);"
+          }
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "diagnostic-1",
+      "code": "E0515",
+      "supported": false,
+      "level": "error",
+      "message": "cannot return value referencing local variable `root`",
+      "spans": [
+        {
+          "id": "diagnostic-1-span-1",
+          "diagnosticId": "diagnostic-1",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 55,
+          "lineEnd": 58,
+          "columnStart": 9,
+          "columnEnd": 10,
+          "byteStart": 1197,
+          "byteEnd": 1266,
+          "isPrimary": true,
+          "label": "returns a value referencing data owned by the current function",
+          "snippet": "        Self {\n            root,\n            stack: vec![root_ref],\n        }",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "returns a value referencing data owned by the current function"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        Self {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-1-span-2",
+          "diagnosticId": "diagnostic-1",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 54,
+          "lineEnd": 54,
+          "columnStart": 24,
+          "columnEnd": 33,
+          "byteStart": 1178,
+          "byteEnd": 1187,
+          "isPrimary": false,
+          "label": "`root` is borrowed here",
+          "snippet": "        let root_ref = &mut root;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "`root` is borrowed here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let root_ref = &mut root;"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0515]: cannot return value referencing local variable `root`\n  --> src/lib.rs:55:9\n   |\n54 |           let root_ref = &mut root;\n   |                          --------- `root` is borrowed here\n55 | /         Self {\n56 | |             root,\n57 | |             stack: vec![root_ref],\n58 | |         }\n   | |_________^ returns a value referencing data owned by the current function\n\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic code E0515 is outside the Phase 1 ownership mapping scope."
+    },
+    {
+      "id": "diagnostic-2",
+      "code": "E0505",
+      "supported": false,
+      "level": "error",
+      "message": "cannot move out of `root` because it is borrowed",
+      "spans": [
+        {
+          "id": "diagnostic-2-span-1",
+          "diagnosticId": "diagnostic-2",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 56,
+          "lineEnd": 56,
+          "columnStart": 13,
+          "columnEnd": 17,
+          "byteStart": 1216,
+          "byteEnd": 1220,
+          "isPrimary": true,
+          "label": "move out of `root` occurs here",
+          "snippet": "            root,",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "move out of `root` occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "            root,"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-2",
+          "diagnosticId": "diagnostic-2",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 54,
+          "lineEnd": 54,
+          "columnStart": 24,
+          "columnEnd": 33,
+          "byteStart": 1178,
+          "byteEnd": 1187,
+          "isPrimary": false,
+          "label": "borrow of `root` occurs here",
+          "snippet": "        let root_ref = &mut root;",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "borrow of `root` occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let root_ref = &mut root;"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-3",
+          "diagnosticId": "diagnostic-2",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 53,
+          "lineEnd": 53,
+          "columnStart": 13,
+          "columnEnd": 21,
+          "byteStart": 1130,
+          "byteEnd": 1138,
+          "isPrimary": false,
+          "label": "binding `root` declared here",
+          "snippet": "        let mut root = Node::root();",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "binding `root` declared here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let mut root = Node::root();"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-4",
+          "diagnosticId": "diagnostic-2",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "columnStart": 6,
+          "columnEnd": 11,
+          "byteStart": 1064,
+          "byteEnd": 1069,
+          "isPrimary": false,
+          "label": "lifetime `'tree` defined here",
+          "snippet": "impl<'tree> DomHandler<'tree> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'tree` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'tree> DomHandler<'tree> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-2-span-5",
+          "diagnosticId": "diagnostic-2",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 55,
+          "lineEnd": 58,
+          "columnStart": 9,
+          "columnEnd": 10,
+          "byteStart": 1197,
+          "byteEnd": 1266,
+          "isPrimary": false,
+          "label": "returning this value requires that `root` is borrowed for `'tree`",
+          "snippet": "        Self {\n            root,\n            stack: vec![root_ref],\n        }",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "returning this value requires that `root` is borrowed for `'tree`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        Self {"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [
+        {
+          "code": null,
+          "level": "note",
+          "message": "if `Node<'_>` implemented `Clone`, you could clone the value",
+          "spans": [
+            {
+              "id": "diagnostic-2-child-1-span-1",
+              "diagnosticId": "diagnostic-2-child-1",
+              "role": "unknown",
+              "file": "src/lib.rs",
+              "lineStart": 9,
+              "lineEnd": 9,
+              "columnStart": 1,
+              "columnEnd": 23,
+              "byteStart": 121,
+              "byteEnd": 143,
+              "isPrimary": true,
+              "label": "consider implementing `Clone` for this type",
+              "snippet": "pub struct Node<'tree> {",
+              "suggestedReplacement": null,
+              "suggestionApplicability": null,
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_primary_span",
+                  "field": "is_primary",
+                  "value": true
+                },
+                {
+                  "source": "rustc_span_label",
+                  "field": "label",
+                  "value": "consider implementing `Clone` for this type"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "pub struct Node<'tree> {"
+                }
+              ],
+              "confidence": "high"
+            },
+            {
+              "id": "diagnostic-2-child-1-span-2",
+              "diagnosticId": "diagnostic-2-child-1",
+              "role": "unknown",
+              "file": "src/lib.rs",
+              "lineStart": 54,
+              "lineEnd": 54,
+              "columnStart": 29,
+              "columnEnd": 33,
+              "byteStart": 1183,
+              "byteEnd": 1187,
+              "isPrimary": false,
+              "label": "you could clone this value",
+              "snippet": "        let root_ref = &mut root;",
+              "suggestedReplacement": null,
+              "suggestionApplicability": null,
+              "hasExpansion": false,
+              "evidence": [
+                {
+                  "source": "rustc_span_label",
+                  "field": "label",
+                  "value": "you could clone this value"
+                },
+                {
+                  "source": "rustc_span_text",
+                  "field": "text",
+                  "value": "        let root_ref = &mut root;"
+                }
+              ],
+              "confidence": "high"
+            }
+          ],
+          "children": [],
+          "rendered": null
+        }
+      ],
+      "rendered": "error[E0505]: cannot move out of `root` because it is borrowed\n  --> src/lib.rs:56:13\n   |\n51 |   impl<'tree> DomHandler<'tree> {\n   |        ----- lifetime `'tree` defined here\n52 |       pub fn new() -> Self {\n53 |           let mut root = Node::root();\n   |               -------- binding `root` declared here\n54 |           let root_ref = &mut root;\n   |                          --------- borrow of `root` occurs here\n55 | /         Self {\n56 | |             root,\n   | |             ^^^^ move out of `root` occurs here\n57 | |             stack: vec![root_ref],\n58 | |         }\n   | |_________- returning this value requires that `root` is borrowed for `'tree`\n   |\nnote: if `Node<'_>` implemented `Clone`, you could clone the value\n  --> src/lib.rs:9:1\n   |\n 9 | pub struct Node<'tree> {\n   | ^^^^^^^^^^^^^^^^^^^^^^ consider implementing `Clone` for this type\n...\n54 |         let root_ref = &mut root;\n   |                             ---- you could clone this value\n\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic code E0505 is outside the Phase 1 ownership mapping scope."
+    },
+    {
+      "id": "diagnostic-3",
+      "code": "E0499",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `parent.children` as mutable more than once at a time",
+      "spans": [
+        {
+          "id": "diagnostic-3-span-1",
+          "diagnosticId": "diagnostic-3",
+          "role": "cause",
+          "file": "src/lib.rs",
+          "lineStart": 63,
+          "lineEnd": 63,
+          "columnStart": 41,
+          "columnEnd": 48,
+          "byteStart": 1442,
+          "byteEnd": 1449,
+          "isPrimary": false,
+          "label": "first mutable borrow occurs here",
+          "snippet": "        let child = Node::element(name, *parent);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::element(name, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-span-2",
+          "diagnosticId": "diagnostic-3",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 64,
+          "lineEnd": 64,
+          "columnStart": 9,
+          "columnEnd": 24,
+          "byteStart": 1460,
+          "byteEnd": 1475,
+          "isPrimary": true,
+          "label": "second mutable borrow occurs here",
+          "snippet": "        parent.children.push(child);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        parent.children.push(child);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-span-3",
+          "diagnosticId": "diagnostic-3",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "columnStart": 6,
+          "columnEnd": 11,
+          "byteStart": 1064,
+          "byteEnd": 1069,
+          "isPrimary": false,
+          "label": "lifetime `'tree` defined here",
+          "snippet": "impl<'tree> DomHandler<'tree> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'tree` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'tree> DomHandler<'tree> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-span-4",
+          "diagnosticId": "diagnostic-3",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 62,
+          "lineEnd": 62,
+          "columnStart": 22,
+          "columnEnd": 43,
+          "byteStart": 1349,
+          "byteEnd": 1370,
+          "isPrimary": false,
+          "label": "argument requires that `**parent` is borrowed for `'tree`",
+          "snippet": "        let parent = self.stack.last_mut().expect(\"root is always open\");",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "argument requires that `**parent` is borrowed for `'tree`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0499]: cannot borrow `parent.children` as mutable more than once at a time\n  --> src/lib.rs:64:9\n   |\n51 | impl<'tree> DomHandler<'tree> {\n   |      ----- lifetime `'tree` defined here\n...\n62 |         let parent = self.stack.last_mut().expect(\"root is always open\");\n   |                      --------------------- argument requires that `**parent` is borrowed for `'tree`\n63 |         let child = Node::element(name, *parent);\n   |                                         ------- first mutable borrow occurs here\n64 |         parent.children.push(child);\n   |         ^^^^^^^^^^^^^^^ second mutable borrow occurs here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-3-event-1",
+          "diagnosticId": "diagnostic-3",
+          "kind": "borrow_mut",
+          "role": "cause",
+          "place": "parent.children",
+          "spanId": "diagnostic-3-span-1",
+          "message": "first mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::element(name, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-event-2",
+          "diagnosticId": "diagnostic-3",
+          "kind": "borrow_mut_request",
+          "role": "conflict",
+          "place": "parent.children",
+          "spanId": "diagnostic-3-span-2",
+          "message": "second mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        parent.children.push(child);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-3-fix-1",
+          "diagnosticId": "diagnostic-3",
+          "kind": "split_scope",
+          "title": "Shorten the first mutable borrow scope",
+          "rationale": "End the first mutable borrow before requesting another mutable borrow of the same value.",
+          "tradeOffs": [
+            "Keeps exclusive access clear to the compiler.",
+            "May require introducing a smaller block or moving the last use earlier."
+          ],
+          "spanId": "diagnostic-3-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::element(name, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-3-fix-2",
+          "diagnosticId": "diagnostic-3",
+          "kind": "move_timing",
+          "title": "Reorder the second mutable operation after the first borrow ends",
+          "rationale": "The second mutable borrow is valid once the first mutable reference is no longer used.",
+          "tradeOffs": [
+            "Preserves mutation semantics without cloning.",
+            "Can change behavior if the two operations were intentionally interleaved."
+          ],
+          "spanId": "diagnostic-3-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        parent.children.push(child);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "intermediate",
+        "whatHappened": "parent.children has overlapping mutable-borrow scopes.",
+        "whyItMatters": "The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.",
+        "nextStep": "Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.",
+        "conceptTerms": [
+          "mutable borrow",
+          "borrow scope",
+          "conflict"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "second mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-4",
+      "code": "E0499",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `parent.children` as mutable more than once at a time",
+      "spans": [
+        {
+          "id": "diagnostic-4-span-1",
+          "diagnosticId": "diagnostic-4",
+          "role": "cause",
+          "file": "src/lib.rs",
+          "lineStart": 63,
+          "lineEnd": 63,
+          "columnStart": 41,
+          "columnEnd": 48,
+          "byteStart": 1442,
+          "byteEnd": 1449,
+          "isPrimary": false,
+          "label": "first mutable borrow occurs here",
+          "snippet": "        let child = Node::element(name, *parent);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::element(name, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-4-span-2",
+          "diagnosticId": "diagnostic-4",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 65,
+          "lineEnd": 65,
+          "columnStart": 25,
+          "columnEnd": 40,
+          "byteStart": 1513,
+          "byteEnd": 1528,
+          "isPrimary": true,
+          "label": "second mutable borrow occurs here",
+          "snippet": "        let child_ref = parent.children.last_mut().expect(\"child was just pushed\");",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child_ref = parent.children.last_mut().expect(\"child was just pushed\");"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-4-span-3",
+          "diagnosticId": "diagnostic-4",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "columnStart": 6,
+          "columnEnd": 11,
+          "byteStart": 1064,
+          "byteEnd": 1069,
+          "isPrimary": false,
+          "label": "lifetime `'tree` defined here",
+          "snippet": "impl<'tree> DomHandler<'tree> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'tree` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'tree> DomHandler<'tree> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-4-span-4",
+          "diagnosticId": "diagnostic-4",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 62,
+          "lineEnd": 62,
+          "columnStart": 22,
+          "columnEnd": 43,
+          "byteStart": 1349,
+          "byteEnd": 1370,
+          "isPrimary": false,
+          "label": "argument requires that `**parent` is borrowed for `'tree`",
+          "snippet": "        let parent = self.stack.last_mut().expect(\"root is always open\");",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "argument requires that `**parent` is borrowed for `'tree`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0499]: cannot borrow `parent.children` as mutable more than once at a time\n  --> src/lib.rs:65:25\n   |\n51 | impl<'tree> DomHandler<'tree> {\n   |      ----- lifetime `'tree` defined here\n...\n62 |         let parent = self.stack.last_mut().expect(\"root is always open\");\n   |                      --------------------- argument requires that `**parent` is borrowed for `'tree`\n63 |         let child = Node::element(name, *parent);\n   |                                         ------- first mutable borrow occurs here\n64 |         parent.children.push(child);\n65 |         let child_ref = parent.children.last_mut().expect(\"child was jus...\n   |                         ^^^^^^^^^^^^^^^ second mutable borrow occurs here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-4-event-1",
+          "diagnosticId": "diagnostic-4",
+          "kind": "borrow_mut",
+          "role": "cause",
+          "place": "parent.children",
+          "spanId": "diagnostic-4-span-1",
+          "message": "first mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::element(name, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-4-event-2",
+          "diagnosticId": "diagnostic-4",
+          "kind": "borrow_mut_request",
+          "role": "conflict",
+          "place": "parent.children",
+          "spanId": "diagnostic-4-span-2",
+          "message": "second mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child_ref = parent.children.last_mut().expect(\"child was just pushed\");"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-4-fix-1",
+          "diagnosticId": "diagnostic-4",
+          "kind": "split_scope",
+          "title": "Shorten the first mutable borrow scope",
+          "rationale": "End the first mutable borrow before requesting another mutable borrow of the same value.",
+          "tradeOffs": [
+            "Keeps exclusive access clear to the compiler.",
+            "May require introducing a smaller block or moving the last use earlier."
+          ],
+          "spanId": "diagnostic-4-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::element(name, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-4-fix-2",
+          "diagnosticId": "diagnostic-4",
+          "kind": "move_timing",
+          "title": "Reorder the second mutable operation after the first borrow ends",
+          "rationale": "The second mutable borrow is valid once the first mutable reference is no longer used.",
+          "tradeOffs": [
+            "Preserves mutation semantics without cloning.",
+            "Can change behavior if the two operations were intentionally interleaved."
+          ],
+          "spanId": "diagnostic-4-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child_ref = parent.children.last_mut().expect(\"child was just pushed\");"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "intermediate",
+        "whatHappened": "parent.children has overlapping mutable-borrow scopes.",
+        "whyItMatters": "The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.",
+        "nextStep": "Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.",
+        "conceptTerms": [
+          "mutable borrow",
+          "borrow scope",
+          "conflict"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "second mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-5",
+      "code": "E0499",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `self.stack` as mutable more than once at a time",
+      "spans": [
+        {
+          "id": "diagnostic-5-span-1",
+          "diagnosticId": "diagnostic-5",
+          "role": "cause",
+          "file": "src/lib.rs",
+          "lineStart": 62,
+          "lineEnd": 62,
+          "columnStart": 22,
+          "columnEnd": 32,
+          "byteStart": 1349,
+          "byteEnd": 1359,
+          "isPrimary": false,
+          "label": "first mutable borrow occurs here",
+          "snippet": "        let parent = self.stack.last_mut().expect(\"root is always open\");",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-5-span-2",
+          "diagnosticId": "diagnostic-5",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 66,
+          "lineEnd": 66,
+          "columnStart": 9,
+          "columnEnd": 19,
+          "byteStart": 1581,
+          "byteEnd": 1591,
+          "isPrimary": true,
+          "label": "second mutable borrow occurs here",
+          "snippet": "        self.stack.push(child_ref);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        self.stack.push(child_ref);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-5-span-3",
+          "diagnosticId": "diagnostic-5",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "columnStart": 6,
+          "columnEnd": 11,
+          "byteStart": 1064,
+          "byteEnd": 1069,
+          "isPrimary": false,
+          "label": "lifetime `'tree` defined here",
+          "snippet": "impl<'tree> DomHandler<'tree> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'tree` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'tree> DomHandler<'tree> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-5-span-4",
+          "diagnosticId": "diagnostic-5",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 62,
+          "lineEnd": 62,
+          "columnStart": 22,
+          "columnEnd": 43,
+          "byteStart": 1349,
+          "byteEnd": 1370,
+          "isPrimary": false,
+          "label": "argument requires that `self.stack` is borrowed for `'tree`",
+          "snippet": "        let parent = self.stack.last_mut().expect(\"root is always open\");",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "argument requires that `self.stack` is borrowed for `'tree`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0499]: cannot borrow `self.stack` as mutable more than once at a time\n  --> src/lib.rs:66:9\n   |\n51 | impl<'tree> DomHandler<'tree> {\n   |      ----- lifetime `'tree` defined here\n...\n62 |         let parent = self.stack.last_mut().expect(\"root is always open\");\n   |                      ---------------------\n   |                      |\n   |                      first mutable borrow occurs here\n   |                      argument requires that `self.stack` is borrowed for `'tree`\n...\n66 |         self.stack.push(child_ref);\n   |         ^^^^^^^^^^ second mutable borrow occurs here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-5-event-1",
+          "diagnosticId": "diagnostic-5",
+          "kind": "borrow_mut",
+          "role": "cause",
+          "place": "self.stack",
+          "spanId": "diagnostic-5-span-1",
+          "message": "first mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-5-event-2",
+          "diagnosticId": "diagnostic-5",
+          "kind": "borrow_mut_request",
+          "role": "conflict",
+          "place": "self.stack",
+          "spanId": "diagnostic-5-span-2",
+          "message": "second mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        self.stack.push(child_ref);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-5-fix-1",
+          "diagnosticId": "diagnostic-5",
+          "kind": "split_scope",
+          "title": "Shorten the first mutable borrow scope",
+          "rationale": "End the first mutable borrow before requesting another mutable borrow of the same value.",
+          "tradeOffs": [
+            "Keeps exclusive access clear to the compiler.",
+            "May require introducing a smaller block or moving the last use earlier."
+          ],
+          "spanId": "diagnostic-5-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-5-fix-2",
+          "diagnosticId": "diagnostic-5",
+          "kind": "move_timing",
+          "title": "Reorder the second mutable operation after the first borrow ends",
+          "rationale": "The second mutable borrow is valid once the first mutable reference is no longer used.",
+          "tradeOffs": [
+            "Preserves mutation semantics without cloning.",
+            "Can change behavior if the two operations were intentionally interleaved."
+          ],
+          "spanId": "diagnostic-5-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        self.stack.push(child_ref);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "intermediate",
+        "whatHappened": "self.stack has overlapping mutable-borrow scopes.",
+        "whyItMatters": "The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.",
+        "nextStep": "Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.",
+        "conceptTerms": [
+          "mutable borrow",
+          "borrow scope",
+          "conflict"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "second mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-6",
+      "code": "E0499",
+      "supported": true,
+      "level": "error",
+      "message": "cannot borrow `parent.children` as mutable more than once at a time",
+      "spans": [
+        {
+          "id": "diagnostic-6-span-1",
+          "diagnosticId": "diagnostic-6",
+          "role": "cause",
+          "file": "src/lib.rs",
+          "lineStart": 71,
+          "lineEnd": 71,
+          "columnStart": 39,
+          "columnEnd": 46,
+          "byteStart": 1779,
+          "byteEnd": 1786,
+          "isPrimary": false,
+          "label": "first mutable borrow occurs here",
+          "snippet": "        let child = Node::text(value, *parent);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::text(value, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-6-span-2",
+          "diagnosticId": "diagnostic-6",
+          "role": "conflict",
+          "file": "src/lib.rs",
+          "lineStart": 72,
+          "lineEnd": 72,
+          "columnStart": 9,
+          "columnEnd": 24,
+          "byteStart": 1797,
+          "byteEnd": 1812,
+          "isPrimary": true,
+          "label": "second mutable borrow occurs here",
+          "snippet": "        parent.children.push(child);",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        parent.children.push(child);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-6-span-3",
+          "diagnosticId": "diagnostic-6",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "columnStart": 6,
+          "columnEnd": 11,
+          "byteStart": 1064,
+          "byteEnd": 1069,
+          "isPrimary": false,
+          "label": "lifetime `'tree` defined here",
+          "snippet": "impl<'tree> DomHandler<'tree> {",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "lifetime `'tree` defined here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "impl<'tree> DomHandler<'tree> {"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-6-span-4",
+          "diagnosticId": "diagnostic-6",
+          "role": "unknown",
+          "file": "src/lib.rs",
+          "lineStart": 70,
+          "lineEnd": 70,
+          "columnStart": 22,
+          "columnEnd": 43,
+          "byteStart": 1688,
+          "byteEnd": 1709,
+          "isPrimary": false,
+          "label": "argument requires that `**parent` is borrowed for `'tree`",
+          "snippet": "        let parent = self.stack.last_mut().expect(\"root is always open\");",
+          "suggestedReplacement": null,
+          "suggestionApplicability": null,
+          "hasExpansion": false,
+          "evidence": [
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "argument requires that `**parent` is borrowed for `'tree`"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let parent = self.stack.last_mut().expect(\"root is always open\");"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "children": [],
+      "rendered": "error[E0499]: cannot borrow `parent.children` as mutable more than once at a time\n  --> src/lib.rs:72:9\n   |\n51 | impl<'tree> DomHandler<'tree> {\n   |      ----- lifetime `'tree` defined here\n...\n70 |         let parent = self.stack.last_mut().expect(\"root is always open\");\n   |                      --------------------- argument requires that `**parent` is borrowed for `'tree`\n71 |         let child = Node::text(value, *parent);\n   |                                       ------- first mutable borrow occurs here\n72 |         parent.children.push(child);\n   |         ^^^^^^^^^^^^^^^ second mutable borrow occurs here\n\n",
+      "events": [
+        {
+          "id": "diagnostic-6-event-1",
+          "diagnosticId": "diagnostic-6",
+          "kind": "borrow_mut",
+          "role": "cause",
+          "place": "parent.children",
+          "spanId": "diagnostic-6-span-1",
+          "message": "first mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::text(value, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-6-event-2",
+          "diagnosticId": "diagnostic-6",
+          "kind": "borrow_mut_request",
+          "role": "conflict",
+          "place": "parent.children",
+          "spanId": "diagnostic-6-span-2",
+          "message": "second mutable borrow occurs here",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        parent.children.push(child);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "fixStrategies": [
+        {
+          "id": "diagnostic-6-fix-1",
+          "diagnosticId": "diagnostic-6",
+          "kind": "split_scope",
+          "title": "Shorten the first mutable borrow scope",
+          "rationale": "End the first mutable borrow before requesting another mutable borrow of the same value.",
+          "tradeOffs": [
+            "Keeps exclusive access clear to the compiler.",
+            "May require introducing a smaller block or moving the last use earlier."
+          ],
+          "spanId": "diagnostic-6-span-1",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "first mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        let child = Node::text(value, *parent);"
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "id": "diagnostic-6-fix-2",
+          "diagnosticId": "diagnostic-6",
+          "kind": "move_timing",
+          "title": "Reorder the second mutable operation after the first borrow ends",
+          "rationale": "The second mutable borrow is valid once the first mutable reference is no longer used.",
+          "tradeOffs": [
+            "Preserves mutation semantics without cloning.",
+            "Can change behavior if the two operations were intentionally interleaved."
+          ],
+          "spanId": "diagnostic-6-span-2",
+          "evidence": [
+            {
+              "source": "diagnostic_code",
+              "field": "code",
+              "value": "E0499"
+            },
+            {
+              "source": "rustc_primary_span",
+              "field": "is_primary",
+              "value": true
+            },
+            {
+              "source": "rustc_span_label",
+              "field": "label",
+              "value": "second mutable borrow occurs here"
+            },
+            {
+              "source": "rustc_span_text",
+              "field": "text",
+              "value": "        parent.children.push(child);"
+            }
+          ],
+          "confidence": "high"
+        }
+      ],
+      "learnerSummary": {
+        "audience": "intermediate",
+        "whatHappened": "parent.children has overlapping mutable-borrow scopes.",
+        "whyItMatters": "The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.",
+        "nextStep": "Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.",
+        "conceptTerms": [
+          "mutable borrow",
+          "borrow scope",
+          "conflict"
+        ],
+        "evidence": [
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "first mutable borrow occurs here"
+          },
+          {
+            "source": "diagnostic_code",
+            "field": "code",
+            "value": "E0499"
+          },
+          {
+            "source": "rustc_primary_span",
+            "field": "is_primary",
+            "value": true
+          },
+          {
+            "source": "rustc_span_label",
+            "field": "label",
+            "value": "second mutable borrow occurs here"
+          }
+        ],
+        "confidence": "high"
+      }
+    },
+    {
+      "id": "diagnostic-7",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "Some errors have detailed explanations: E0499, E0505, E0515.",
+      "spans": [],
+      "children": [],
+      "rendered": "Some errors have detailed explanations: E0499, E0505, E0515.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    },
+    {
+      "id": "diagnostic-8",
+      "code": null,
+      "supported": false,
+      "level": "failure-note",
+      "message": "For more information about an error, try `rustc --explain E0499`.",
+      "spans": [],
+      "children": [],
+      "rendered": "For more information about an error, try `rustc --explain E0499`.\n",
+      "events": [],
+      "unsupportedReason": "Diagnostic does not include a rustc error code."
+    }
+  ]
+}
