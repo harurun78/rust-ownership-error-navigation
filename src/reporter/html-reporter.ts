@@ -1,4 +1,5 @@
 import type {
+  DesignSuggestion,
   DiagnosticRecord,
   DiagnosticReport,
   OwnershipEvent
@@ -152,17 +153,42 @@ function renderDesignSuggestions(diagnostics: readonly DiagnosticRecord[]): stri
   const rows = diagnostics.flatMap((diagnostic) =>
     (diagnostic.designSuggestions ?? []).map(
       (suggestion) =>
-        `<tr><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(suggestion.kind)}</td><td>${escapeHtml(suggestion.title)}</td><td>${escapeHtml(suggestion.why)}</td><td>${escapeHtml(suggestion.whenToUse)}</td><td>${escapeHtml(suggestion.caution)}</td><td>${escapeHtml(suggestion.confidence)}</td></tr>`
+        `<tr><td>${escapeHtml(diagnostic.code ?? 'unknown')}</td><td>${escapeHtml(suggestion.kind)}</td><td>${escapeHtml(suggestion.title)}</td><td>${escapeHtml(designTranslationFor(suggestion))}</td><td>${escapeHtml(suggestion.why)}</td><td>${escapeHtml(suggestion.whenToUse)}</td><td>${escapeHtml(suggestion.caution)}</td><td>${escapeHtml(suggestion.confidence)}</td></tr>`
     )
   );
 
   return `<section id="design-direction">
 	<h2>Design Direction</h2>
 	<table>
-		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Why</th><th>When To Use</th><th>Caution</th><th>Confidence</th></tr></thead>
-		<tbody>${rows.join('\n') || '<tr><td colspan="7">No design suggestions</td></tr>'}</tbody>
+		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Design Translation</th><th>Why</th><th>When To Use</th><th>Caution</th><th>Confidence</th></tr></thead>
+		<tbody>${rows.join('\n') || '<tr><td colspan="8">No design suggestions</td></tr>'}</tbody>
 	</table>
 </section>`;
+}
+
+function designTranslationFor(suggestion: DesignSuggestion): string {
+  switch (suggestion.kind) {
+    case 'arena-backed-tree':
+      return 'Direct object references to arena-owned nodes with parent and child IDs.';
+    case 'stable-node-id':
+      return 'Stored node references to stable NodeId values resolved through the arena.';
+    case 'avoid-self-referential-struct':
+      return 'Self-referential local borrows to owned storage, indexes, or IDs.';
+    case 'avoid-long-lived-buffer-borrow':
+      return 'Stored borrowed buffer views to spans or owned parse records.';
+    case 'split-mutation-phase':
+      return 'Interleaved reads and mutations to separate read and mutation phases.';
+    case 'owned-result':
+      return 'Output mutation or moved-value reuse to an owned return value or result.';
+    case 'short-borrow-callback':
+      return 'Stored callback borrows to callback invocation over short-lived event views.';
+    case 'avoid-c-style-out-param':
+      return 'C-style output slots to returned values or builders.';
+    case 'builder':
+      return 'Partially mutable construction to an explicit builder boundary.';
+    case 'state-machine':
+      return 'Ad hoc mutable state to explicit Rust state transitions.';
+  }
 }
 
 function diagnosticGroupLabel(diagnostic: DiagnosticRecord): string {

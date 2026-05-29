@@ -26,9 +26,9 @@ Issue: #62
 
 Issue: #63
 
-- [ ] A010 Improve `src/reporter/html-reporter.ts` rendering for design translation language.
-- [ ] A011 Add HTML reporter coverage for arena/tree suggestions.
+- [x] A010 Improve `src/reporter/html-reporter.ts` rendering for design translation language.
+- [x] A011 Add HTML reporter coverage for arena/tree suggestions.
 
 ## Phase 5: Verification
 
-- [ ] A012 Run `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, and `npm run build`.
+- [x] A012 Run `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:run`, and `npm run build`.
