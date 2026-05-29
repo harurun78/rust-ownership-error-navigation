@@ -193,13 +193,13 @@ describe('deterministic design suggestions', () => {
     );
   });
 
-  it('adds self-referential guidance to unsupported E0505 move-after-borrow diagnostics', () => {
+  it('adds self-referential guidance to unsupported E0505 construction diagnostics', () => {
     const [diagnostic] = mapDiagnostics([
       createUnsupportedSelfReferentialDiagnostic({
         code: 'E0505',
         message: 'cannot move out of `root` because it is borrowed',
         primaryLabel: 'move out of `root` occurs here',
-        primarySnippet: 'root,',
+        primarySnippet: 'Self { root, stack: vec![root_ref] }',
         causeLabel: 'borrow of `root` occurs here',
         causeSnippet: 'let root_ref = &mut root;'
       })
@@ -209,6 +209,22 @@ describe('deterministic design suggestions', () => {
     expect(diagnostic?.designSuggestions?.map((suggestion) => suggestion.kind)).toEqual([
       'avoid-self-referential-struct'
     ]);
+  });
+
+  it('does not add self-referential guidance to ordinary unsupported E0505 move-after-borrow diagnostics', () => {
+    const [diagnostic] = mapDiagnostics([
+      createUnsupportedSelfReferentialDiagnostic({
+        code: 'E0505',
+        message: 'cannot move out of `value` because it is borrowed',
+        primaryLabel: 'move out of `value` occurs here',
+        primarySnippet: 'consume(value);',
+        causeLabel: 'borrow of `value` occurs here',
+        causeSnippet: 'let borrowed = &value;'
+      })
+    ]);
+
+    expect(diagnostic?.supported).toBe(false);
+    expect(diagnostic?.designSuggestions).toBeUndefined();
   });
 });
 

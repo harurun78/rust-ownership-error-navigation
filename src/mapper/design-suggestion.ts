@@ -301,18 +301,34 @@ function findTreePressureTerm(diagnostic: DiagnosticRecord): string | undefined 
 
 function findSelfReferentialPressureTerm(diagnostic: DiagnosticRecord): string | undefined {
   const text = textEvidence(diagnostic);
-  const terms = [
-    'cannot return value referencing local variable',
-    'returns a value referencing data owned by the current function',
-    'cannot move out',
-    'because it is borrowed',
+
+  if (diagnostic.code === 'E0515') {
+    const returnTerms = [
+      'cannot return value referencing local variable',
+      'returns a value referencing data owned by the current function',
+      'returning this value requires',
+      'local variable'
+    ];
+
+    return returnTerms.find((term) => text.includes(term));
+  }
+
+  const moveAfterBorrow = text.includes('cannot move out') && text.includes('borrow');
+  if (!moveAfterBorrow) {
+    return undefined;
+  }
+
+  const constructionTerms = [
     'returning this value requires',
-    'borrowed here',
     'self-referential',
+    'self {',
+    'struct {',
+    'stack: vec!',
+    'root_ref',
     'local variable'
   ];
 
-  return terms.find((term) => text.includes(term));
+  return constructionTerms.find((term) => text.includes(term));
 }
 
 function textEvidence(diagnostic: DiagnosticRecord): string {
