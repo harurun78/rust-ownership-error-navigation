@@ -76,11 +76,11 @@ describe('diagnostic report JSON schema', () => {
       {
         id: 'design-1',
         diagnosticId: diagnostic.id,
-        kind: 'split-mutation-phase',
-        title: 'Split reading and mutation into separate phases',
-        why: 'A borrow conflict keeps one borrow alive while another mutation is requested.',
-        whenToUse: 'Use when the read can finish before mutation begins.',
-        caution: 'Preserve observable operation ordering.',
+        kind: 'arena-backed-tree',
+        title: 'Use arena-backed tree storage',
+        why: 'A tree borrow conflict keeps parent and child mutation tied to direct references.',
+        whenToUse: 'Use when object-graph identity needs to survive across tree mutation steps.',
+        caution: 'Preserve observable parent and child traversal behavior.',
         evidence,
         confidence: 'medium'
       }
