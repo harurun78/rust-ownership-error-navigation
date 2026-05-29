@@ -56,7 +56,10 @@ export type DesignSuggestionKind =
   | 'short-borrow-callback'
   | 'split-mutation-phase'
   | 'avoid-c-style-out-param'
-  | 'avoid-long-lived-buffer-borrow';
+  | 'avoid-long-lived-buffer-borrow'
+  | 'arena-backed-tree'
+  | 'stable-node-id'
+  | 'avoid-self-referential-struct';
 
 export interface DesignSuggestion {
   id: string;

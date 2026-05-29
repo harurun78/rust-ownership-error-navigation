@@ -9,10 +9,10 @@
 
 Issue: #61
 
-- [ ] A003 Extend `DesignSuggestionKind` in `src/mapper/ownership-event.ts` with `arena-backed-tree`, `stable-node-id`, and `avoid-self-referential-struct`.
-- [ ] A004 Add deterministic E0499/E0502 arena/tree suggestion rules in `src/mapper/design-suggestion.ts`.
-- [ ] A005 Add mapper tests for DOM-like E0499 evidence in `test/mapper/design-suggestion.test.ts`.
-- [ ] A006 Update `docs/navigation-suggestion-design.md` with arena/tree rules.
+- [x] A003 Extend `DesignSuggestionKind` in `src/mapper/ownership-event.ts` with `arena-backed-tree`, `stable-node-id`, and `avoid-self-referential-struct`.
+- [x] A004 Add deterministic E0499/E0502 arena/tree suggestion rules in `src/mapper/design-suggestion.ts`.
+- [x] A005 Add mapper tests for DOM-like E0499 evidence in `test/mapper/design-suggestion.test.ts`.
+- [x] A006 Update `docs/navigation-suggestion-design.md` with arena/tree rules.
 
 ## Phase 3: P1 Self-Referential Guidance
 

@@ -45,7 +45,10 @@ type DesignSuggestionKind =
   | "short-borrow-callback"
   | "split-mutation-phase"
   | "avoid-c-style-out-param"
-  | "avoid-long-lived-buffer-borrow";
+  | "avoid-long-lived-buffer-borrow"
+  | "arena-backed-tree"
+  | "stable-node-id"
+  | "avoid-self-referential-struct";
 
 interface DesignSuggestion {
   kind: DesignSuggestionKind;
@@ -69,6 +72,7 @@ Keep suggestions non-mutating. Do not emit patches in this feature.
 | E0382 with moved value later reused and child note suggests borrowing | accept borrowed parameter or return owned value from builder | high |
 | span snippets include `&mut self` across multiple conflicting methods | split context into phase-specific structs | medium |
 | snippets include `Option<&`, `Vec<&`, or struct fields with borrowed data in validation target | prefer owned parse records over long-lived buffer borrows | medium |
+| E0499/E0502 evidence mentions parent/child/node/root/stack tree mutation | store nodes in an arena and link them with stable node IDs | medium |
 | E0308 around expected mutable reference or pointer-like type | replace C out-parameter shape with return value when behavior-only track allows it | medium |
 | E0425 after compatibility-preserving port references C helper name | resolve missing API shim before ownership redesign | high |
 
@@ -111,5 +115,15 @@ The first deterministic slice is implemented as local mapper rules. It does not 
 - `split-mutation-phase`: emitted for E0499/E0502 records with cause, conflict, and context events.
 - `avoid-long-lived-buffer-borrow`: emitted for E0499/E0502 records when local text evidence mentions parser, stream, input, output, or buffer pressure.
 - `owned-result`: emitted for E0382 moved-value reuse and E0308 type-boundary pressure.
+
+## Arena And Tree Slice
+
+Validation with `domhandler-tree-builder` showed that JavaScript-style object graphs with direct parent and child references produce strong Rust ownership pressure. The first compatibility attempt produced E0499 around `parent.children` and `self.stack`; the repaired implementation used an owned node arena plus `NodeId` links.
+
+The deterministic rule set now includes:
+
+- `arena-backed-tree`: emitted for E0499/E0502 records when evidence mentions DOM/tree/object graph pressure such as `parent.children`, `child list`, `node`, `root`, or `stack`.
+- `stable-node-id`: emitted alongside arena guidance when parent, child, or stack links should remember identity without storing long-lived Rust references.
+- `avoid-self-referential-struct`: reserved for the follow-up self-referential diagnostics slice covering E0505/E0515 guidance.
 
 Reports expose these under optional `designSuggestions` in JSON and a `Design Direction` section in static HTML.
