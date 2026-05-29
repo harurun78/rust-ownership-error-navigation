@@ -1,0 +1,8 @@
+[package]
+name = "domhandler_compat_validation"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "domhandler_compat_validation"
+path = "src/lib.rs"

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Rust Ownership Diagnostic Report</title>
+	<style>
+		body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
+		table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }
+		th, td { border: 1px solid #d0d7de; padding: 0.5rem; text-align: left; vertical-align: top; }
+		th { background: #f6f8fa; }
+		code, pre { background: #f6f8fa; padding: 0.125rem 0.25rem; }
+		pre { overflow-x: auto; padding: 0.75rem; }
+	</style>
+</head>
+<body>
+	<h1>Rust Ownership Diagnostic Report</h1>
+	<section id="summary">
+	<h2>Summary</h2>
+	<table>
+		<tbody>
+			<tr><th>Input</th><td>validation/ports/domhandler-tree-builder/reports/compatibility/iteration-001/cargo-check.jsonl</td></tr>
+			<tr><th>Total Diagnostics</th><td>8</td></tr>
+			<tr><th>Supported Diagnostics</th><td>4</td></tr>
+			<tr><th>Unsupported Diagnostics</th><td>4</td></tr>
+		</tbody>
+	</table>
+</section>
+  <section id="recommended-first-fixes">
+	<h2>Recommended First Fixes</h2>
+	<table>
+		<thead><tr><th>Priority</th><th>Code</th><th>Diagnostic</th><th>Reason</th><th>Next Step</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td>1</td><td>E0499</td><td>diagnostic-3</td><td>Remove overlapping mutable borrows so each mutation has exclusive access.</td><td>Shorten the first mutable borrow scope</td><td>high</td></tr>
+<tr><td>2</td><td>E0499</td><td>diagnostic-4</td><td>Remove overlapping mutable borrows so each mutation has exclusive access.</td><td>Shorten the first mutable borrow scope</td><td>high</td></tr>
+<tr><td>3</td><td>E0499</td><td>diagnostic-5</td><td>Remove overlapping mutable borrows so each mutation has exclusive access.</td><td>Shorten the first mutable borrow scope</td><td>high</td></tr>
+<tr><td>4</td><td>E0499</td><td>diagnostic-6</td><td>Remove overlapping mutable borrows so each mutation has exclusive access.</td><td>Shorten the first mutable borrow scope</td><td>high</td></tr></tbody>
+	</table>
+</section>
+	<section id="learner-summaries">
+	<h2>Learner Summaries</h2>
+	<article class="learner-summary-card" id="learner-summary-8f16b0356145">
+		<h3>E0499 learner summary</h3>
+		<table>
+			<tbody>
+				<tr><th>Audience</th><td>intermediate</td></tr>
+				<tr><th>What Happened</th><td>parent.children has overlapping mutable-borrow scopes.</td></tr>
+				<tr><th>Why It Matters</th><td>The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.</td></tr>
+				<tr><th>Next Step</th><td>Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.</td></tr>
+				<tr><th>Concepts</th><td>mutable borrow, borrow scope, conflict</td></tr>
+				<tr><th>Confidence</th><td>high</td></tr>
+			</tbody>
+		</table>
+	</article>
+<article class="learner-summary-card" id="learner-summary-192e61c9334f">
+		<h3>E0499 learner summary</h3>
+		<table>
+			<tbody>
+				<tr><th>Audience</th><td>intermediate</td></tr>
+				<tr><th>What Happened</th><td>parent.children has overlapping mutable-borrow scopes.</td></tr>
+				<tr><th>Why It Matters</th><td>The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.</td></tr>
+				<tr><th>Next Step</th><td>Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.</td></tr>
+				<tr><th>Concepts</th><td>mutable borrow, borrow scope, conflict</td></tr>
+				<tr><th>Confidence</th><td>high</td></tr>
+			</tbody>
+		</table>
+	</article>
+<article class="learner-summary-card" id="learner-summary-22d33ea80860">
+		<h3>E0499 learner summary</h3>
+		<table>
+			<tbody>
+				<tr><th>Audience</th><td>intermediate</td></tr>
+				<tr><th>What Happened</th><td>self.stack has overlapping mutable-borrow scopes.</td></tr>
+				<tr><th>Why It Matters</th><td>The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.</td></tr>
+				<tr><th>Next Step</th><td>Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.</td></tr>
+				<tr><th>Concepts</th><td>mutable borrow, borrow scope, conflict</td></tr>
+				<tr><th>Confidence</th><td>high</td></tr>
+			</tbody>
+		</table>
+	</article>
+<article class="learner-summary-card" id="learner-summary-d976eb991629">
+		<h3>E0499 learner summary</h3>
+		<table>
+			<tbody>
+				<tr><th>Audience</th><td>intermediate</td></tr>
+				<tr><th>What Happened</th><td>parent.children has overlapping mutable-borrow scopes.</td></tr>
+				<tr><th>Why It Matters</th><td>The borrow scopes overlap across an operation boundary, so the second mutable access cannot be proven exclusive.</td></tr>
+				<tr><th>Next Step</th><td>Shorten the first borrow scope, split the operation into phases, or move the second mutable access behind the first borrow boundary.</td></tr>
+				<tr><th>Concepts</th><td>mutable borrow, borrow scope, conflict</td></tr>
+				<tr><th>Confidence</th><td>high</td></tr>
+			</tbody>
+		</table>
+	</article>
+</section>
+	<section id="diagnostic-groups">
+	<h2>Diagnostic Groups</h2>
+	<table>
+		<thead><tr><th>Group</th><th>Count</th><th>Codes</th></tr></thead>
+		<tbody><tr><td>Ownership</td><td>4</td><td>E0499, E0499, E0499, E0499</td></tr>
+<tr><td>Non-Ownership</td><td>0</td><td>none</td></tr>
+<tr><td>Unsupported</td><td>4</td><td>E0515, E0505, unknown, unknown</td></tr></tbody>
+	</table>
+</section>
+	<section id="diagnostics">
+	<h2>Diagnostics</h2>
+	<table>
+		<thead><tr><th>ID</th><th>Group</th><th>Code</th><th>Message</th><th>Status</th></tr></thead>
+		<tbody><tr><td>diagnostic-1</td><td>unsupported</td><td>E0515</td><td>cannot return value referencing local variable `root`</td><td>unsupported</td></tr>
+<tr><td>diagnostic-2</td><td>unsupported</td><td>E0505</td><td>cannot move out of `root` because it is borrowed</td><td>unsupported</td></tr>
+<tr><td>diagnostic-3</td><td>ownership</td><td>E0499</td><td>cannot borrow `parent.children` as mutable more than once at a time</td><td>supported</td></tr>
+<tr><td>diagnostic-4</td><td>ownership</td><td>E0499</td><td>cannot borrow `parent.children` as mutable more than once at a time</td><td>supported</td></tr>
+<tr><td>diagnostic-5</td><td>ownership</td><td>E0499</td><td>cannot borrow `self.stack` as mutable more than once at a time</td><td>supported</td></tr>
+<tr><td>diagnostic-6</td><td>ownership</td><td>E0499</td><td>cannot borrow `parent.children` as mutable more than once at a time</td><td>supported</td></tr>
+<tr><td>diagnostic-7</td><td>unsupported</td><td>unknown</td><td>Some errors have detailed explanations: E0499, E0505, E0515.</td><td>unsupported</td></tr>
+<tr><td>diagnostic-8</td><td>unsupported</td><td>unknown</td><td>For more information about an error, try `rustc --explain E0499`.</td><td>unsupported</td></tr></tbody>
+	</table>
+</section>
+  <section id="fix-strategies">
+	<h2>Fix Strategies</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Rationale</th><th>Trade-offs</th><th>Span</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td>E0499</td><td>split_scope</td><td>Shorten the first mutable borrow scope</td><td>End the first mutable borrow before requesting another mutable borrow of the same value.</td><td>Keeps exclusive access clear to the compiler. May require introducing a smaller block or moving the last use earlier.</td><td>diagnostic-3-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>move_timing</td><td>Reorder the second mutable operation after the first borrow ends</td><td>The second mutable borrow is valid once the first mutable reference is no longer used.</td><td>Preserves mutation semantics without cloning. Can change behavior if the two operations were intentionally interleaved.</td><td>diagnostic-3-span-2</td><td>high</td></tr>
+<tr><td>E0499</td><td>split_scope</td><td>Shorten the first mutable borrow scope</td><td>End the first mutable borrow before requesting another mutable borrow of the same value.</td><td>Keeps exclusive access clear to the compiler. May require introducing a smaller block or moving the last use earlier.</td><td>diagnostic-4-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>move_timing</td><td>Reorder the second mutable operation after the first borrow ends</td><td>The second mutable borrow is valid once the first mutable reference is no longer used.</td><td>Preserves mutation semantics without cloning. Can change behavior if the two operations were intentionally interleaved.</td><td>diagnostic-4-span-2</td><td>high</td></tr>
+<tr><td>E0499</td><td>split_scope</td><td>Shorten the first mutable borrow scope</td><td>End the first mutable borrow before requesting another mutable borrow of the same value.</td><td>Keeps exclusive access clear to the compiler. May require introducing a smaller block or moving the last use earlier.</td><td>diagnostic-5-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>move_timing</td><td>Reorder the second mutable operation after the first borrow ends</td><td>The second mutable borrow is valid once the first mutable reference is no longer used.</td><td>Preserves mutation semantics without cloning. Can change behavior if the two operations were intentionally interleaved.</td><td>diagnostic-5-span-2</td><td>high</td></tr>
+<tr><td>E0499</td><td>split_scope</td><td>Shorten the first mutable borrow scope</td><td>End the first mutable borrow before requesting another mutable borrow of the same value.</td><td>Keeps exclusive access clear to the compiler. May require introducing a smaller block or moving the last use earlier.</td><td>diagnostic-6-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>move_timing</td><td>Reorder the second mutable operation after the first borrow ends</td><td>The second mutable borrow is valid once the first mutable reference is no longer used.</td><td>Preserves mutation semantics without cloning. Can change behavior if the two operations were intentionally interleaved.</td><td>diagnostic-6-span-2</td><td>high</td></tr></tbody>
+	</table>
+</section>
+  <section id="design-direction">
+	<h2>Design Direction</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Title</th><th>Why</th><th>When To Use</th><th>Caution</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td colspan="7">No design suggestions</td></tr></tbody>
+	</table>
+</section>
+	<section id="causality-timeline">
+	<h2>Causality Timeline</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Role</th><th>Kind</th><th>Message</th><th>Span</th></tr></thead>
+		<tbody><tr id="event-2463091f69cc"><td>E0499</td><td>cause</td><td>borrow_mut</td><td>first mutable borrow occurs here</td><td>diagnostic-3-span-1</td></tr>
+<tr id="event-24b396d7fea9"><td>E0499</td><td>conflict</td><td>borrow_mut_request</td><td>second mutable borrow occurs here</td><td>diagnostic-3-span-2</td></tr>
+<tr id="event-160a412a1348"><td>E0499</td><td>cause</td><td>borrow_mut</td><td>first mutable borrow occurs here</td><td>diagnostic-4-span-1</td></tr>
+<tr id="event-bef6ca932bff"><td>E0499</td><td>conflict</td><td>borrow_mut_request</td><td>second mutable borrow occurs here</td><td>diagnostic-4-span-2</td></tr>
+<tr id="event-a9114586e5f0"><td>E0499</td><td>cause</td><td>borrow_mut</td><td>first mutable borrow occurs here</td><td>diagnostic-5-span-1</td></tr>
+<tr id="event-4b6216109573"><td>E0499</td><td>conflict</td><td>borrow_mut_request</td><td>second mutable borrow occurs here</td><td>diagnostic-5-span-2</td></tr>
+<tr id="event-fd156f60a675"><td>E0499</td><td>cause</td><td>borrow_mut</td><td>first mutable borrow occurs here</td><td>diagnostic-6-span-1</td></tr>
+<tr id="event-4b9a5ba3d1b7"><td>E0499</td><td>conflict</td><td>borrow_mut_request</td><td>second mutable borrow occurs here</td><td>diagnostic-6-span-2</td></tr></tbody>
+	</table>
+</section>
+	<section id="source-spans">
+	<h2>Source Spans</h2>
+	<table>
+		<thead><tr><th>Diagnostic</th><th>Role</th><th>Location</th><th>Label</th><th>Snippet</th></tr></thead>
+		<tbody><tr><td>diagnostic-1</td><td>unknown</td><td>src/lib.rs:55:9</td><td>returns a value referencing data owned by the current function</td><td><pre>        Self {
+            root,
+            stack: vec![root_ref],
+        }</pre></td></tr>
+<tr><td>diagnostic-1</td><td>unknown</td><td>src/lib.rs:54:24</td><td>`root` is borrowed here</td><td><pre>        let root_ref = &amp;mut root;</pre></td></tr>
+<tr><td>diagnostic-2</td><td>unknown</td><td>src/lib.rs:56:13</td><td>move out of `root` occurs here</td><td><pre>            root,</pre></td></tr>
+<tr><td>diagnostic-2</td><td>unknown</td><td>src/lib.rs:54:24</td><td>borrow of `root` occurs here</td><td><pre>        let root_ref = &amp;mut root;</pre></td></tr>
+<tr><td>diagnostic-2</td><td>unknown</td><td>src/lib.rs:53:13</td><td>binding `root` declared here</td><td><pre>        let mut root = Node::root();</pre></td></tr>
+<tr><td>diagnostic-2</td><td>unknown</td><td>src/lib.rs:51:6</td><td>lifetime `&#39;tree` defined here</td><td><pre>impl&lt;&#39;tree&gt; DomHandler&lt;&#39;tree&gt; {</pre></td></tr>
+<tr><td>diagnostic-2</td><td>unknown</td><td>src/lib.rs:55:9</td><td>returning this value requires that `root` is borrowed for `&#39;tree`</td><td><pre>        Self {
+            root,
+            stack: vec![root_ref],
+        }</pre></td></tr>
+<tr><td>diagnostic-3</td><td>cause</td><td>src/lib.rs:63:41</td><td>first mutable borrow occurs here</td><td><pre>        let child = Node::element(name, *parent);</pre></td></tr>
+<tr><td>diagnostic-3</td><td>conflict</td><td>src/lib.rs:64:9</td><td>second mutable borrow occurs here</td><td><pre>        parent.children.push(child);</pre></td></tr>
+<tr><td>diagnostic-3</td><td>unknown</td><td>src/lib.rs:51:6</td><td>lifetime `&#39;tree` defined here</td><td><pre>impl&lt;&#39;tree&gt; DomHandler&lt;&#39;tree&gt; {</pre></td></tr>
+<tr><td>diagnostic-3</td><td>unknown</td><td>src/lib.rs:62:22</td><td>argument requires that `**parent` is borrowed for `&#39;tree`</td><td><pre>        let parent = self.stack.last_mut().expect(&quot;root is always open&quot;);</pre></td></tr>
+<tr><td>diagnostic-4</td><td>cause</td><td>src/lib.rs:63:41</td><td>first mutable borrow occurs here</td><td><pre>        let child = Node::element(name, *parent);</pre></td></tr>
+<tr><td>diagnostic-4</td><td>conflict</td><td>src/lib.rs:65:25</td><td>second mutable borrow occurs here</td><td><pre>        let child_ref = parent.children.last_mut().expect(&quot;child was just pushed&quot;);</pre></td></tr>
+<tr><td>diagnostic-4</td><td>unknown</td><td>src/lib.rs:51:6</td><td>lifetime `&#39;tree` defined here</td><td><pre>impl&lt;&#39;tree&gt; DomHandler&lt;&#39;tree&gt; {</pre></td></tr>
+<tr><td>diagnostic-4</td><td>unknown</td><td>src/lib.rs:62:22</td><td>argument requires that `**parent` is borrowed for `&#39;tree`</td><td><pre>        let parent = self.stack.last_mut().expect(&quot;root is always open&quot;);</pre></td></tr>
+<tr><td>diagnostic-5</td><td>cause</td><td>src/lib.rs:62:22</td><td>first mutable borrow occurs here</td><td><pre>        let parent = self.stack.last_mut().expect(&quot;root is always open&quot;);</pre></td></tr>
+<tr><td>diagnostic-5</td><td>conflict</td><td>src/lib.rs:66:9</td><td>second mutable borrow occurs here</td><td><pre>        self.stack.push(child_ref);</pre></td></tr>
+<tr><td>diagnostic-5</td><td>unknown</td><td>src/lib.rs:51:6</td><td>lifetime `&#39;tree` defined here</td><td><pre>impl&lt;&#39;tree&gt; DomHandler&lt;&#39;tree&gt; {</pre></td></tr>
+<tr><td>diagnostic-5</td><td>unknown</td><td>src/lib.rs:62:22</td><td>argument requires that `self.stack` is borrowed for `&#39;tree`</td><td><pre>        let parent = self.stack.last_mut().expect(&quot;root is always open&quot;);</pre></td></tr>
+<tr><td>diagnostic-6</td><td>cause</td><td>src/lib.rs:71:39</td><td>first mutable borrow occurs here</td><td><pre>        let child = Node::text(value, *parent);</pre></td></tr>
+<tr><td>diagnostic-6</td><td>conflict</td><td>src/lib.rs:72:9</td><td>second mutable borrow occurs here</td><td><pre>        parent.children.push(child);</pre></td></tr>
+<tr><td>diagnostic-6</td><td>unknown</td><td>src/lib.rs:51:6</td><td>lifetime `&#39;tree` defined here</td><td><pre>impl&lt;&#39;tree&gt; DomHandler&lt;&#39;tree&gt; {</pre></td></tr>
+<tr><td>diagnostic-6</td><td>unknown</td><td>src/lib.rs:70:22</td><td>argument requires that `**parent` is borrowed for `&#39;tree`</td><td><pre>        let parent = self.stack.last_mut().expect(&quot;root is always open&quot;);</pre></td></tr></tbody>
+	</table>
+</section>
+	<section id="evidence">
+	<h2>Evidence</h2>
+	<table>
+		<thead><tr><th>Event</th><th>Source</th><th>Field</th><th>Value</th></tr></thead>
+		<tbody><tr><td>borrow_mut</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_label</td><td>label</td><td>first mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_text</td><td>text</td><td>        let child = Node::element(name, *parent);</td></tr>
+<tr><td>borrow_mut_request</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_primary_span</td><td>is_primary</td><td>true</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_label</td><td>label</td><td>second mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_text</td><td>text</td><td>        parent.children.push(child);</td></tr>
+<tr><td>borrow_mut</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_label</td><td>label</td><td>first mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_text</td><td>text</td><td>        let child = Node::element(name, *parent);</td></tr>
+<tr><td>borrow_mut_request</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_primary_span</td><td>is_primary</td><td>true</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_label</td><td>label</td><td>second mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_text</td><td>text</td><td>        let child_ref = parent.children.last_mut().expect(&quot;child was just pushed&quot;);</td></tr>
+<tr><td>borrow_mut</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_label</td><td>label</td><td>first mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_text</td><td>text</td><td>        let parent = self.stack.last_mut().expect(&quot;root is always open&quot;);</td></tr>
+<tr><td>borrow_mut_request</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_primary_span</td><td>is_primary</td><td>true</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_label</td><td>label</td><td>second mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_text</td><td>text</td><td>        self.stack.push(child_ref);</td></tr>
+<tr><td>borrow_mut</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_label</td><td>label</td><td>first mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut</td><td>rustc_span_text</td><td>text</td><td>        let child = Node::text(value, *parent);</td></tr>
+<tr><td>borrow_mut_request</td><td>diagnostic_code</td><td>code</td><td>E0499</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_primary_span</td><td>is_primary</td><td>true</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_label</td><td>label</td><td>second mutable borrow occurs here</td></tr>
+<tr><td>borrow_mut_request</td><td>rustc_span_text</td><td>text</td><td>        parent.children.push(child);</td></tr></tbody>
+	</table>
+</section>
+	<section id="borrow-sheet">
+	<h2>Borrow Sheet</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Kind</th><th>Role</th><th>Place</th><th>Message</th><th>Span</th><th>Confidence</th></tr></thead>
+		<tbody><tr><td>E0499</td><td>borrow_mut</td><td>cause</td><td>parent.children</td><td>first mutable borrow occurs here</td><td>diagnostic-3-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>borrow_mut_request</td><td>conflict</td><td>parent.children</td><td>second mutable borrow occurs here</td><td>diagnostic-3-span-2</td><td>high</td></tr>
+<tr><td>E0499</td><td>borrow_mut</td><td>cause</td><td>parent.children</td><td>first mutable borrow occurs here</td><td>diagnostic-4-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>borrow_mut_request</td><td>conflict</td><td>parent.children</td><td>second mutable borrow occurs here</td><td>diagnostic-4-span-2</td><td>high</td></tr>
+<tr><td>E0499</td><td>borrow_mut</td><td>cause</td><td>self.stack</td><td>first mutable borrow occurs here</td><td>diagnostic-5-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>borrow_mut_request</td><td>conflict</td><td>self.stack</td><td>second mutable borrow occurs here</td><td>diagnostic-5-span-2</td><td>high</td></tr>
+<tr><td>E0499</td><td>borrow_mut</td><td>cause</td><td>parent.children</td><td>first mutable borrow occurs here</td><td>diagnostic-6-span-1</td><td>high</td></tr>
+<tr><td>E0499</td><td>borrow_mut_request</td><td>conflict</td><td>parent.children</td><td>second mutable borrow occurs here</td><td>diagnostic-6-span-2</td><td>high</td></tr></tbody>
+	</table>
+</section>
+	<section id="unsupported-diagnostics">
+	<h2>Unsupported Diagnostics</h2>
+	<table>
+		<thead><tr><th>Code</th><th>Message</th><th>Reason</th><th>Rendered</th></tr></thead>
+		<tbody><tr><td>E0515</td><td>cannot return value referencing local variable `root`</td><td>Diagnostic code E0515 is outside the Phase 1 ownership mapping scope.</td><td><pre>error[E0515]: cannot return value referencing local variable `root`
+  --&gt; src/lib.rs:55:9
+   |
+54 |           let root_ref = &amp;mut root;
+   |                          --------- `root` is borrowed here
+55 | /         Self {
+56 | |             root,
+57 | |             stack: vec![root_ref],
+58 | |         }
+   | |_________^ returns a value referencing data owned by the current function
+
+</pre></td></tr>
+<tr><td>E0505</td><td>cannot move out of `root` because it is borrowed</td><td>Diagnostic code E0505 is outside the Phase 1 ownership mapping scope.</td><td><pre>error[E0505]: cannot move out of `root` because it is borrowed
+  --&gt; src/lib.rs:56:13
+   |
+51 |   impl&lt;&#39;tree&gt; DomHandler&lt;&#39;tree&gt; {
+   |        ----- lifetime `&#39;tree` defined here
+52 |       pub fn new() -&gt; Self {
+53 |           let mut root = Node::root();
+   |               -------- binding `root` declared here
+54 |           let root_ref = &amp;mut root;
+   |                          --------- borrow of `root` occurs here
+55 | /         Self {
+56 | |             root,
+   | |             ^^^^ move out of `root` occurs here
+57 | |             stack: vec![root_ref],
+58 | |         }
+   | |_________- returning this value requires that `root` is borrowed for `&#39;tree`
+   |
+note: if `Node&lt;&#39;_&gt;` implemented `Clone`, you could clone the value
+  --&gt; src/lib.rs:9:1
+   |
+ 9 | pub struct Node&lt;&#39;tree&gt; {
+   | ^^^^^^^^^^^^^^^^^^^^^^ consider implementing `Clone` for this type
+...
+54 |         let root_ref = &amp;mut root;
+   |                             ---- you could clone this value
+
+</pre></td></tr>
+<tr><td>unknown</td><td>Some errors have detailed explanations: E0499, E0505, E0515.</td><td>Diagnostic does not include a rustc error code.</td><td><pre>Some errors have detailed explanations: E0499, E0505, E0515.
+</pre></td></tr>
+<tr><td>unknown</td><td>For more information about an error, try `rustc --explain E0499`.</td><td>Diagnostic does not include a rustc error code.</td><td><pre>For more information about an error, try `rustc --explain E0499`.
+</pre></td></tr></tbody>
+	</table>
+</section>
+</body>
+</html>

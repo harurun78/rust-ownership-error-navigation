@@ -5,6 +5,7 @@ This directory tracks C/C++ to Rust porting experiments.
 | Target | Upstream | Status | Why It Fits |
 | --- | --- | --- | --- |
 | cJSON | `DaveGamble/cJSON` | Selected | Compact C JSON parser with tree ownership, string ownership, allocation, and cleanup paths. |
+| domhandler-tree-builder | `fb55/domhandler` | Completed | JavaScript/TypeScript DOM tree builder with parent links, child lists, mutable stacks, and escaping node views. |
 | http-parser-js-streaming | `creationix/http-parser-js` | Completed | JavaScript callback-driven streaming parser shape with parser state, callback hooks, and input buffer slices. |
 | Redis | `redis/redis` | In validation | Streaming RESP parser and server state with mutable buffers, owned command transfer, and multi-client ownership pressure. |
 | sax-js-queued-events | `isaacs/sax-js` | Completed | JavaScript XML streaming tokenizer with queued events, parser buffer views, and callback-style delivery. |
