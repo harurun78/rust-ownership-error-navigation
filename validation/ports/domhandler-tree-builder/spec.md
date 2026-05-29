@@ -24,7 +24,7 @@ Use a `domhandler` style DOM tree builder because it is JavaScript/TypeScript-or
 - Preserve tree-building behavior only.
 - Use owned nodes in an arena with `NodeId` links.
 - Use short mutation phases and no parent/child Rust references stored in nodes.
-- Return deterministic errors for mismatched close tags.
+- Return deterministic errors for extra close tags outside the root frame.
 
 ## Iteration 001 Scope
 

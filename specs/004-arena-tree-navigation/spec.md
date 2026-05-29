@@ -1,8 +1,8 @@
 # Feature Specification: Arena And Tree Navigation Suggestions
 
-**Feature Branch**: `004-arena-tree-navigation`  
-**Created**: 2026-05-29  
-**Status**: Draft  
+**Feature Branch**: `004-arena-tree-navigation`
+**Created**: 2026-05-29
+**Status**: Draft
 **Input**: Validation results from `sax-js-queued-events` and `domhandler-tree-builder`
 
 ## User Scenarios & Testing
